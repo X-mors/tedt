@@ -7,21 +7,18 @@
  */
 import type { RentalStatus } from "./rentalStatus";
 
-export interface RentalDetail {
+export interface AdminRentalRow {
   id: number;
   rigId: number;
   rigName: string;
   algorithmName: string;
   algorithmUnit: string;
   renterId: number;
-  renterDisplayName: string;
+  renterEmail: string;
   ownerId: number;
-  ownerDisplayName: string;
+  ownerEmail: string;
   hashrate: number;
   hours: number;
-  basePricePerUnitPerHour: number;
-  renterFeePct: number;
-  ownerFeePct: number;
   renterTotalUsd: number;
   ownerEarningsUsd: number;
   platformFeeUsd: number;
@@ -32,15 +29,5 @@ export interface RentalDetail {
   cancelledAt: Date | null;
   /** @nullable */
   settledAt: Date | null;
-  poolUrl: string;
-  poolWorker: string;
-  poolPassword: string;
-  /** Where the rented rig should connect (placeholder until Stratum proxy ships) */
-  stratumProxyUrl: string;
-  /** Worker name to advertise to the rig (placeholder) */
-  proxyWorker: string;
-  proxyPassword: string;
-  /** @nullable */
-  deliveredHashrateAvg: number | null;
   createdAt: Date;
 }

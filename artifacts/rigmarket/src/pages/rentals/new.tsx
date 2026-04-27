@@ -67,7 +67,7 @@ export default function NewRental() {
         toast({ title: "Rental Deployed", description: "Rig is connecting to your pool" });
         setLocation(`/rentals/${rental.id}`);
       },
-      onError: (err: any) => {
+      onError: (err: Error) => {
         toast({ title: "Deployment Failed", description: err.message || "An error occurred", variant: "destructive" });
       }
     });

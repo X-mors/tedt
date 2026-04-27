@@ -7,8 +7,12 @@
  */
 
 export * from "./adminCreditBody";
+export * from "./adminRentalRow";
+export * from "./adminRigDecisionBody";
+export * from "./adminRigRow";
 export * from "./adminStats";
 export * from "./adminUserRow";
+export * from "./adminWalletTransactionRow";
 export * from "./adminWithdrawalRow";
 export * from "./algorithm";
 export * from "./algorithmHashrateBreakdown";
@@ -27,6 +31,8 @@ export * from "./errorResponse";
 export * from "./forbiddenResponse";
 export * from "./hashSamplePoint";
 export * from "./healthStatus";
+export * from "./listAdminRigsParams";
+export * from "./listAdminWalletTransactionsParams";
 export * from "./listRigsParams";
 export * from "./listRigsSort";
 export * from "./listRigsStatus";
@@ -41,6 +47,7 @@ export * from "./rentalStats";
 export * from "./rentalStatus";
 export * from "./rentalSummary";
 export * from "./review";
+export * from "./rigApprovalStatus";
 export * from "./rigDetail";
 export * from "./rigStatus";
 export * from "./rigSummary";

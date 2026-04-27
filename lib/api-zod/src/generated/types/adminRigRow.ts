@@ -8,24 +8,24 @@
 import type { RigApprovalStatus } from "./rigApprovalStatus";
 import type { RigStatus } from "./rigStatus";
 
-export interface RigSummary {
+export interface AdminRigRow {
   id: number;
   name: string;
+  description: string;
   ownerId: number;
+  ownerEmail: string;
   ownerDisplayName: string;
   algorithmId: number;
   algorithmName: string;
   algorithmUnit: string;
-  /** Advertised hashrate in the algorithm's unit */
   hashrate: number;
-  /** Renter-facing price (already includes the renter commission) */
   pricePerUnitPerHour: number;
-  minRentalHours: number;
-  maxRentalHours: number;
+  region: string;
   status: RigStatus;
   approvalStatus: RigApprovalStatus;
   /** @nullable */
-  averageRating: number | null;
-  reviewCount: number;
+  approvalNote: string | null;
+  /** @nullable */
+  approvedAt: Date | null;
   createdAt: Date;
 }

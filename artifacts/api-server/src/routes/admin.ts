@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { desc, eq, gte, inArray, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -13,13 +13,22 @@ import {
 import {
   AdminCreditWalletBody,
   AdminCreditWalletResponse,
+  ApproveRigBody,
+  ApproveRigResponse,
   ApproveWithdrawalBody,
   ApproveWithdrawalResponse,
   CreateAlgorithmBody,
   GetAdminStatsResponse,
   GetCommissionConfigResponse,
+  ListAdminRentalsResponse,
+  ListAdminRigsQueryParams,
+  ListAdminRigsResponse,
   ListAdminUsersResponse,
+  ListAdminWalletTransactionsQueryParams,
+  ListAdminWalletTransactionsResponse,
   ListAdminWithdrawalsResponse,
+  RejectRigBody,
+  RejectRigResponse,
   RejectWithdrawalBody,
   RejectWithdrawalResponse,
   UpdateAlgorithmBody,
@@ -30,19 +39,22 @@ import {
 import { requireAdmin } from "../lib/auth";
 import { round6, toNum, toUsdString } from "../lib/money";
 import { getCommission } from "../lib/commission";
+import { settleExpiredRentals } from "../lib/settlement";
 
 const router: IRouter = Router();
 
 router.use(requireAdmin);
 
 router.get("/admin/stats", async (_req, res) => {
+  await settleExpiredRentals();
+
   const [users] = await db
     .select({ c: sql<string>`COUNT(*)` })
     .from(usersTable);
   const [rigs] = await db
     .select({
       total: sql<string>`COUNT(*)`,
-      avail: sql<string>`COUNT(*) FILTER (WHERE ${rigsTable.status} = 'available')`,
+      avail: sql<string>`COUNT(*) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved')`,
       rented: sql<string>`COUNT(*) FILTER (WHERE ${rigsTable.status} = 'rented')`,
     })
     .from(rigsTable);
@@ -127,6 +139,49 @@ router.get("/admin/users", async (_req, res) => {
 
 router.post("/admin/wallet/credit", async (req, res) => {
   const body = AdminCreditWalletBody.parse(req.body);
+  const amountStr = toUsdString(body.amountUsd);
+  const isCredit = body.amountUsd >= 0;
+
+  const result = await db.transaction(async (tx) => {
+    // Atomic update — for debits, refuse to drive balance negative.
+    const [adjusted] = await tx
+      .update(usersTable)
+      .set(
+        isCredit
+          ? {
+              balanceUsd: sql`${usersTable.balanceUsd} + ${amountStr}`,
+              totalDepositedUsd: sql`${usersTable.totalDepositedUsd} + ${amountStr}`,
+            }
+          : {
+              balanceUsd: sql`${usersTable.balanceUsd} + ${amountStr}`,
+            },
+      )
+      .where(
+        isCredit
+          ? eq(usersTable.id, body.userId)
+          : sql`${usersTable.id} = ${body.userId} AND ${usersTable.balanceUsd} + ${amountStr} >= 0`,
+      )
+      .returning({ balanceUsd: usersTable.balanceUsd });
+    if (!adjusted) return { error: "balance" as const };
+
+    await tx.insert(walletTransactionsTable).values({
+      userId: body.userId,
+      type: isCredit ? "admin_credit" : "admin_debit",
+      amountUsd: amountStr,
+      balanceAfterUsd: toUsdString(round6(toNum(adjusted.balanceUsd))),
+      memo: body.memo,
+    });
+    return { ok: true as const };
+  });
+
+  if ("error" in result) {
+    res
+      .status(400)
+      .json({ error: "Adjustment would create a negative balance" });
+    return;
+  }
+
+  // Return the updated wallet snapshot per spec.
   const [user] = await db
     .select()
     .from(usersTable)
@@ -135,37 +190,36 @@ router.post("/admin/wallet/credit", async (req, res) => {
     res.status(404).json({ error: "User not found" });
     return;
   }
-
-  const newBalance = round6(toNum(user.balanceUsd) + body.amountUsd);
-  if (newBalance < 0) {
-    res.status(400).json({ error: "Adjustment would create negative balance" });
-    return;
-  }
-  const isCredit = body.amountUsd >= 0;
-  const newDeposited = isCredit
-    ? round6(toNum(user.totalDepositedUsd) + body.amountUsd)
-    : toNum(user.totalDepositedUsd);
-
-  await db.transaction(async (tx) => {
-    await tx
-      .update(usersTable)
-      .set({
-        balanceUsd: toUsdString(newBalance),
-        totalDepositedUsd: toUsdString(newDeposited),
-      })
-      .where(eq(usersTable.id, user.id));
-    await tx.insert(walletTransactionsTable).values({
-      userId: user.id,
-      type: isCredit ? "admin_credit" : "admin_debit",
-      amountUsd: toUsdString(body.amountUsd),
-      balanceAfterUsd: toUsdString(newBalance),
-      memo: body.memo,
-    });
-  });
+  const txns = await db
+    .select()
+    .from(walletTransactionsTable)
+    .where(eq(walletTransactionsTable.userId, user.id))
+    .orderBy(desc(walletTransactionsTable.createdAt))
+    .limit(50);
+  const [pending] = await db
+    .select({
+      sum: sql<string>`COALESCE(SUM(${withdrawalsTable.amountUsd}), 0)`,
+    })
+    .from(withdrawalsTable)
+    .where(
+      sql`${withdrawalsTable.userId} = ${user.id} AND ${withdrawalsTable.status} = 'pending'`,
+    );
 
   const data = AdminCreditWalletResponse.parse({
-    userId: user.id,
-    newBalanceUsd: newBalance,
+    balanceUsd: toNum(user.balanceUsd),
+    pendingWithdrawalsUsd: toNum(pending?.sum),
+    totalDepositedUsd: toNum(user.totalDepositedUsd),
+    totalEarnedUsd: toNum(user.totalEarnedUsd),
+    totalSpentUsd: toNum(user.totalSpentUsd),
+    transactions: txns.map((t) => ({
+      id: t.id,
+      type: t.type,
+      amountUsd: toNum(t.amountUsd),
+      balanceAfterUsd: toNum(t.balanceAfterUsd),
+      memo: t.memo,
+      relatedRentalId: t.relatedRentalId,
+      createdAt: t.createdAt.toISOString(),
+    })),
   });
   res.json(data);
 });
@@ -223,15 +277,19 @@ router.post("/admin/algorithms", async (req, res) => {
       basePricePerUnitPerHour: body.basePricePerUnitPerHour.toString(),
     })
     .returning();
+  if (!created) {
+    res.status(500).json({ error: "Failed to create algorithm" });
+    return;
+  }
   res.status(201).json({
-    id: created!.id,
-    name: created!.name,
-    slug: created!.slug,
-    unit: created!.unit,
-    basePricePerUnitPerHour: toNum(created!.basePricePerUnitPerHour),
+    id: created.id,
+    name: created.name,
+    slug: created.slug,
+    unit: created.unit,
+    basePricePerUnitPerHour: toNum(created.basePricePerUnitPerHour),
     rigCount: 0,
     totalHashrate: 0,
-    averagePricePerUnitPerHour: toNum(created!.basePricePerUnitPerHour),
+    averagePricePerUnitPerHour: toNum(created.basePricePerUnitPerHour),
   });
 });
 
@@ -247,7 +305,12 @@ router.patch("/admin/algorithms/:id", async (req, res) => {
   if (body.unit !== undefined) patch["unit"] = body.unit;
   if (body.basePricePerUnitPerHour !== undefined)
     patch["basePricePerUnitPerHour"] = body.basePricePerUnitPerHour.toString();
-  await db.update(algorithmsTable).set(patch).where(eq(algorithmsTable.id, id));
+  if (Object.keys(patch).length > 0) {
+    await db
+      .update(algorithmsTable)
+      .set(patch)
+      .where(eq(algorithmsTable.id, id));
+  }
   const [updated] = await db
     .select()
     .from(algorithmsTable)
@@ -289,6 +352,276 @@ router.delete("/admin/algorithms/:id", async (req, res) => {
   res.status(204).end();
 });
 
+// ============================================================================
+// Rig approval queue
+// ============================================================================
+async function loadAdminRig(id: number) {
+  const [row] = await db
+    .select({
+      id: rigsTable.id,
+      name: rigsTable.name,
+      description: rigsTable.description,
+      ownerId: rigsTable.ownerId,
+      ownerEmail: usersTable.email,
+      ownerDisplayName: usersTable.displayName,
+      algorithmId: algorithmsTable.id,
+      algorithmName: algorithmsTable.name,
+      algorithmUnit: algorithmsTable.unit,
+      basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
+      hashrate: rigsTable.hashrate,
+      region: rigsTable.region,
+      status: rigsTable.status,
+      approvalStatus: rigsTable.approvalStatus,
+      approvalNote: rigsTable.approvalNote,
+      approvedAt: rigsTable.approvedAt,
+      createdAt: rigsTable.createdAt,
+    })
+    .from(rigsTable)
+    .innerJoin(usersTable, eq(usersTable.id, rigsTable.ownerId))
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
+    .where(eq(rigsTable.id, id));
+  if (!row) return null;
+  const c = await getCommission();
+  const renterMultiplier = 1 + c.renterFeePct / 100;
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    ownerId: row.ownerId,
+    ownerEmail: row.ownerEmail,
+    ownerDisplayName: row.ownerDisplayName,
+    algorithmId: row.algorithmId,
+    algorithmName: row.algorithmName,
+    algorithmUnit: row.algorithmUnit,
+    hashrate: toNum(row.hashrate),
+    pricePerUnitPerHour: toNum(row.basePricePerUnitPerHour) * renterMultiplier,
+    region: row.region,
+    status: row.status,
+    approvalStatus: row.approvalStatus,
+    approvalNote: row.approvalNote,
+    approvedAt: row.approvedAt ? row.approvedAt.toISOString() : null,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+router.get("/admin/rigs", async (req, res) => {
+  const params = ListAdminRigsQueryParams.parse(req.query);
+  const c = await getCommission();
+  const renterMultiplier = 1 + c.renterFeePct / 100;
+
+  const rows = await db
+    .select({
+      id: rigsTable.id,
+      name: rigsTable.name,
+      description: rigsTable.description,
+      ownerId: rigsTable.ownerId,
+      ownerEmail: usersTable.email,
+      ownerDisplayName: usersTable.displayName,
+      algorithmId: algorithmsTable.id,
+      algorithmName: algorithmsTable.name,
+      algorithmUnit: algorithmsTable.unit,
+      basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
+      hashrate: rigsTable.hashrate,
+      region: rigsTable.region,
+      status: rigsTable.status,
+      approvalStatus: rigsTable.approvalStatus,
+      approvalNote: rigsTable.approvalNote,
+      approvedAt: rigsTable.approvedAt,
+      createdAt: rigsTable.createdAt,
+    })
+    .from(rigsTable)
+    .innerJoin(usersTable, eq(usersTable.id, rigsTable.ownerId))
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
+    .where(
+      params.approvalStatus
+        ? eq(rigsTable.approvalStatus, params.approvalStatus)
+        : undefined,
+    )
+    .orderBy(desc(rigsTable.createdAt));
+
+  const data = ListAdminRigsResponse.parse(
+    rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      ownerId: r.ownerId,
+      ownerEmail: r.ownerEmail,
+      ownerDisplayName: r.ownerDisplayName,
+      algorithmId: r.algorithmId,
+      algorithmName: r.algorithmName,
+      algorithmUnit: r.algorithmUnit,
+      hashrate: toNum(r.hashrate),
+      pricePerUnitPerHour:
+        toNum(r.basePricePerUnitPerHour) * renterMultiplier,
+      region: r.region,
+      status: r.status,
+      approvalStatus: r.approvalStatus,
+      approvalNote: r.approvalNote,
+      approvedAt: r.approvedAt ? r.approvedAt.toISOString() : null,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  );
+  res.json(data);
+});
+
+router.post("/admin/rigs/:id/approve", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const body = ApproveRigBody.parse(req.body ?? {});
+  const [updated] = await db
+    .update(rigsTable)
+    .set({
+      approvalStatus: "approved",
+      approvalNote: body.note ?? null,
+      approvedAt: new Date(),
+    })
+    .where(eq(rigsTable.id, id))
+    .returning({ id: rigsTable.id });
+  if (!updated) {
+    res.status(404).json({ error: "Rig not found" });
+    return;
+  }
+  const detail = await loadAdminRig(updated.id);
+  res.json(ApproveRigResponse.parse(detail));
+});
+
+router.post("/admin/rigs/:id/reject", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const body = RejectRigBody.parse(req.body ?? {});
+  const [updated] = await db
+    .update(rigsTable)
+    .set({
+      approvalStatus: "rejected",
+      approvalNote: body.note ?? null,
+      approvedAt: new Date(),
+    })
+    .where(eq(rigsTable.id, id))
+    .returning({ id: rigsTable.id });
+  if (!updated) {
+    res.status(404).json({ error: "Rig not found" });
+    return;
+  }
+  const detail = await loadAdminRig(updated.id);
+  res.json(RejectRigResponse.parse(detail));
+});
+
+// ============================================================================
+// All rentals + full ledger
+// ============================================================================
+router.get("/admin/rentals", async (_req, res) => {
+  await settleExpiredRentals();
+  const rows = await db
+    .select({
+      id: rentalsTable.id,
+      rigId: rentalsTable.rigId,
+      rigName: rigsTable.name,
+      algorithmName: algorithmsTable.name,
+      algorithmUnit: algorithmsTable.unit,
+      renterId: rentalsTable.renterId,
+      renterEmail: usersTable.email,
+      ownerId: rentalsTable.ownerId,
+      hashrate: rentalsTable.hashrate,
+      hours: rentalsTable.hours,
+      renterTotalUsd: rentalsTable.renterTotalUsd,
+      ownerEarningsUsd: rentalsTable.ownerEarningsUsd,
+      platformFeeUsd: rentalsTable.platformFeeUsd,
+      status: rentalsTable.status,
+      startedAt: rentalsTable.startedAt,
+      endsAt: rentalsTable.endsAt,
+      cancelledAt: rentalsTable.cancelledAt,
+      settledAt: rentalsTable.settledAt,
+      createdAt: rentalsTable.createdAt,
+    })
+    .from(rentalsTable)
+    .innerJoin(rigsTable, eq(rigsTable.id, rentalsTable.rigId))
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
+    .innerJoin(usersTable, eq(usersTable.id, rentalsTable.renterId))
+    .orderBy(desc(rentalsTable.createdAt));
+
+  const ownerIds = Array.from(new Set(rows.map((r) => r.ownerId)));
+  const owners = ownerIds.length
+    ? await db
+        .select({ id: usersTable.id, email: usersTable.email })
+        .from(usersTable)
+        .where(inArray(usersTable.id, ownerIds))
+    : [];
+  const ownerMap = new Map(owners.map((o) => [o.id, o.email]));
+
+  const data = ListAdminRentalsResponse.parse(
+    rows.map((r) => ({
+      id: r.id,
+      rigId: r.rigId,
+      rigName: r.rigName,
+      algorithmName: r.algorithmName,
+      algorithmUnit: r.algorithmUnit,
+      renterId: r.renterId,
+      renterEmail: r.renterEmail,
+      ownerId: r.ownerId,
+      ownerEmail: ownerMap.get(r.ownerId) ?? "",
+      hashrate: toNum(r.hashrate),
+      hours: r.hours,
+      renterTotalUsd: toNum(r.renterTotalUsd),
+      ownerEarningsUsd: toNum(r.ownerEarningsUsd),
+      platformFeeUsd: toNum(r.platformFeeUsd),
+      status: r.status,
+      startedAt: r.startedAt.toISOString(),
+      endsAt: r.endsAt.toISOString(),
+      cancelledAt: r.cancelledAt ? r.cancelledAt.toISOString() : null,
+      settledAt: r.settledAt ? r.settledAt.toISOString() : null,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  );
+  res.json(data);
+});
+
+router.get("/admin/wallet/transactions", async (req, res) => {
+  const params = ListAdminWalletTransactionsQueryParams.parse(req.query);
+  const limit = params.limit ?? 100;
+  const rows = await db
+    .select({
+      id: walletTransactionsTable.id,
+      userId: walletTransactionsTable.userId,
+      userEmail: usersTable.email,
+      userDisplayName: usersTable.displayName,
+      type: walletTransactionsTable.type,
+      amountUsd: walletTransactionsTable.amountUsd,
+      balanceAfterUsd: walletTransactionsTable.balanceAfterUsd,
+      memo: walletTransactionsTable.memo,
+      relatedRentalId: walletTransactionsTable.relatedRentalId,
+      createdAt: walletTransactionsTable.createdAt,
+    })
+    .from(walletTransactionsTable)
+    .innerJoin(usersTable, eq(usersTable.id, walletTransactionsTable.userId))
+    .orderBy(desc(walletTransactionsTable.createdAt))
+    .limit(limit);
+
+  const data = ListAdminWalletTransactionsResponse.parse(
+    rows.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      userEmail: r.userEmail,
+      userDisplayName: r.userDisplayName,
+      type: r.type,
+      amountUsd: toNum(r.amountUsd),
+      balanceAfterUsd: toNum(r.balanceAfterUsd),
+      memo: r.memo,
+      relatedRentalId: r.relatedRentalId,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  );
+  res.json(data);
+});
+
+// ============================================================================
+// Withdrawals queue
+// ============================================================================
 router.get("/admin/withdrawals", async (_req, res) => {
   const rows = await db
     .select({
@@ -329,18 +662,7 @@ router.post("/admin/withdrawals/:id/approve", async (req, res) => {
     return;
   }
   const body = ApproveWithdrawalBody.parse(req.body);
-  const [row] = await db
-    .select()
-    .from(withdrawalsTable)
-    .where(eq(withdrawalsTable.id, id));
-  if (!row) {
-    res.status(404).json({ error: "Withdrawal not found" });
-    return;
-  }
-  if (row.status !== "pending") {
-    res.status(400).json({ error: "Withdrawal already decided" });
-    return;
-  }
+  // Only flip pending→approved atomically.
   const [updated] = await db
     .update(withdrawalsTable)
     .set({
@@ -348,19 +670,24 @@ router.post("/admin/withdrawals/:id/approve", async (req, res) => {
       adminNote: body.adminNote ?? null,
       decidedAt: new Date(),
     })
-    .where(eq(withdrawalsTable.id, id))
+    .where(
+      sql`${withdrawalsTable.id} = ${id} AND ${withdrawalsTable.status} = 'pending'`,
+    )
     .returning();
-
+  if (!updated) {
+    res.status(400).json({ error: "Withdrawal not found or already decided" });
+    return;
+  }
   const data = ApproveWithdrawalResponse.parse({
-    id: updated!.id,
-    userId: updated!.userId,
-    asset: updated!.asset,
-    destinationAddress: updated!.destinationAddress,
-    amountUsd: toNum(updated!.amountUsd),
-    status: updated!.status,
-    adminNote: updated!.adminNote,
-    createdAt: updated!.createdAt.toISOString(),
-    decidedAt: updated!.decidedAt ? updated!.decidedAt.toISOString() : null,
+    id: updated.id,
+    userId: updated.userId,
+    asset: updated.asset,
+    destinationAddress: updated.destinationAddress,
+    amountUsd: toNum(updated.amountUsd),
+    status: updated.status,
+    adminNote: updated.adminNote,
+    createdAt: updated.createdAt.toISOString(),
+    decidedAt: updated.decidedAt ? updated.decidedAt.toISOString() : null,
   });
   res.json(data);
 });
@@ -372,38 +699,8 @@ router.post("/admin/withdrawals/:id/reject", async (req, res) => {
     return;
   }
   const body = RejectWithdrawalBody.parse(req.body);
-  const [row] = await db
-    .select()
-    .from(withdrawalsTable)
-    .where(eq(withdrawalsTable.id, id));
-  if (!row) {
-    res.status(404).json({ error: "Withdrawal not found" });
-    return;
-  }
-  if (row.status !== "pending") {
-    res.status(400).json({ error: "Withdrawal already decided" });
-    return;
-  }
-  // Refund the held funds to the user.
+
   const result = await db.transaction(async (tx) => {
-    const [user] = await tx
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.id, row.userId));
-    if (!user) throw new Error("User missing");
-    const refund = toNum(row.amountUsd);
-    const newBalance = round6(toNum(user.balanceUsd) + refund);
-    await tx
-      .update(usersTable)
-      .set({ balanceUsd: toUsdString(newBalance) })
-      .where(eq(usersTable.id, user.id));
-    await tx.insert(walletTransactionsTable).values({
-      userId: user.id,
-      type: "admin_credit",
-      amountUsd: toUsdString(refund),
-      balanceAfterUsd: toUsdString(newBalance),
-      memo: `Refund for rejected withdrawal #${row.id}`,
-    });
     const [updated] = await tx
       .update(withdrawalsTable)
       .set({
@@ -411,11 +708,36 @@ router.post("/admin/withdrawals/:id/reject", async (req, res) => {
         adminNote: body.adminNote ?? null,
         decidedAt: new Date(),
       })
-      .where(eq(withdrawalsTable.id, id))
+      .where(
+        sql`${withdrawalsTable.id} = ${id} AND ${withdrawalsTable.status} = 'pending'`,
+      )
       .returning();
-    return updated!;
+    if (!updated) return null;
+
+    const refundStr = updated.amountUsd;
+    const [credited] = await tx
+      .update(usersTable)
+      .set({
+        balanceUsd: sql`${usersTable.balanceUsd} + ${refundStr}`,
+      })
+      .where(eq(usersTable.id, updated.userId))
+      .returning({ balanceUsd: usersTable.balanceUsd });
+    if (credited) {
+      await tx.insert(walletTransactionsTable).values({
+        userId: updated.userId,
+        type: "rental_refund",
+        amountUsd: refundStr,
+        balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
+        memo: `Refund for rejected withdrawal #${updated.id}`,
+      });
+    }
+    return updated;
   });
 
+  if (!result) {
+    res.status(400).json({ error: "Withdrawal not found or already decided" });
+    return;
+  }
   const data = RejectWithdrawalResponse.parse({
     id: result.id,
     userId: result.userId,
@@ -429,7 +751,5 @@ router.post("/admin/withdrawals/:id/reject", async (req, res) => {
   });
   res.json(data);
 });
-
-void and;
 
 export default router;

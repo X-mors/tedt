@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { sql, and, eq, desc } from "drizzle-orm";
+// `and` is used below to combine status + approval filters on the rigs join.
 import {
   db,
   rigsTable,
@@ -32,7 +33,13 @@ router.get("/algorithms", async (_req, res) => {
       totalHashrate: sql<string>`COALESCE(SUM(${rigsTable.hashrate}) FILTER (WHERE ${rigsTable.status} = 'available'), 0)`,
     })
     .from(algorithmsTable)
-    .leftJoin(rigsTable, eq(rigsTable.algorithmId, algorithmsTable.id))
+    .leftJoin(
+      rigsTable,
+      and(
+        eq(rigsTable.algorithmId, algorithmsTable.id),
+        eq(rigsTable.approvalStatus, "approved"),
+      ),
+    )
     .groupBy(algorithmsTable.id)
     .orderBy(algorithmsTable.name);
 
@@ -59,7 +66,7 @@ router.get("/marketplace/summary", async (_req, res) => {
 
   const [counts] = await db
     .select({
-      availableRigs: sql<string>`COUNT(*) FILTER (WHERE ${rigsTable.status} = 'available')`,
+      availableRigs: sql<string>`COUNT(*) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved')`,
     })
     .from(rigsTable);
 
@@ -73,7 +80,8 @@ router.get("/marketplace/summary", async (_req, res) => {
     .select({
       totalLessors: sql<string>`COUNT(DISTINCT ${rigsTable.ownerId})`,
     })
-    .from(rigsTable);
+    .from(rigsTable)
+    .where(eq(rigsTable.approvalStatus, "approved"));
 
   const [renterCounts] = await db
     .select({
@@ -91,7 +99,13 @@ router.get("/marketplace/summary", async (_req, res) => {
       totalHashrate: sql<string>`COALESCE(SUM(${rigsTable.hashrate}) FILTER (WHERE ${rigsTable.status} = 'available'), 0)`,
     })
     .from(algorithmsTable)
-    .leftJoin(rigsTable, eq(rigsTable.algorithmId, algorithmsTable.id))
+    .leftJoin(
+      rigsTable,
+      and(
+        eq(rigsTable.algorithmId, algorithmsTable.id),
+        eq(rigsTable.approvalStatus, "approved"),
+      ),
+    )
     .groupBy(algorithmsTable.id)
     .orderBy(desc(sql`COUNT(${rigsTable.id}) FILTER (WHERE ${rigsTable.status} = 'available')`));
 
@@ -121,7 +135,12 @@ router.get("/marketplace/summary", async (_req, res) => {
     .innerJoin(usersTable, eq(usersTable.id, rigsTable.ownerId))
     .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
     .leftJoin(reviewsTable, eq(reviewsTable.rigId, rigsTable.id))
-    .where(eq(rigsTable.status, "available"))
+    .where(
+      and(
+        eq(rigsTable.status, "available"),
+        eq(rigsTable.approvalStatus, "approved"),
+      ),
+    )
     .groupBy(rigsTable.id, usersTable.id, algorithmsTable.id)
     .orderBy(desc(rigsTable.hashrate))
     .limit(6);
@@ -155,6 +174,7 @@ router.get("/marketplace/summary", async (_req, res) => {
       minRentalHours: r.minRentalHours,
       maxRentalHours: r.maxRentalHours,
       status: r.status,
+      approvalStatus: "approved" as const,
       averageRating:
         r.averageRating == null ? null : Number(toNum(r.averageRating).toFixed(2)),
       reviewCount: Number(r.reviewCount),
@@ -164,8 +184,5 @@ router.get("/marketplace/summary", async (_req, res) => {
 
   res.json(data);
 });
-
-// Acknowledge `and` import to keep helper available for future filtering.
-void and;
 
 export default router;

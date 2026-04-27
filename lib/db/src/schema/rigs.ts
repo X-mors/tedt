@@ -27,6 +27,13 @@ export const rigsTable = pgTable("rigs", {
   status: text("status", { enum: ["available", "rented", "offline"] })
     .notNull()
     .default("available"),
+  approvalStatus: text("approval_status", {
+    enum: ["pending", "approved", "rejected"],
+  })
+    .notNull()
+    .default("pending"),
+  approvalNote: text("approval_note"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
   // Stratum credentials the owner provides — proxy will use these to forward shares.
   stratumHost: text("stratum_host").notNull().default(""),
   stratumPort: integer("stratum_port").notNull().default(0),

@@ -18,8 +18,12 @@ import type {
 
 import type {
   AdminCreditBody,
+  AdminRentalRow,
+  AdminRigDecisionBody,
+  AdminRigRow,
   AdminStats,
   AdminUserRow,
+  AdminWalletTransactionRow,
   AdminWithdrawalRow,
   Algorithm,
   ApproveWithdrawalBody,
@@ -35,6 +39,8 @@ import type {
   ErrorResponse,
   ForbiddenResponse,
   HealthStatus,
+  ListAdminRigsParams,
+  ListAdminWalletTransactionsParams,
   ListRigsParams,
   MarketplaceSummary,
   MeProfile,
@@ -2802,6 +2808,476 @@ export const useDeleteAlgorithm = <
 > => {
   return useMutation(getDeleteAlgorithmMutationOptions(options));
 };
+
+/**
+ * @summary List rigs across the platform with optional approval-status filter
+ */
+export const getListAdminRigsUrl = (params?: ListAdminRigsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/rigs?${stringifiedParams}`
+    : `/api/admin/rigs`;
+};
+
+export const listAdminRigs = async (
+  params?: ListAdminRigsParams,
+  options?: RequestInit,
+): Promise<AdminRigRow[]> => {
+  return customFetch<AdminRigRow[]>(getListAdminRigsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListAdminRigsQueryKey = (params?: ListAdminRigsParams) => {
+  return [`/api/admin/rigs`, ...(params ? [params] : [])] as const;
+};
+
+export const getListAdminRigsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAdminRigs>>,
+  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+>(
+  params?: ListAdminRigsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAdminRigs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListAdminRigsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminRigs>>> = ({
+    signal,
+  }) => listAdminRigs(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAdminRigs>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAdminRigsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAdminRigs>>
+>;
+export type ListAdminRigsQueryError = ErrorType<
+  UnauthorizedResponse | ForbiddenResponse
+>;
+
+/**
+ * @summary List rigs across the platform with optional approval-status filter
+ */
+
+export function useListAdminRigs<
+  TData = Awaited<ReturnType<typeof listAdminRigs>>,
+  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+>(
+  params?: ListAdminRigsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAdminRigs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAdminRigsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Approve a pending rig so it appears in the marketplace
+ */
+export const getApproveRigUrl = (id: number) => {
+  return `/api/admin/rigs/${id}/approve`;
+};
+
+export const approveRig = async (
+  id: number,
+  adminRigDecisionBody?: AdminRigDecisionBody,
+  options?: RequestInit,
+): Promise<AdminRigRow> => {
+  return customFetch<AdminRigRow>(getApproveRigUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(adminRigDecisionBody),
+  });
+};
+
+export const getApproveRigMutationOptions = <
+  TError = ErrorType<
+    UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveRig>>,
+    TError,
+    { id: number; data: BodyType<AdminRigDecisionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof approveRig>>,
+  TError,
+  { id: number; data: BodyType<AdminRigDecisionBody> },
+  TContext
+> => {
+  const mutationKey = ["approveRig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof approveRig>>,
+    { id: number; data: BodyType<AdminRigDecisionBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return approveRig(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ApproveRigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof approveRig>>
+>;
+export type ApproveRigMutationBody = BodyType<AdminRigDecisionBody>;
+export type ApproveRigMutationError = ErrorType<
+  UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+>;
+
+/**
+ * @summary Approve a pending rig so it appears in the marketplace
+ */
+export const useApproveRig = <
+  TError = ErrorType<
+    UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveRig>>,
+    TError,
+    { id: number; data: BodyType<AdminRigDecisionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof approveRig>>,
+  TError,
+  { id: number; data: BodyType<AdminRigDecisionBody> },
+  TContext
+> => {
+  return useMutation(getApproveRigMutationOptions(options));
+};
+
+/**
+ * @summary Reject a pending rig with an admin note
+ */
+export const getRejectRigUrl = (id: number) => {
+  return `/api/admin/rigs/${id}/reject`;
+};
+
+export const rejectRig = async (
+  id: number,
+  adminRigDecisionBody?: AdminRigDecisionBody,
+  options?: RequestInit,
+): Promise<AdminRigRow> => {
+  return customFetch<AdminRigRow>(getRejectRigUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(adminRigDecisionBody),
+  });
+};
+
+export const getRejectRigMutationOptions = <
+  TError = ErrorType<
+    UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rejectRig>>,
+    TError,
+    { id: number; data: BodyType<AdminRigDecisionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rejectRig>>,
+  TError,
+  { id: number; data: BodyType<AdminRigDecisionBody> },
+  TContext
+> => {
+  const mutationKey = ["rejectRig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rejectRig>>,
+    { id: number; data: BodyType<AdminRigDecisionBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return rejectRig(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RejectRigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rejectRig>>
+>;
+export type RejectRigMutationBody = BodyType<AdminRigDecisionBody>;
+export type RejectRigMutationError = ErrorType<
+  UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+>;
+
+/**
+ * @summary Reject a pending rig with an admin note
+ */
+export const useRejectRig = <
+  TError = ErrorType<
+    UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rejectRig>>,
+    TError,
+    { id: number; data: BodyType<AdminRigDecisionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof rejectRig>>,
+  TError,
+  { id: number; data: BodyType<AdminRigDecisionBody> },
+  TContext
+> => {
+  return useMutation(getRejectRigMutationOptions(options));
+};
+
+/**
+ * @summary List every rental on the platform with renter, owner and revenue breakdown
+ */
+export const getListAdminRentalsUrl = () => {
+  return `/api/admin/rentals`;
+};
+
+export const listAdminRentals = async (
+  options?: RequestInit,
+): Promise<AdminRentalRow[]> => {
+  return customFetch<AdminRentalRow[]>(getListAdminRentalsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListAdminRentalsQueryKey = () => {
+  return [`/api/admin/rentals`] as const;
+};
+
+export const getListAdminRentalsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAdminRentals>>,
+  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listAdminRentals>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListAdminRentalsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAdminRentals>>
+  > = ({ signal }) => listAdminRentals({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAdminRentals>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAdminRentalsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAdminRentals>>
+>;
+export type ListAdminRentalsQueryError = ErrorType<
+  UnauthorizedResponse | ForbiddenResponse
+>;
+
+/**
+ * @summary List every rental on the platform with renter, owner and revenue breakdown
+ */
+
+export function useListAdminRentals<
+  TData = Awaited<ReturnType<typeof listAdminRentals>>,
+  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listAdminRentals>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAdminRentalsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Full wallet ledger across all users
+ */
+export const getListAdminWalletTransactionsUrl = (
+  params?: ListAdminWalletTransactionsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/wallet/transactions?${stringifiedParams}`
+    : `/api/admin/wallet/transactions`;
+};
+
+export const listAdminWalletTransactions = async (
+  params?: ListAdminWalletTransactionsParams,
+  options?: RequestInit,
+): Promise<AdminWalletTransactionRow[]> => {
+  return customFetch<AdminWalletTransactionRow[]>(
+    getListAdminWalletTransactionsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListAdminWalletTransactionsQueryKey = (
+  params?: ListAdminWalletTransactionsParams,
+) => {
+  return [
+    `/api/admin/wallet/transactions`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getListAdminWalletTransactionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAdminWalletTransactions>>,
+  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+>(
+  params?: ListAdminWalletTransactionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAdminWalletTransactions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListAdminWalletTransactionsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAdminWalletTransactions>>
+  > = ({ signal }) =>
+    listAdminWalletTransactions(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAdminWalletTransactions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAdminWalletTransactionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAdminWalletTransactions>>
+>;
+export type ListAdminWalletTransactionsQueryError = ErrorType<
+  UnauthorizedResponse | ForbiddenResponse
+>;
+
+/**
+ * @summary Full wallet ledger across all users
+ */
+
+export function useListAdminWalletTransactions<
+  TData = Awaited<ReturnType<typeof listAdminWalletTransactions>>,
+  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+>(
+  params?: ListAdminWalletTransactionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAdminWalletTransactions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAdminWalletTransactionsQueryOptions(
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List all withdrawal requests pending approval

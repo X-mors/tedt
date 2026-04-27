@@ -694,6 +694,131 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /admin/rigs:
+    get:
+      operationId: listAdminRigs
+      tags: [admin]
+      summary: List rigs across the platform with optional approval-status filter
+      parameters:
+        - in: query
+          name: approvalStatus
+          required: false
+          schema:
+            $ref: "#/components/schemas/RigApprovalStatus"
+      responses:
+        "200":
+          description: Rigs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminRigRow"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/rigs/{id}/approve:
+    post:
+      operationId: approveRig
+      tags: [admin]
+      summary: Approve a pending rig so it appears in the marketplace
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminRigDecisionBody"
+      responses:
+        "200":
+          description: Approved rig
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRigRow"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/rigs/{id}/reject:
+    post:
+      operationId: rejectRig
+      tags: [admin]
+      summary: Reject a pending rig with an admin note
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminRigDecisionBody"
+      responses:
+        "200":
+          description: Rejected rig
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRigRow"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/rentals:
+    get:
+      operationId: listAdminRentals
+      tags: [admin]
+      summary: List every rental on the platform with renter, owner and revenue breakdown
+      responses:
+        "200":
+          description: Rentals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminRentalRow"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/wallet/transactions:
+    get:
+      operationId: listAdminWalletTransactions
+      tags: [admin]
+      summary: Full wallet ledger across all users
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+      responses:
+        "200":
+          description: Wallet transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminWalletTransactionRow"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /admin/withdrawals:
     get:
       operationId: listAdminWithdrawals
@@ -942,6 +1067,10 @@ components:
       type: string
       enum: [available, rented, offline]
 
+    RigApprovalStatus:
+      type: string
+      enum: [pending, approved, rejected]
+
     RigSummary:
       type: object
       properties:
@@ -971,6 +1100,8 @@ components:
           type: integer
         status:
           $ref: "#/components/schemas/RigStatus"
+        approvalStatus:
+          $ref: "#/components/schemas/RigApprovalStatus"
         averageRating:
           type: ["number", "null"]
         reviewCount:
@@ -991,6 +1122,7 @@ components:
         - minRentalHours
         - maxRentalHours
         - status
+        - approvalStatus
         - averageRating
         - reviewCount
         - createdAt
@@ -1024,6 +1156,10 @@ components:
           type: integer
         status:
           $ref: "#/components/schemas/RigStatus"
+        approvalStatus:
+          $ref: "#/components/schemas/RigApprovalStatus"
+        approvalNote:
+          type: ["string", "null"]
         region:
           type: string
         averageRating:
@@ -1049,6 +1185,8 @@ components:
         - minRentalHours
         - maxRentalHours
         - status
+        - approvalStatus
+        - approvalNote
         - region
         - averageRating
         - reviewCount
@@ -1300,6 +1438,9 @@ components:
         cancelledAt:
           type: ["string", "null"]
           format: date-time
+        settledAt:
+          type: ["string", "null"]
+          format: date-time
         poolUrl:
           type: string
         poolWorker:
@@ -1341,6 +1482,7 @@ components:
         - startedAt
         - endsAt
         - cancelledAt
+        - settledAt
         - poolUrl
         - poolWorker
         - poolPassword
@@ -1686,6 +1828,177 @@ components:
         - totalSpentUsd
         - rigCount
         - rentalCount
+        - createdAt
+
+    AdminRigRow:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        ownerId:
+          type: integer
+        ownerEmail:
+          type: string
+        ownerDisplayName:
+          type: string
+        algorithmId:
+          type: integer
+        algorithmName:
+          type: string
+        algorithmUnit:
+          type: string
+        hashrate:
+          type: number
+        pricePerUnitPerHour:
+          type: number
+        region:
+          type: string
+        status:
+          $ref: "#/components/schemas/RigStatus"
+        approvalStatus:
+          $ref: "#/components/schemas/RigApprovalStatus"
+        approvalNote:
+          type: ["string", "null"]
+        approvedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - description
+        - ownerId
+        - ownerEmail
+        - ownerDisplayName
+        - algorithmId
+        - algorithmName
+        - algorithmUnit
+        - hashrate
+        - pricePerUnitPerHour
+        - region
+        - status
+        - approvalStatus
+        - approvalNote
+        - approvedAt
+        - createdAt
+
+    AdminRigDecisionBody:
+      type: object
+      properties:
+        note:
+          type: string
+          maxLength: 500
+
+    AdminRentalRow:
+      type: object
+      properties:
+        id:
+          type: integer
+        rigId:
+          type: integer
+        rigName:
+          type: string
+        algorithmName:
+          type: string
+        algorithmUnit:
+          type: string
+        renterId:
+          type: integer
+        renterEmail:
+          type: string
+        ownerId:
+          type: integer
+        ownerEmail:
+          type: string
+        hashrate:
+          type: number
+        hours:
+          type: integer
+        renterTotalUsd:
+          type: number
+        ownerEarningsUsd:
+          type: number
+        platformFeeUsd:
+          type: number
+        status:
+          $ref: "#/components/schemas/RentalStatus"
+        startedAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        cancelledAt:
+          type: ["string", "null"]
+          format: date-time
+        settledAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - rigId
+        - rigName
+        - algorithmName
+        - algorithmUnit
+        - renterId
+        - renterEmail
+        - ownerId
+        - ownerEmail
+        - hashrate
+        - hours
+        - renterTotalUsd
+        - ownerEarningsUsd
+        - platformFeeUsd
+        - status
+        - startedAt
+        - endsAt
+        - cancelledAt
+        - settledAt
+        - createdAt
+
+    AdminWalletTransactionRow:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        userEmail:
+          type: string
+        userDisplayName:
+          type: string
+        type:
+          $ref: "#/components/schemas/WalletTransactionType"
+        amountUsd:
+          type: number
+        balanceAfterUsd:
+          type: number
+        memo:
+          type: string
+        relatedRentalId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - userEmail
+        - userDisplayName
+        - type
+        - amountUsd
+        - balanceAfterUsd
+        - memo
+        - relatedRentalId
         - createdAt
 
     AdminWithdrawalRow:

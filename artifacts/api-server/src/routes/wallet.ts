@@ -71,7 +71,7 @@ router.post("/me/wallet/deposits", async (req, res) => {
       : `T${tag.slice(0, 33)}`;
   const memo = `RM-${req.currentUser!.id}-${randomBytes(4).toString("hex")}`;
 
-  res.json({
+  res.status(201).json({
     asset: body.asset,
     depositAddress: address,
     memo,
@@ -108,53 +108,65 @@ router.get("/me/wallet/withdrawals", async (req, res) => {
 
 router.post("/me/wallet/withdrawals", async (req, res) => {
   const body = CreateWithdrawalBody.parse(req.body);
-  const balance = toNum(req.currentUser!.balanceUsd);
-  if (body.amountUsd > balance) {
-    res.status(400).json({
-      error: `Insufficient balance for withdrawal. Available: $${balance.toFixed(2)}.`,
-    });
-    return;
-  }
+  const amountStr = toUsdString(body.amountUsd);
 
+  // Atomic conditional debit — only succeeds if the user actually has the
+  // funds at the moment the UPDATE runs, avoiding stale-snapshot races.
   const result = await db.transaction(async (tx) => {
-    const newBalance = round6(balance - body.amountUsd);
-    await tx
+    const [debited] = await tx
       .update(usersTable)
-      .set({ balanceUsd: toUsdString(newBalance) })
-      .where(eq(usersTable.id, req.currentUser!.id));
+      .set({ balanceUsd: sql`${usersTable.balanceUsd} - ${amountStr}` })
+      .where(
+        and(
+          eq(usersTable.id, req.currentUser!.id),
+          sql`${usersTable.balanceUsd} >= ${amountStr}`,
+        ),
+      )
+      .returning({ balanceUsd: usersTable.balanceUsd });
+    if (!debited) return { error: "insufficient" as const };
+
+    const newBalance = round6(toNum(debited.balanceUsd));
     const [row] = await tx
       .insert(withdrawalsTable)
       .values({
         userId: req.currentUser!.id,
         asset: body.asset,
         destinationAddress: body.destinationAddress,
-        amountUsd: toUsdString(body.amountUsd),
+        amountUsd: amountStr,
       })
       .returning();
+    if (!row) return { error: "insert" as const };
+
     await tx.insert(walletTransactionsTable).values({
       userId: req.currentUser!.id,
       type: "withdrawal",
       amountUsd: toUsdString(-body.amountUsd),
       balanceAfterUsd: toUsdString(newBalance),
-      memo: `Withdrawal request #${row?.id ?? ""} (${body.asset})`,
+      memo: `Withdrawal request #${row.id} (${body.asset})`,
     });
-    return row;
+    return { row };
   });
 
-  if (!result) {
-    res.status(500).json({ error: "Failed to create withdrawal" });
+  if ("error" in result) {
+    if (result.error === "insufficient") {
+      res.status(402).json({ error: "Insufficient balance for withdrawal." });
+    } else {
+      res.status(500).json({ error: "Failed to create withdrawal" });
+    }
     return;
   }
+
+  const w = result.row;
   res.status(201).json({
-    id: result.id,
-    userId: result.userId,
-    asset: result.asset,
-    destinationAddress: result.destinationAddress,
-    amountUsd: toNum(result.amountUsd),
-    status: result.status,
-    adminNote: result.adminNote,
-    createdAt: result.createdAt.toISOString(),
-    decidedAt: result.decidedAt ? result.decidedAt.toISOString() : null,
+    id: w.id,
+    userId: w.userId,
+    asset: w.asset,
+    destinationAddress: w.destinationAddress,
+    amountUsd: toNum(w.amountUsd),
+    status: w.status,
+    adminNote: w.adminNote,
+    createdAt: w.createdAt.toISOString(),
+    decidedAt: w.decidedAt ? w.decidedAt.toISOString() : null,
   });
 });
 

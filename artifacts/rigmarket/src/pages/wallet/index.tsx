@@ -24,11 +24,21 @@ export default function Wallet() {
   const createDeposit = useCreateDeposit();
   const createWithdrawal = useCreateWithdrawal();
 
-  const [depositAsset, setDepositAsset] = useState<"BTC" | "USDT">("USDT");
-  const [depositAmount, setDepositAmount] = useState("");
-  const [depositInstructions, setDepositInstructions] = useState<any>(null);
+  type DepositAsset = "BTC" | "USDT";
+  type DepositInstructions = {
+    asset: DepositAsset;
+    depositAddress: string;
+    memo: string;
+    amountUsd: number;
+    note: string;
+  };
 
-  const [withdrawAsset, setWithdrawAsset] = useState<"BTC" | "USDT">("USDT");
+  const [depositAsset, setDepositAsset] = useState<DepositAsset>("USDT");
+  const [depositAmount, setDepositAmount] = useState("");
+  const [depositInstructions, setDepositInstructions] =
+    useState<DepositInstructions | null>(null);
+
+  const [withdrawAsset, setWithdrawAsset] = useState<DepositAsset>("USDT");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawAddress, setWithdrawAddress] = useState("");
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -46,7 +56,7 @@ export default function Wallet() {
     }
     createDeposit.mutate({ data: { asset: depositAsset, amountUsd: amt } }, {
       onSuccess: (data) => {
-        setDepositInstructions(data);
+        setDepositInstructions(data as DepositInstructions);
       },
       onError: (err) => {
         toast({ title: "Failed to generate address", description: err.message, variant: "destructive" });
@@ -125,7 +135,7 @@ export default function Wallet() {
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label>Asset</Label>
-                    <Select value={withdrawAsset} onValueChange={(v: any) => setWithdrawAsset(v)}>
+                    <Select value={withdrawAsset} onValueChange={(v) => setWithdrawAsset(v as DepositAsset)}>
                       <SelectTrigger className="font-mono">
                         <SelectValue />
                       </SelectTrigger>
@@ -176,7 +186,7 @@ export default function Wallet() {
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
                       <Label>Asset</Label>
-                      <Select value={depositAsset} onValueChange={(v: any) => setDepositAsset(v)}>
+                      <Select value={depositAsset} onValueChange={(v) => setDepositAsset(v as DepositAsset)}>
                         <SelectTrigger className="font-mono">
                           <SelectValue />
                         </SelectTrigger>

@@ -5,6 +5,7 @@
  * RigMarket API — mining rig rental marketplace
  * OpenAPI spec version: 0.1.0
  */
+import type { RigApprovalStatus } from "./rigApprovalStatus";
 import type { RigStatus } from "./rigStatus";
 
 export interface RigDetail {
@@ -21,6 +22,9 @@ export interface RigDetail {
   minRentalHours: number;
   maxRentalHours: number;
   status: RigStatus;
+  approvalStatus: RigApprovalStatus;
+  /** @nullable */
+  approvalNote: string | null;
   region: string;
   /** @nullable */
   averageRating: number | null;

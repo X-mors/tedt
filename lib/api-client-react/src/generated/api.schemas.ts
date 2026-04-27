@@ -93,6 +93,15 @@ export const RigStatus = {
   offline: "offline",
 } as const;
 
+export type RigApprovalStatus =
+  (typeof RigApprovalStatus)[keyof typeof RigApprovalStatus];
+
+export const RigApprovalStatus = {
+  pending: "pending",
+  approved: "approved",
+  rejected: "rejected",
+} as const;
+
 export interface RigSummary {
   id: number;
   name: string;
@@ -108,6 +117,7 @@ export interface RigSummary {
   minRentalHours: number;
   maxRentalHours: number;
   status: RigStatus;
+  approvalStatus: RigApprovalStatus;
   /** @nullable */
   averageRating: number | null;
   reviewCount: number;
@@ -128,6 +138,9 @@ export interface RigDetail {
   minRentalHours: number;
   maxRentalHours: number;
   status: RigStatus;
+  approvalStatus: RigApprovalStatus;
+  /** @nullable */
+  approvalNote: string | null;
   region: string;
   /** @nullable */
   averageRating: number | null;
@@ -272,6 +285,8 @@ export interface RentalDetail {
   endsAt: string;
   /** @nullable */
   cancelledAt: string | null;
+  /** @nullable */
+  settledAt: string | null;
   poolUrl: string;
   poolWorker: string;
   poolPassword: string;
@@ -484,6 +499,72 @@ export interface AdminUserRow {
   createdAt: string;
 }
 
+export interface AdminRigRow {
+  id: number;
+  name: string;
+  description: string;
+  ownerId: number;
+  ownerEmail: string;
+  ownerDisplayName: string;
+  algorithmId: number;
+  algorithmName: string;
+  algorithmUnit: string;
+  hashrate: number;
+  pricePerUnitPerHour: number;
+  region: string;
+  status: RigStatus;
+  approvalStatus: RigApprovalStatus;
+  /** @nullable */
+  approvalNote: string | null;
+  /** @nullable */
+  approvedAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminRigDecisionBody {
+  /** @maxLength 500 */
+  note?: string;
+}
+
+export interface AdminRentalRow {
+  id: number;
+  rigId: number;
+  rigName: string;
+  algorithmName: string;
+  algorithmUnit: string;
+  renterId: number;
+  renterEmail: string;
+  ownerId: number;
+  ownerEmail: string;
+  hashrate: number;
+  hours: number;
+  renterTotalUsd: number;
+  ownerEarningsUsd: number;
+  platformFeeUsd: number;
+  status: RentalStatus;
+  startedAt: string;
+  endsAt: string;
+  /** @nullable */
+  cancelledAt: string | null;
+  /** @nullable */
+  settledAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminWalletTransactionRow {
+  id: number;
+  userId: number;
+  userEmail: string;
+  userDisplayName: string;
+  type: WalletTransactionType;
+  amountUsd: number;
+  balanceAfterUsd: number;
+  memo: string;
+  /** @nullable */
+  relatedRentalId: number | null;
+  createdAt: string;
+}
+
 export interface AdminWithdrawalRow {
   id: number;
   userId: number;
@@ -573,3 +654,15 @@ export const ListRigsSort = {
   hashrate_desc: "hashrate_desc",
   newest: "newest",
 } as const;
+
+export type ListAdminRigsParams = {
+  approvalStatus?: RigApprovalStatus;
+};
+
+export type ListAdminWalletTransactionsParams = {
+  /**
+   * @minimum 1
+   * @maximum 500
+   */
+  limit?: number;
+};

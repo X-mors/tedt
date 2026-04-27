@@ -113,6 +113,7 @@ export const GetMarketplaceSummaryResponse = zod.object({
       minRentalHours: zod.number(),
       maxRentalHours: zod.number(),
       status: zod.enum(["available", "rented", "offline"]),
+      approvalStatus: zod.enum(["pending", "approved", "rejected"]),
       averageRating: zod.number().nullable(),
       reviewCount: zod.number(),
       createdAt: zod.coerce.date(),
@@ -176,6 +177,7 @@ export const ListRigsResponseItem = zod.object({
   minRentalHours: zod.number(),
   maxRentalHours: zod.number(),
   status: zod.enum(["available", "rented", "offline"]),
+  approvalStatus: zod.enum(["pending", "approved", "rejected"]),
   averageRating: zod.number().nullable(),
   reviewCount: zod.number(),
   createdAt: zod.coerce.date(),
@@ -203,6 +205,8 @@ export const GetRigResponse = zod.object({
   minRentalHours: zod.number(),
   maxRentalHours: zod.number(),
   status: zod.enum(["available", "rented", "offline"]),
+  approvalStatus: zod.enum(["pending", "approved", "rejected"]),
+  approvalNote: zod.string().nullable(),
   region: zod.string(),
   averageRating: zod.number().nullable(),
   reviewCount: zod.number(),
@@ -250,6 +254,7 @@ export const ListMyRigsResponseItem = zod.object({
   minRentalHours: zod.number(),
   maxRentalHours: zod.number(),
   status: zod.enum(["available", "rented", "offline"]),
+  approvalStatus: zod.enum(["pending", "approved", "rejected"]),
   averageRating: zod.number().nullable(),
   reviewCount: zod.number(),
   createdAt: zod.coerce.date(),
@@ -312,6 +317,8 @@ export const UpdateMyRigResponse = zod.object({
   minRentalHours: zod.number(),
   maxRentalHours: zod.number(),
   status: zod.enum(["available", "rented", "offline"]),
+  approvalStatus: zod.enum(["pending", "approved", "rejected"]),
+  approvalNote: zod.string().nullable(),
   region: zod.string(),
   averageRating: zod.number().nullable(),
   reviewCount: zod.number(),
@@ -428,6 +435,7 @@ export const GetRentalResponse = zod.object({
   startedAt: zod.coerce.date(),
   endsAt: zod.coerce.date(),
   cancelledAt: zod.coerce.date().nullable(),
+  settledAt: zod.coerce.date().nullable(),
   poolUrl: zod.string(),
   poolWorker: zod.string(),
   poolPassword: zod.string(),
@@ -507,6 +515,7 @@ export const CancelRentalResponse = zod.object({
   startedAt: zod.coerce.date(),
   endsAt: zod.coerce.date(),
   cancelledAt: zod.coerce.date().nullable(),
+  settledAt: zod.coerce.date().nullable(),
   poolUrl: zod.string(),
   poolWorker: zod.string(),
   poolPassword: zod.string(),
@@ -832,6 +841,164 @@ export const UpdateAlgorithmResponse = zod.object({
 export const DeleteAlgorithmParams = zod.object({
   id: zod.coerce.number(),
 });
+
+/**
+ * @summary List rigs across the platform with optional approval-status filter
+ */
+export const ListAdminRigsQueryParams = zod.object({
+  approvalStatus: zod.enum(["pending", "approved", "rejected"]).optional(),
+});
+
+export const ListAdminRigsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string(),
+  ownerId: zod.number(),
+  ownerEmail: zod.string(),
+  ownerDisplayName: zod.string(),
+  algorithmId: zod.number(),
+  algorithmName: zod.string(),
+  algorithmUnit: zod.string(),
+  hashrate: zod.number(),
+  pricePerUnitPerHour: zod.number(),
+  region: zod.string(),
+  status: zod.enum(["available", "rented", "offline"]),
+  approvalStatus: zod.enum(["pending", "approved", "rejected"]),
+  approvalNote: zod.string().nullable(),
+  approvedAt: zod.coerce.date().nullable(),
+  createdAt: zod.coerce.date(),
+});
+export const ListAdminRigsResponse = zod.array(ListAdminRigsResponseItem);
+
+/**
+ * @summary Approve a pending rig so it appears in the marketplace
+ */
+export const ApproveRigParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const approveRigBodyNoteMax = 500;
+
+export const ApproveRigBody = zod.object({
+  note: zod.string().max(approveRigBodyNoteMax).optional(),
+});
+
+export const ApproveRigResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string(),
+  ownerId: zod.number(),
+  ownerEmail: zod.string(),
+  ownerDisplayName: zod.string(),
+  algorithmId: zod.number(),
+  algorithmName: zod.string(),
+  algorithmUnit: zod.string(),
+  hashrate: zod.number(),
+  pricePerUnitPerHour: zod.number(),
+  region: zod.string(),
+  status: zod.enum(["available", "rented", "offline"]),
+  approvalStatus: zod.enum(["pending", "approved", "rejected"]),
+  approvalNote: zod.string().nullable(),
+  approvedAt: zod.coerce.date().nullable(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Reject a pending rig with an admin note
+ */
+export const RejectRigParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const rejectRigBodyNoteMax = 500;
+
+export const RejectRigBody = zod.object({
+  note: zod.string().max(rejectRigBodyNoteMax).optional(),
+});
+
+export const RejectRigResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string(),
+  ownerId: zod.number(),
+  ownerEmail: zod.string(),
+  ownerDisplayName: zod.string(),
+  algorithmId: zod.number(),
+  algorithmName: zod.string(),
+  algorithmUnit: zod.string(),
+  hashrate: zod.number(),
+  pricePerUnitPerHour: zod.number(),
+  region: zod.string(),
+  status: zod.enum(["available", "rented", "offline"]),
+  approvalStatus: zod.enum(["pending", "approved", "rejected"]),
+  approvalNote: zod.string().nullable(),
+  approvedAt: zod.coerce.date().nullable(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary List every rental on the platform with renter, owner and revenue breakdown
+ */
+export const ListAdminRentalsResponseItem = zod.object({
+  id: zod.number(),
+  rigId: zod.number(),
+  rigName: zod.string(),
+  algorithmName: zod.string(),
+  algorithmUnit: zod.string(),
+  renterId: zod.number(),
+  renterEmail: zod.string(),
+  ownerId: zod.number(),
+  ownerEmail: zod.string(),
+  hashrate: zod.number(),
+  hours: zod.number(),
+  renterTotalUsd: zod.number(),
+  ownerEarningsUsd: zod.number(),
+  platformFeeUsd: zod.number(),
+  status: zod.enum(["pending", "active", "completed", "cancelled"]),
+  startedAt: zod.coerce.date(),
+  endsAt: zod.coerce.date(),
+  cancelledAt: zod.coerce.date().nullable(),
+  settledAt: zod.coerce.date().nullable(),
+  createdAt: zod.coerce.date(),
+});
+export const ListAdminRentalsResponse = zod.array(ListAdminRentalsResponseItem);
+
+/**
+ * @summary Full wallet ledger across all users
+ */
+export const listAdminWalletTransactionsQueryLimitMax = 500;
+
+export const ListAdminWalletTransactionsQueryParams = zod.object({
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(listAdminWalletTransactionsQueryLimitMax)
+    .optional(),
+});
+
+export const ListAdminWalletTransactionsResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.number(),
+  userEmail: zod.string(),
+  userDisplayName: zod.string(),
+  type: zod.enum([
+    "deposit",
+    "withdrawal",
+    "rental_charge",
+    "rental_payout",
+    "rental_refund",
+    "admin_credit",
+    "admin_debit",
+  ]),
+  amountUsd: zod.number(),
+  balanceAfterUsd: zod.number(),
+  memo: zod.string(),
+  relatedRentalId: zod.number().nullable(),
+  createdAt: zod.coerce.date(),
+});
+export const ListAdminWalletTransactionsResponse = zod.array(
+  ListAdminWalletTransactionsResponseItem,
+);
 
 /**
  * @summary List all withdrawal requests pending approval

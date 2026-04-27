@@ -59,7 +59,7 @@ export default function Marketplace() {
             </SelectContent>
           </Select>
 
-          <Select value={status || "all"} onValueChange={(v: any) => setStatus(v === "all" ? undefined : v)}>
+          <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? undefined : (v as "available" | "rented" | "offline"))}>
             <SelectTrigger className="w-full md:w-[160px] font-mono text-sm bg-background">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -71,7 +71,7 @@ export default function Marketplace() {
             </SelectContent>
           </Select>
 
-          <Select value={sort} onValueChange={(v: any) => setSort(v)}>
+          <Select value={sort} onValueChange={(v) => setSort(v as "price_asc" | "price_desc" | "hashrate_desc" | "newest")}>
             <SelectTrigger className="w-full md:w-[180px] font-mono text-sm bg-background">
               <SelectValue placeholder="Sort" />
             </SelectTrigger>

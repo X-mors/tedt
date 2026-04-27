@@ -39,6 +39,8 @@ async function selectMyRigs(ownerId: number) {
       minRentalHours: rigsTable.minRentalHours,
       maxRentalHours: rigsTable.maxRentalHours,
       status: rigsTable.status,
+      approvalStatus: rigsTable.approvalStatus,
+      approvalNote: rigsTable.approvalNote,
       createdAt: rigsTable.createdAt,
       averageRating: sql<string | null>`AVG(${reviewsTable.rating})`,
       reviewCount: sql<string>`COUNT(${reviewsTable.id})`,
@@ -64,6 +66,8 @@ async function selectMyRigs(ownerId: number) {
     minRentalHours: r.minRentalHours,
     maxRentalHours: r.maxRentalHours,
     status: r.status,
+    approvalStatus: r.approvalStatus,
+    approvalNote: r.approvalNote,
     averageRating:
       r.averageRating == null
         ? null
@@ -92,6 +96,7 @@ router.post("/me/rigs", async (req, res) => {
     res.status(400).json({ error: "Unknown algorithm" });
     return;
   }
+  // Newly listed rigs always start in `pending` and require admin approval.
   await db.insert(rigsTable).values({
     ownerId: req.currentUser!.id,
     algorithmId: body.algorithmId,
@@ -101,6 +106,7 @@ router.post("/me/rigs", async (req, res) => {
     minRentalHours: body.minRentalHours,
     maxRentalHours: body.maxRentalHours,
     region: body.region,
+    approvalStatus: "pending",
   });
 
   // Promote renter -> owner the first time they list a rig.
@@ -136,12 +142,16 @@ router.patch("/me/rigs/:id", async (req, res) => {
   if (body.name !== undefined) patch["name"] = body.name;
   if (body.description !== undefined) patch["description"] = body.description;
   if (body.hashrate !== undefined) patch["hashrate"] = toUsdString(body.hashrate);
-  if (body.minRentalHours !== undefined) patch["minRentalHours"] = body.minRentalHours;
-  if (body.maxRentalHours !== undefined) patch["maxRentalHours"] = body.maxRentalHours;
+  if (body.minRentalHours !== undefined)
+    patch["minRentalHours"] = body.minRentalHours;
+  if (body.maxRentalHours !== undefined)
+    patch["maxRentalHours"] = body.maxRentalHours;
   if (body.region !== undefined) patch["region"] = body.region;
   if (body.status !== undefined) patch["status"] = body.status;
 
-  await db.update(rigsTable).set(patch).where(eq(rigsTable.id, id));
+  if (Object.keys(patch).length > 0) {
+    await db.update(rigsTable).set(patch).where(eq(rigsTable.id, id));
+  }
 
   const list = await selectMyRigs(req.currentUser!.id);
   const updated = list.find((r) => r.id === id);

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, or } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import {
   db,
   rigsTable,
@@ -17,12 +17,14 @@ import {
   GetRentalStatsResponse,
   CancelRentalResponse,
   CreateRentalReviewBody,
+  ListRigReviewsResponseItem,
   ListMyRentalsResponse,
   ListLessorRentalsResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
 import { getCommission } from "../lib/commission";
 import { round2, round6, toNum, toUsdString } from "../lib/money";
+import { settleExpiredRentals } from "../lib/settlement";
 import { randomBytes } from "node:crypto";
 
 const router: IRouter = Router();
@@ -107,6 +109,11 @@ router.post("/rentals/quote", async (req, res) => {
 
 router.post("/rentals", async (req, res) => {
   const body = CreateRentalBody.parse(req.body);
+
+  // Settle anything expired so a freshly-finished rig is back to "available"
+  // and an attempted rebooking succeeds.
+  await settleExpiredRentals();
+
   const [rigRow] = await db
     .select({
       id: rigsTable.id,
@@ -115,6 +122,7 @@ router.post("/rentals", async (req, res) => {
       minRentalHours: rigsTable.minRentalHours,
       maxRentalHours: rigsTable.maxRentalHours,
       status: rigsTable.status,
+      approvalStatus: rigsTable.approvalStatus,
       basePrice: algorithmsTable.basePricePerUnitPerHour,
     })
     .from(rigsTable)
@@ -125,12 +133,12 @@ router.post("/rentals", async (req, res) => {
     res.status(404).json({ error: "Rig not found" });
     return;
   }
-  if (rigRow.ownerId === req.currentUser!.id) {
-    res.status(400).json({ error: "Cannot rent your own rig" });
+  if (rigRow.approvalStatus !== "approved") {
+    res.status(400).json({ error: "Rig is not approved for rental" });
     return;
   }
-  if (rigRow.status !== "available") {
-    res.status(400).json({ error: "Rig is not available" });
+  if (rigRow.ownerId === req.currentUser!.id) {
+    res.status(400).json({ error: "Cannot rent your own rig" });
     return;
   }
   if (body.hours < rigRow.minRentalHours || body.hours > rigRow.maxRentalHours) {
@@ -151,15 +159,33 @@ router.post("/rentals", async (req, res) => {
     ownerFeePct: commission.ownerFeePct,
   });
 
-  const renterBalance = toNum(req.currentUser!.balanceUsd);
-  if (renterBalance < pricing.renterTotalUsd) {
-    res.status(400).json({
-      error: `Insufficient balance. Need $${pricing.renterTotalUsd.toFixed(2)}, have $${renterBalance.toFixed(2)}.`,
-    });
-    return;
-  }
+  const renterTotalStr = toUsdString(pricing.renterTotalUsd);
 
   const result = await db.transaction(async (tx) => {
+    // Atomic conditional debit — fails if the renter doesn't have funds at
+    // the moment the UPDATE runs, regardless of stale snapshots in Express.
+    const [debited] = await tx
+      .update(usersTable)
+      .set({
+        balanceUsd: sql`${usersTable.balanceUsd} - ${renterTotalStr}`,
+        totalSpentUsd: sql`${usersTable.totalSpentUsd} + ${renterTotalStr}`,
+      })
+      .where(
+        sql`${usersTable.id} = ${req.currentUser!.id} AND ${usersTable.balanceUsd} >= ${renterTotalStr}`,
+      )
+      .returning({ balanceUsd: usersTable.balanceUsd });
+    if (!debited) return { error: "insufficient" as const };
+
+    // Atomic rig reservation — fails if someone else just rented it.
+    const [reserved] = await tx
+      .update(rigsTable)
+      .set({ status: "rented" })
+      .where(
+        sql`${rigsTable.id} = ${body.rigId} AND ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved'`,
+      )
+      .returning({ id: rigsTable.id });
+    if (!reserved) return { error: "unavailable" as const };
+
     const proxy = buildProxyCreds();
     const startedAt = new Date();
     const endsAt = new Date(startedAt.getTime() + body.hours * 3600 * 1000);
@@ -175,7 +201,7 @@ router.post("/rentals", async (req, res) => {
         basePricePerUnitPerHour: toUsdString(basePrice),
         renterFeePct: commission.renterFeePct.toString(),
         ownerFeePct: commission.ownerFeePct.toString(),
-        renterTotalUsd: toUsdString(pricing.renterTotalUsd),
+        renterTotalUsd: renterTotalStr,
         ownerEarningsUsd: toUsdString(pricing.ownerEarningsUsd),
         platformFeeUsd: toUsdString(pricing.platformFeeUsd),
         status: "active",
@@ -190,39 +216,34 @@ router.post("/rentals", async (req, res) => {
       })
       .returning();
 
-    if (!rental) throw new Error("Failed to create rental");
+    if (!rental) return { error: "create" as const };
 
-    // Debit renter wallet.
-    const renterNewBalance = round6(renterBalance - pricing.renterTotalUsd);
-    await tx
-      .update(usersTable)
-      .set({
-        balanceUsd: toUsdString(renterNewBalance),
-        totalSpentUsd: toUsdString(
-          toNum(req.currentUser!.totalSpentUsd) + pricing.renterTotalUsd,
-        ),
-      })
-      .where(eq(usersTable.id, req.currentUser!.id));
     await tx.insert(walletTransactionsTable).values({
       userId: req.currentUser!.id,
       type: "rental_charge",
       amountUsd: toUsdString(-pricing.renterTotalUsd),
-      balanceAfterUsd: toUsdString(renterNewBalance),
+      balanceAfterUsd: toUsdString(round6(toNum(debited.balanceUsd))),
       memo: `Rental #${rental.id} on rig ${rigRow.id}`,
       relatedRentalId: rental.id,
     });
 
-    // Mark rig as rented.
-    await tx
-      .update(rigsTable)
-      .set({ status: "rented" })
-      .where(eq(rigsTable.id, rigRow.id));
-
-    return rental;
+    return { rental };
   });
 
-  // Re-fetch full rental detail.
-  res.status(201).json(await loadRentalDetail(result.id));
+  if ("error" in result) {
+    if (result.error === "insufficient") {
+      res.status(402).json({
+        error: `Insufficient balance. Need $${pricing.renterTotalUsd.toFixed(2)}.`,
+      });
+    } else if (result.error === "unavailable") {
+      res.status(400).json({ error: "Rig is not available" });
+    } else {
+      res.status(500).json({ error: "Failed to create rental" });
+    }
+    return;
+  }
+
+  res.status(201).json(await loadRentalDetail(result.rental.id));
 });
 
 async function loadRentalDetail(id: number) {
@@ -248,6 +269,7 @@ async function loadRentalDetail(id: number) {
       startedAt: rentalsTable.startedAt,
       endsAt: rentalsTable.endsAt,
       cancelledAt: rentalsTable.cancelledAt,
+      settledAt: rentalsTable.settledAt,
       poolUrl: rentalsTable.poolUrl,
       poolWorker: rentalsTable.poolWorker,
       poolPassword: rentalsTable.poolPassword,
@@ -292,6 +314,7 @@ async function loadRentalDetail(id: number) {
     startedAt: row.startedAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
     cancelledAt: row.cancelledAt ? row.cancelledAt.toISOString() : null,
+    settledAt: row.settledAt ? row.settledAt.toISOString() : null,
     poolUrl: row.poolUrl,
     poolWorker: row.poolWorker,
     poolPassword: row.poolPassword,
@@ -310,12 +333,12 @@ router.get("/rentals/:id", async (req, res) => {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
+  await settleExpiredRentals();
   const detail = await loadRentalDetail(id);
   if (!detail) {
     res.status(404).json({ error: "Rental not found" });
     return;
   }
-  // Visibility: renter, owner, or admin.
   if (
     detail.renterId !== req.currentUser!.id &&
     detail.ownerId !== req.currentUser!.id &&
@@ -333,6 +356,7 @@ router.get("/rentals/:id/stats", async (req, res) => {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
+  await settleExpiredRentals();
   const [rental] = await db
     .select()
     .from(rentalsTable)
@@ -355,7 +379,6 @@ router.get("/rentals/:id/stats", async (req, res) => {
       ? Math.max(0, Math.floor((rental.endsAt.getTime() - now) / 1000))
       : 0;
 
-  // The Stratum proxy isn't shipped yet — return placeholder zeros + message.
   const data = GetRentalStatsResponse.parse({
     rentalId: rental.id,
     currentHashrate: 0,
@@ -366,7 +389,8 @@ router.get("/rentals/:id/stats", async (req, res) => {
     secondsRemaining,
     status: rental.status,
     samples: [],
-    message: "Awaiting hash data — Stratum proxy will report live stats once a worker connects.",
+    message:
+      "Awaiting hash data — Stratum proxy will report live stats once a worker connects.",
   });
   res.json(data);
 });
@@ -396,23 +420,32 @@ router.post("/rentals/:id/cancel", async (req, res) => {
 
   await db.transaction(async (tx) => {
     const now = new Date();
-    const totalSeconds = (rental.endsAt.getTime() - rental.startedAt.getTime()) / 1000;
+    const totalSeconds =
+      (rental.endsAt.getTime() - rental.startedAt.getTime()) / 1000;
     const usedSeconds = Math.max(
       0,
-      Math.min(totalSeconds, (now.getTime() - rental.startedAt.getTime()) / 1000),
+      Math.min(
+        totalSeconds,
+        (now.getTime() - rental.startedAt.getTime()) / 1000,
+      ),
     );
     const usedRatio = totalSeconds > 0 ? usedSeconds / totalSeconds : 1;
     const renterTotal = toNum(rental.renterTotalUsd);
     const refund = round2(renterTotal * (1 - usedRatio));
-    const consumed = round2(renterTotal - refund);
 
-    await tx
+    // Atomic claim — only the first concurrent caller wins.
+    const [claimed] = await tx
       .update(rentalsTable)
       .set({
         status: "cancelled",
         cancelledAt: now,
+        settledAt: now,
       })
-      .where(eq(rentalsTable.id, rental.id));
+      .where(
+        sql`${rentalsTable.id} = ${rental.id} AND ${rentalsTable.status} = 'active'`,
+      )
+      .returning();
+    if (!claimed) return;
 
     await tx
       .update(rigsTable)
@@ -420,61 +453,52 @@ router.post("/rentals/:id/cancel", async (req, res) => {
       .where(eq(rigsTable.id, rental.rigId));
 
     if (refund > 0) {
-      const [renter] = await tx
-        .select()
-        .from(usersTable)
-        .where(eq(usersTable.id, rental.renterId));
-      if (renter) {
-        const newBalance = round6(toNum(renter.balanceUsd) + refund);
-        const newSpent = round6(toNum(renter.totalSpentUsd) - refund);
-        await tx
-          .update(usersTable)
-          .set({
-            balanceUsd: toUsdString(newBalance),
-            totalSpentUsd: toUsdString(Math.max(0, newSpent)),
-          })
-          .where(eq(usersTable.id, renter.id));
+      const refundStr = toUsdString(refund);
+      const [credited] = await tx
+        .update(usersTable)
+        .set({
+          balanceUsd: sql`${usersTable.balanceUsd} + ${refundStr}`,
+          totalSpentUsd: sql`GREATEST(0, ${usersTable.totalSpentUsd} - ${refundStr})`,
+        })
+        .where(eq(usersTable.id, rental.renterId))
+        .returning({ balanceUsd: usersTable.balanceUsd });
+      if (credited) {
         await tx.insert(walletTransactionsTable).values({
-          userId: renter.id,
+          userId: rental.renterId,
           type: "rental_refund",
-          amountUsd: toUsdString(refund),
-          balanceAfterUsd: toUsdString(newBalance),
+          amountUsd: refundStr,
+          balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
           memo: `Refund for cancelled rental #${rental.id}`,
           relatedRentalId: rental.id,
         });
       }
     }
 
-    // Pay the owner the prorated portion of their earnings (before-fee × usedRatio).
+    // Owner gets a prorated payout (same logic, will be replaced by real
+    // delivered-hours-based settlement once the Stratum proxy ships).
     const ownerEarningsTotal = toNum(rental.ownerEarningsUsd);
     const ownerPayout = round2(ownerEarningsTotal * usedRatio);
     if (ownerPayout > 0) {
-      const [owner] = await tx
-        .select()
-        .from(usersTable)
-        .where(eq(usersTable.id, rental.ownerId));
-      if (owner) {
-        const newBalance = round6(toNum(owner.balanceUsd) + ownerPayout);
-        const newEarned = round6(toNum(owner.totalEarnedUsd) + ownerPayout);
-        await tx
-          .update(usersTable)
-          .set({
-            balanceUsd: toUsdString(newBalance),
-            totalEarnedUsd: toUsdString(newEarned),
-          })
-          .where(eq(usersTable.id, owner.id));
+      const payoutStr = toUsdString(ownerPayout);
+      const [credited] = await tx
+        .update(usersTable)
+        .set({
+          balanceUsd: sql`${usersTable.balanceUsd} + ${payoutStr}`,
+          totalEarnedUsd: sql`${usersTable.totalEarnedUsd} + ${payoutStr}`,
+        })
+        .where(eq(usersTable.id, rental.ownerId))
+        .returning({ balanceUsd: usersTable.balanceUsd });
+      if (credited) {
         await tx.insert(walletTransactionsTable).values({
-          userId: owner.id,
+          userId: rental.ownerId,
           type: "rental_payout",
-          amountUsd: toUsdString(ownerPayout),
-          balanceAfterUsd: toUsdString(newBalance),
+          amountUsd: payoutStr,
+          balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
           memo: `Prorated payout for cancelled rental #${rental.id}`,
           relatedRentalId: rental.id,
         });
       }
     }
-
-    void consumed;
   });
 
   const detail = await loadRentalDetail(rental.id);
@@ -501,22 +525,50 @@ router.post("/rentals/:id/review", async (req, res) => {
     return;
   }
   if (rental.status !== "completed" && rental.status !== "cancelled") {
-    res.status(400).json({ error: "Rental must be completed or cancelled to review" });
+    res
+      .status(400)
+      .json({ error: "Rental must be completed or cancelled to review" });
+    return;
+  }
+  const [existing] = await db
+    .select({ id: reviewsTable.id })
+    .from(reviewsTable)
+    .where(eq(reviewsTable.rentalId, rental.id));
+  if (existing) {
+    res.status(400).json({ error: "Review already submitted for this rental" });
     return;
   }
 
-  await db.insert(reviewsTable).values({
-    rentalId: rental.id,
-    rigId: rental.rigId,
-    renterId: req.currentUser!.id,
-    rating: body.rating,
-    body: body.body,
-  });
+  const [created] = await db
+    .insert(reviewsTable)
+    .values({
+      rentalId: rental.id,
+      rigId: rental.rigId,
+      renterId: req.currentUser!.id,
+      rating: body.rating,
+      body: body.body,
+    })
+    .returning();
 
-  res.status(201).json({ ok: true });
+  if (!created) {
+    res.status(500).json({ error: "Failed to create review" });
+    return;
+  }
+
+  const data = ListRigReviewsResponseItem.parse({
+    id: created.id,
+    rigId: created.rigId,
+    rentalId: created.rentalId,
+    renterDisplayName: req.currentUser!.displayName,
+    rating: created.rating,
+    body: created.body,
+    createdAt: created.createdAt.toISOString(),
+  });
+  res.status(201).json(data);
 });
 
 router.get("/me/rentals", async (req, res) => {
+  await settleExpiredRentals();
   const rows = await db
     .select({
       id: rentalsTable.id,
@@ -543,13 +595,12 @@ router.get("/me/rentals", async (req, res) => {
     .where(eq(rentalsTable.renterId, req.currentUser!.id))
     .orderBy(desc(rentalsTable.createdAt));
 
-  // owner display names in batch
   const ownerIds = Array.from(new Set(rows.map((r) => r.ownerId)));
   const owners = ownerIds.length
     ? await db
         .select({ id: usersTable.id, displayName: usersTable.displayName })
         .from(usersTable)
-        .where(or(...ownerIds.map((id) => eq(usersTable.id, id))))
+        .where(inArray(usersTable.id, ownerIds))
     : [];
   const ownerMap = new Map(owners.map((o) => [o.id, o.displayName]));
 
@@ -579,6 +630,7 @@ router.get("/me/rentals", async (req, res) => {
 });
 
 router.get("/me/rentals/lessor", async (req, res) => {
+  await settleExpiredRentals();
   const rows = await db
     .select({
       id: rentalsTable.id,
@@ -629,7 +681,5 @@ router.get("/me/rentals/lessor", async (req, res) => {
   );
   res.json(data);
 });
-
-void and;
 
 export default router;

@@ -53,6 +53,7 @@ export const rentalsTable = pgTable("rentals", {
     .defaultNow(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  settledAt: timestamp("settled_at", { withTimezone: true }),
   deliveredHashrateAvg: numeric("delivered_hashrate_avg", {
     precision: 18,
     scale: 6,

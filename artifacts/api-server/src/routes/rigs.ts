@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, eq, ilike, sql, desc, asc } from "drizzle-orm";
+import { and, eq, ilike, sql, desc } from "drizzle-orm";
 import {
   db,
   rigsTable,
@@ -26,18 +26,21 @@ router.get("/rigs", async (req, res) => {
   const commission = await getCommission();
   const renterMultiplier = 1 + commission.renterFeePct / 100;
 
-  const filters = [];
+  // Public marketplace only ever lists approved rigs.
+  const filters = [eq(rigsTable.approvalStatus, "approved")];
   if (algorithmIdRaw && !Number.isNaN(Number(algorithmIdRaw))) {
     filters.push(eq(rigsTable.algorithmId, Number(algorithmIdRaw)));
   }
   if (typeof status === "string" && status !== "") {
-    filters.push(eq(rigsTable.status, status as "available" | "rented" | "offline"));
+    filters.push(
+      eq(rigsTable.status, status as "available" | "rented" | "offline"),
+    );
   }
   if (typeof search === "string" && search.trim() !== "") {
     filters.push(ilike(rigsTable.name, `%${search.trim()}%`));
   }
 
-  const baseQuery = db
+  const rows = await db
     .select({
       id: rigsTable.id,
       name: rigsTable.name,
@@ -51,6 +54,8 @@ router.get("/rigs", async (req, res) => {
       minRentalHours: rigsTable.minRentalHours,
       maxRentalHours: rigsTable.maxRentalHours,
       status: rigsTable.status,
+      approvalStatus: rigsTable.approvalStatus,
+      approvalNote: rigsTable.approvalNote,
       createdAt: rigsTable.createdAt,
       averageRating: sql<string | null>`AVG(${reviewsTable.rating})`,
       reviewCount: sql<string>`COUNT(${reviewsTable.id})`,
@@ -59,35 +64,34 @@ router.get("/rigs", async (req, res) => {
     .innerJoin(usersTable, eq(usersTable.id, rigsTable.ownerId))
     .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
     .leftJoin(reviewsTable, eq(reviewsTable.rigId, rigsTable.id))
-    .where(filters.length ? and(...filters) : undefined)
+    .where(and(...filters))
     .groupBy(rigsTable.id, usersTable.id, algorithmsTable.id);
-
-  let rows = await baseQuery;
 
   // Apply sort in memory because price depends on commission.
   const sortKey = typeof sort === "string" ? sort : "newest";
+  const sorted = [...rows];
   switch (sortKey) {
     case "price_asc":
-      rows = rows.sort(
+      sorted.sort(
         (a, b) =>
           toNum(a.basePricePerUnitPerHour) - toNum(b.basePricePerUnitPerHour),
       );
       break;
     case "price_desc":
-      rows = rows.sort(
+      sorted.sort(
         (a, b) =>
           toNum(b.basePricePerUnitPerHour) - toNum(a.basePricePerUnitPerHour),
       );
       break;
     case "hashrate_desc":
-      rows = rows.sort((a, b) => toNum(b.hashrate) - toNum(a.hashrate));
+      sorted.sort((a, b) => toNum(b.hashrate) - toNum(a.hashrate));
       break;
     default:
-      rows = rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      sorted.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
   const data = ListRigsResponse.parse(
-    rows.map((r) => ({
+    sorted.map((r) => ({
       id: r.id,
       name: r.name,
       ownerId: r.ownerId,
@@ -100,6 +104,8 @@ router.get("/rigs", async (req, res) => {
       minRentalHours: r.minRentalHours,
       maxRentalHours: r.maxRentalHours,
       status: r.status,
+      approvalStatus: r.approvalStatus,
+      approvalNote: r.approvalNote,
       averageRating:
         r.averageRating == null
           ? null
@@ -136,6 +142,8 @@ router.get("/rigs/:id", async (req, res) => {
       minRentalHours: rigsTable.minRentalHours,
       maxRentalHours: rigsTable.maxRentalHours,
       status: rigsTable.status,
+      approvalStatus: rigsTable.approvalStatus,
+      approvalNote: rigsTable.approvalNote,
       region: rigsTable.region,
       createdAt: rigsTable.createdAt,
       averageRating: sql<string | null>`(SELECT AVG(rating) FROM reviews WHERE rig_id = ${rigsTable.id})`,
@@ -145,7 +153,12 @@ router.get("/rigs/:id", async (req, res) => {
     .from(rigsTable)
     .innerJoin(usersTable, eq(usersTable.id, rigsTable.ownerId))
     .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
-    .where(eq(rigsTable.id, id));
+    .where(
+      and(
+        eq(rigsTable.id, id),
+        eq(rigsTable.approvalStatus, "approved"),
+      ),
+    );
 
   if (!row) {
     res.status(404).json({ error: "Rig not found" });
@@ -162,11 +175,12 @@ router.get("/rigs/:id", async (req, res) => {
     algorithmName: row.algorithmName,
     algorithmUnit: row.algorithmUnit,
     hashrate: toNum(row.hashrate),
-    pricePerUnitPerHour:
-      toNum(row.basePricePerUnitPerHour) * renterMultiplier,
+    pricePerUnitPerHour: toNum(row.basePricePerUnitPerHour) * renterMultiplier,
     minRentalHours: row.minRentalHours,
     maxRentalHours: row.maxRentalHours,
     status: row.status,
+    approvalStatus: row.approvalStatus,
+    approvalNote: row.approvalNote,
     region: row.region,
     averageRating:
       row.averageRating == null
@@ -209,7 +223,5 @@ router.get("/rigs/:id/reviews", async (req, res) => {
   );
   res.json(data);
 });
-
-void asc;
 
 export default router;
