@@ -1,0 +1,635 @@
+import { Router, type IRouter } from "express";
+import { and, desc, eq, or } from "drizzle-orm";
+import {
+  db,
+  rigsTable,
+  algorithmsTable,
+  usersTable,
+  rentalsTable,
+  walletTransactionsTable,
+  reviewsTable,
+} from "@workspace/db";
+import {
+  CreateRentalBody,
+  CreateRentalQuoteBody,
+  CreateRentalQuoteResponse,
+  GetRentalResponse,
+  GetRentalStatsResponse,
+  CancelRentalResponse,
+  CreateRentalReviewBody,
+  ListMyRentalsResponse,
+  ListLessorRentalsResponse,
+} from "@workspace/api-zod";
+import { requireAuth } from "../lib/auth";
+import { getCommission } from "../lib/commission";
+import { round2, round6, toNum, toUsdString } from "../lib/money";
+import { randomBytes } from "node:crypto";
+
+const router: IRouter = Router();
+
+function priceForRental(opts: {
+  hashrate: number;
+  hours: number;
+  basePrice: number;
+  renterFeePct: number;
+  ownerFeePct: number;
+}) {
+  const { hashrate, hours, basePrice, renterFeePct, ownerFeePct } = opts;
+  const baseSubtotal = hashrate * basePrice * hours;
+  const renterFee = baseSubtotal * (renterFeePct / 100);
+  const renterTotal = baseSubtotal + renterFee;
+  const ownerFee = baseSubtotal * (ownerFeePct / 100);
+  const ownerEarnings = baseSubtotal - ownerFee;
+  const platformFee = renterFee + ownerFee;
+  return {
+    baseSubtotalUsd: round2(baseSubtotal),
+    renterFeeUsd: round2(renterFee),
+    renterTotalUsd: round2(renterTotal),
+    ownerEarningsUsd: round2(ownerEarnings),
+    platformFeeUsd: round2(platformFee),
+  };
+}
+
+function buildProxyCreds() {
+  const host = process.env["REPLIT_DEV_DOMAIN"] ?? "rigmarket.local";
+  return {
+    stratumProxyUrl: `stratum+tcp://${host}:33333`,
+    proxyWorker: `worker.${randomBytes(4).toString("hex")}`,
+    proxyPassword: randomBytes(8).toString("hex"),
+  };
+}
+
+router.use(requireAuth);
+
+router.post("/rentals/quote", async (req, res) => {
+  const body = CreateRentalQuoteBody.parse(req.body);
+  const [rigRow] = await db
+    .select({
+      id: rigsTable.id,
+      hashrate: rigsTable.hashrate,
+      minRentalHours: rigsTable.minRentalHours,
+      maxRentalHours: rigsTable.maxRentalHours,
+      status: rigsTable.status,
+      basePrice: algorithmsTable.basePricePerUnitPerHour,
+      algorithmUnit: algorithmsTable.unit,
+    })
+    .from(rigsTable)
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
+    .where(eq(rigsTable.id, body.rigId));
+
+  if (!rigRow) {
+    res.status(404).json({ error: "Rig not found" });
+    return;
+  }
+  const commission = await getCommission();
+  const hashrate = toNum(rigRow.hashrate);
+  const basePrice = toNum(rigRow.basePrice);
+  const pricing = priceForRental({
+    hashrate,
+    hours: body.hours,
+    basePrice,
+    renterFeePct: commission.renterFeePct,
+    ownerFeePct: commission.ownerFeePct,
+  });
+
+  const data = CreateRentalQuoteResponse.parse({
+    rigId: rigRow.id,
+    hours: body.hours,
+    hashrate,
+    algorithmUnit: rigRow.algorithmUnit,
+    basePricePerUnitPerHour: basePrice,
+    renterFeePct: commission.renterFeePct,
+    ownerFeePct: commission.ownerFeePct,
+    ...pricing,
+  });
+  res.json(data);
+});
+
+router.post("/rentals", async (req, res) => {
+  const body = CreateRentalBody.parse(req.body);
+  const [rigRow] = await db
+    .select({
+      id: rigsTable.id,
+      ownerId: rigsTable.ownerId,
+      hashrate: rigsTable.hashrate,
+      minRentalHours: rigsTable.minRentalHours,
+      maxRentalHours: rigsTable.maxRentalHours,
+      status: rigsTable.status,
+      basePrice: algorithmsTable.basePricePerUnitPerHour,
+    })
+    .from(rigsTable)
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
+    .where(eq(rigsTable.id, body.rigId));
+
+  if (!rigRow) {
+    res.status(404).json({ error: "Rig not found" });
+    return;
+  }
+  if (rigRow.ownerId === req.currentUser!.id) {
+    res.status(400).json({ error: "Cannot rent your own rig" });
+    return;
+  }
+  if (rigRow.status !== "available") {
+    res.status(400).json({ error: "Rig is not available" });
+    return;
+  }
+  if (body.hours < rigRow.minRentalHours || body.hours > rigRow.maxRentalHours) {
+    res.status(400).json({
+      error: `Rental must be between ${rigRow.minRentalHours} and ${rigRow.maxRentalHours} hours`,
+    });
+    return;
+  }
+
+  const commission = await getCommission();
+  const hashrate = toNum(rigRow.hashrate);
+  const basePrice = toNum(rigRow.basePrice);
+  const pricing = priceForRental({
+    hashrate,
+    hours: body.hours,
+    basePrice,
+    renterFeePct: commission.renterFeePct,
+    ownerFeePct: commission.ownerFeePct,
+  });
+
+  const renterBalance = toNum(req.currentUser!.balanceUsd);
+  if (renterBalance < pricing.renterTotalUsd) {
+    res.status(400).json({
+      error: `Insufficient balance. Need $${pricing.renterTotalUsd.toFixed(2)}, have $${renterBalance.toFixed(2)}.`,
+    });
+    return;
+  }
+
+  const result = await db.transaction(async (tx) => {
+    const proxy = buildProxyCreds();
+    const startedAt = new Date();
+    const endsAt = new Date(startedAt.getTime() + body.hours * 3600 * 1000);
+
+    const [rental] = await tx
+      .insert(rentalsTable)
+      .values({
+        rigId: rigRow.id,
+        renterId: req.currentUser!.id,
+        ownerId: rigRow.ownerId,
+        hours: body.hours,
+        hashrate: toUsdString(hashrate),
+        basePricePerUnitPerHour: toUsdString(basePrice),
+        renterFeePct: commission.renterFeePct.toString(),
+        ownerFeePct: commission.ownerFeePct.toString(),
+        renterTotalUsd: toUsdString(pricing.renterTotalUsd),
+        ownerEarningsUsd: toUsdString(pricing.ownerEarningsUsd),
+        platformFeeUsd: toUsdString(pricing.platformFeeUsd),
+        status: "active",
+        poolUrl: body.poolUrl,
+        poolWorker: body.poolWorker,
+        poolPassword: body.poolPassword ?? "x",
+        stratumProxyUrl: proxy.stratumProxyUrl,
+        proxyWorker: proxy.proxyWorker,
+        proxyPassword: proxy.proxyPassword,
+        startedAt,
+        endsAt,
+      })
+      .returning();
+
+    if (!rental) throw new Error("Failed to create rental");
+
+    // Debit renter wallet.
+    const renterNewBalance = round6(renterBalance - pricing.renterTotalUsd);
+    await tx
+      .update(usersTable)
+      .set({
+        balanceUsd: toUsdString(renterNewBalance),
+        totalSpentUsd: toUsdString(
+          toNum(req.currentUser!.totalSpentUsd) + pricing.renterTotalUsd,
+        ),
+      })
+      .where(eq(usersTable.id, req.currentUser!.id));
+    await tx.insert(walletTransactionsTable).values({
+      userId: req.currentUser!.id,
+      type: "rental_charge",
+      amountUsd: toUsdString(-pricing.renterTotalUsd),
+      balanceAfterUsd: toUsdString(renterNewBalance),
+      memo: `Rental #${rental.id} on rig ${rigRow.id}`,
+      relatedRentalId: rental.id,
+    });
+
+    // Mark rig as rented.
+    await tx
+      .update(rigsTable)
+      .set({ status: "rented" })
+      .where(eq(rigsTable.id, rigRow.id));
+
+    return rental;
+  });
+
+  // Re-fetch full rental detail.
+  res.status(201).json(await loadRentalDetail(result.id));
+});
+
+async function loadRentalDetail(id: number) {
+  const [row] = await db
+    .select({
+      id: rentalsTable.id,
+      rigId: rentalsTable.rigId,
+      rigName: rigsTable.name,
+      algorithmName: algorithmsTable.name,
+      algorithmUnit: algorithmsTable.unit,
+      renterId: rentalsTable.renterId,
+      renterDisplayName: usersTable.displayName,
+      ownerId: rentalsTable.ownerId,
+      hashrate: rentalsTable.hashrate,
+      hours: rentalsTable.hours,
+      basePricePerUnitPerHour: rentalsTable.basePricePerUnitPerHour,
+      renterFeePct: rentalsTable.renterFeePct,
+      ownerFeePct: rentalsTable.ownerFeePct,
+      renterTotalUsd: rentalsTable.renterTotalUsd,
+      ownerEarningsUsd: rentalsTable.ownerEarningsUsd,
+      platformFeeUsd: rentalsTable.platformFeeUsd,
+      status: rentalsTable.status,
+      startedAt: rentalsTable.startedAt,
+      endsAt: rentalsTable.endsAt,
+      cancelledAt: rentalsTable.cancelledAt,
+      poolUrl: rentalsTable.poolUrl,
+      poolWorker: rentalsTable.poolWorker,
+      poolPassword: rentalsTable.poolPassword,
+      stratumProxyUrl: rentalsTable.stratumProxyUrl,
+      proxyWorker: rentalsTable.proxyWorker,
+      proxyPassword: rentalsTable.proxyPassword,
+      deliveredHashrateAvg: rentalsTable.deliveredHashrateAvg,
+      createdAt: rentalsTable.createdAt,
+    })
+    .from(rentalsTable)
+    .innerJoin(rigsTable, eq(rigsTable.id, rentalsTable.rigId))
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
+    .innerJoin(usersTable, eq(usersTable.id, rentalsTable.renterId))
+    .where(eq(rentalsTable.id, id));
+
+  if (!row) return null;
+
+  const [ownerRow] = await db
+    .select({ displayName: usersTable.displayName })
+    .from(usersTable)
+    .where(eq(usersTable.id, row.ownerId));
+
+  return GetRentalResponse.parse({
+    id: row.id,
+    rigId: row.rigId,
+    rigName: row.rigName,
+    algorithmName: row.algorithmName,
+    algorithmUnit: row.algorithmUnit,
+    renterId: row.renterId,
+    renterDisplayName: row.renterDisplayName,
+    ownerId: row.ownerId,
+    ownerDisplayName: ownerRow?.displayName ?? "",
+    hashrate: toNum(row.hashrate),
+    hours: row.hours,
+    basePricePerUnitPerHour: toNum(row.basePricePerUnitPerHour),
+    renterFeePct: toNum(row.renterFeePct),
+    ownerFeePct: toNum(row.ownerFeePct),
+    renterTotalUsd: toNum(row.renterTotalUsd),
+    ownerEarningsUsd: toNum(row.ownerEarningsUsd),
+    platformFeeUsd: toNum(row.platformFeeUsd),
+    status: row.status,
+    startedAt: row.startedAt.toISOString(),
+    endsAt: row.endsAt.toISOString(),
+    cancelledAt: row.cancelledAt ? row.cancelledAt.toISOString() : null,
+    poolUrl: row.poolUrl,
+    poolWorker: row.poolWorker,
+    poolPassword: row.poolPassword,
+    stratumProxyUrl: row.stratumProxyUrl,
+    proxyWorker: row.proxyWorker,
+    proxyPassword: row.proxyPassword,
+    deliveredHashrateAvg:
+      row.deliveredHashrateAvg == null ? null : toNum(row.deliveredHashrateAvg),
+    createdAt: row.createdAt.toISOString(),
+  });
+}
+
+router.get("/rentals/:id", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const detail = await loadRentalDetail(id);
+  if (!detail) {
+    res.status(404).json({ error: "Rental not found" });
+    return;
+  }
+  // Visibility: renter, owner, or admin.
+  if (
+    detail.renterId !== req.currentUser!.id &&
+    detail.ownerId !== req.currentUser!.id &&
+    req.currentUser!.role !== "admin"
+  ) {
+    res.status(403).json({ error: "Not allowed" });
+    return;
+  }
+  res.json(detail);
+});
+
+router.get("/rentals/:id/stats", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [rental] = await db
+    .select()
+    .from(rentalsTable)
+    .where(eq(rentalsTable.id, id));
+  if (!rental) {
+    res.status(404).json({ error: "Rental not found" });
+    return;
+  }
+  if (
+    rental.renterId !== req.currentUser!.id &&
+    rental.ownerId !== req.currentUser!.id &&
+    req.currentUser!.role !== "admin"
+  ) {
+    res.status(403).json({ error: "Not allowed" });
+    return;
+  }
+  const now = Date.now();
+  const secondsRemaining =
+    rental.status === "active"
+      ? Math.max(0, Math.floor((rental.endsAt.getTime() - now) / 1000))
+      : 0;
+
+  // The Stratum proxy isn't shipped yet — return placeholder zeros + message.
+  const data = GetRentalStatsResponse.parse({
+    rentalId: rental.id,
+    currentHashrate: 0,
+    averageHashrate: 0,
+    deliveryRatio: 0,
+    sharesAccepted: 0,
+    sharesRejected: 0,
+    secondsRemaining,
+    status: rental.status,
+    samples: [],
+    message: "Awaiting hash data — Stratum proxy will report live stats once a worker connects.",
+  });
+  res.json(data);
+});
+
+router.post("/rentals/:id/cancel", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [rental] = await db
+    .select()
+    .from(rentalsTable)
+    .where(eq(rentalsTable.id, id));
+  if (!rental) {
+    res.status(404).json({ error: "Rental not found" });
+    return;
+  }
+  if (rental.renterId !== req.currentUser!.id) {
+    res.status(403).json({ error: "Only the renter can cancel" });
+    return;
+  }
+  if (rental.status !== "active") {
+    res.status(400).json({ error: "Rental is not active" });
+    return;
+  }
+
+  await db.transaction(async (tx) => {
+    const now = new Date();
+    const totalSeconds = (rental.endsAt.getTime() - rental.startedAt.getTime()) / 1000;
+    const usedSeconds = Math.max(
+      0,
+      Math.min(totalSeconds, (now.getTime() - rental.startedAt.getTime()) / 1000),
+    );
+    const usedRatio = totalSeconds > 0 ? usedSeconds / totalSeconds : 1;
+    const renterTotal = toNum(rental.renterTotalUsd);
+    const refund = round2(renterTotal * (1 - usedRatio));
+    const consumed = round2(renterTotal - refund);
+
+    await tx
+      .update(rentalsTable)
+      .set({
+        status: "cancelled",
+        cancelledAt: now,
+      })
+      .where(eq(rentalsTable.id, rental.id));
+
+    await tx
+      .update(rigsTable)
+      .set({ status: "available" })
+      .where(eq(rigsTable.id, rental.rigId));
+
+    if (refund > 0) {
+      const [renter] = await tx
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, rental.renterId));
+      if (renter) {
+        const newBalance = round6(toNum(renter.balanceUsd) + refund);
+        const newSpent = round6(toNum(renter.totalSpentUsd) - refund);
+        await tx
+          .update(usersTable)
+          .set({
+            balanceUsd: toUsdString(newBalance),
+            totalSpentUsd: toUsdString(Math.max(0, newSpent)),
+          })
+          .where(eq(usersTable.id, renter.id));
+        await tx.insert(walletTransactionsTable).values({
+          userId: renter.id,
+          type: "rental_refund",
+          amountUsd: toUsdString(refund),
+          balanceAfterUsd: toUsdString(newBalance),
+          memo: `Refund for cancelled rental #${rental.id}`,
+          relatedRentalId: rental.id,
+        });
+      }
+    }
+
+    // Pay the owner the prorated portion of their earnings (before-fee × usedRatio).
+    const ownerEarningsTotal = toNum(rental.ownerEarningsUsd);
+    const ownerPayout = round2(ownerEarningsTotal * usedRatio);
+    if (ownerPayout > 0) {
+      const [owner] = await tx
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, rental.ownerId));
+      if (owner) {
+        const newBalance = round6(toNum(owner.balanceUsd) + ownerPayout);
+        const newEarned = round6(toNum(owner.totalEarnedUsd) + ownerPayout);
+        await tx
+          .update(usersTable)
+          .set({
+            balanceUsd: toUsdString(newBalance),
+            totalEarnedUsd: toUsdString(newEarned),
+          })
+          .where(eq(usersTable.id, owner.id));
+        await tx.insert(walletTransactionsTable).values({
+          userId: owner.id,
+          type: "rental_payout",
+          amountUsd: toUsdString(ownerPayout),
+          balanceAfterUsd: toUsdString(newBalance),
+          memo: `Prorated payout for cancelled rental #${rental.id}`,
+          relatedRentalId: rental.id,
+        });
+      }
+    }
+
+    void consumed;
+  });
+
+  const detail = await loadRentalDetail(rental.id);
+  res.json(CancelRentalResponse.parse(detail));
+});
+
+router.post("/rentals/:id/review", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const body = CreateRentalReviewBody.parse(req.body);
+  const [rental] = await db
+    .select()
+    .from(rentalsTable)
+    .where(eq(rentalsTable.id, id));
+  if (!rental) {
+    res.status(404).json({ error: "Rental not found" });
+    return;
+  }
+  if (rental.renterId !== req.currentUser!.id) {
+    res.status(403).json({ error: "Only the renter can review" });
+    return;
+  }
+  if (rental.status !== "completed" && rental.status !== "cancelled") {
+    res.status(400).json({ error: "Rental must be completed or cancelled to review" });
+    return;
+  }
+
+  await db.insert(reviewsTable).values({
+    rentalId: rental.id,
+    rigId: rental.rigId,
+    renterId: req.currentUser!.id,
+    rating: body.rating,
+    body: body.body,
+  });
+
+  res.status(201).json({ ok: true });
+});
+
+router.get("/me/rentals", async (req, res) => {
+  const rows = await db
+    .select({
+      id: rentalsTable.id,
+      rigId: rentalsTable.rigId,
+      rigName: rigsTable.name,
+      algorithmName: algorithmsTable.name,
+      algorithmUnit: algorithmsTable.unit,
+      renterId: rentalsTable.renterId,
+      renterDisplayName: usersTable.displayName,
+      ownerId: rentalsTable.ownerId,
+      hashrate: rentalsTable.hashrate,
+      hours: rentalsTable.hours,
+      renterTotalUsd: rentalsTable.renterTotalUsd,
+      ownerEarningsUsd: rentalsTable.ownerEarningsUsd,
+      status: rentalsTable.status,
+      startedAt: rentalsTable.startedAt,
+      endsAt: rentalsTable.endsAt,
+      deliveredHashrateAvg: rentalsTable.deliveredHashrateAvg,
+    })
+    .from(rentalsTable)
+    .innerJoin(rigsTable, eq(rigsTable.id, rentalsTable.rigId))
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
+    .innerJoin(usersTable, eq(usersTable.id, rentalsTable.renterId))
+    .where(eq(rentalsTable.renterId, req.currentUser!.id))
+    .orderBy(desc(rentalsTable.createdAt));
+
+  // owner display names in batch
+  const ownerIds = Array.from(new Set(rows.map((r) => r.ownerId)));
+  const owners = ownerIds.length
+    ? await db
+        .select({ id: usersTable.id, displayName: usersTable.displayName })
+        .from(usersTable)
+        .where(or(...ownerIds.map((id) => eq(usersTable.id, id))))
+    : [];
+  const ownerMap = new Map(owners.map((o) => [o.id, o.displayName]));
+
+  const data = ListMyRentalsResponse.parse(
+    rows.map((r) => ({
+      id: r.id,
+      rigId: r.rigId,
+      rigName: r.rigName,
+      algorithmName: r.algorithmName,
+      algorithmUnit: r.algorithmUnit,
+      renterId: r.renterId,
+      renterDisplayName: r.renterDisplayName,
+      ownerId: r.ownerId,
+      ownerDisplayName: ownerMap.get(r.ownerId) ?? "",
+      hashrate: toNum(r.hashrate),
+      hours: r.hours,
+      renterTotalUsd: toNum(r.renterTotalUsd),
+      ownerEarningsUsd: toNum(r.ownerEarningsUsd),
+      status: r.status,
+      startedAt: r.startedAt.toISOString(),
+      endsAt: r.endsAt.toISOString(),
+      deliveredHashrateAvg:
+        r.deliveredHashrateAvg == null ? null : toNum(r.deliveredHashrateAvg),
+    })),
+  );
+  res.json(data);
+});
+
+router.get("/me/rentals/lessor", async (req, res) => {
+  const rows = await db
+    .select({
+      id: rentalsTable.id,
+      rigId: rentalsTable.rigId,
+      rigName: rigsTable.name,
+      algorithmName: algorithmsTable.name,
+      algorithmUnit: algorithmsTable.unit,
+      renterId: rentalsTable.renterId,
+      renterDisplayName: usersTable.displayName,
+      ownerId: rentalsTable.ownerId,
+      hashrate: rentalsTable.hashrate,
+      hours: rentalsTable.hours,
+      renterTotalUsd: rentalsTable.renterTotalUsd,
+      ownerEarningsUsd: rentalsTable.ownerEarningsUsd,
+      status: rentalsTable.status,
+      startedAt: rentalsTable.startedAt,
+      endsAt: rentalsTable.endsAt,
+      deliveredHashrateAvg: rentalsTable.deliveredHashrateAvg,
+    })
+    .from(rentalsTable)
+    .innerJoin(rigsTable, eq(rigsTable.id, rentalsTable.rigId))
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
+    .innerJoin(usersTable, eq(usersTable.id, rentalsTable.renterId))
+    .where(eq(rentalsTable.ownerId, req.currentUser!.id))
+    .orderBy(desc(rentalsTable.createdAt));
+
+  const data = ListLessorRentalsResponse.parse(
+    rows.map((r) => ({
+      id: r.id,
+      rigId: r.rigId,
+      rigName: r.rigName,
+      algorithmName: r.algorithmName,
+      algorithmUnit: r.algorithmUnit,
+      renterId: r.renterId,
+      renterDisplayName: r.renterDisplayName,
+      ownerId: r.ownerId,
+      ownerDisplayName: req.currentUser!.displayName,
+      hashrate: toNum(r.hashrate),
+      hours: r.hours,
+      renterTotalUsd: toNum(r.renterTotalUsd),
+      ownerEarningsUsd: toNum(r.ownerEarningsUsd),
+      status: r.status,
+      startedAt: r.startedAt.toISOString(),
+      endsAt: r.endsAt.toISOString(),
+      deliveredHashrateAvg:
+        r.deliveredHashrateAvg == null ? null : toNum(r.deliveredHashrateAvg),
+    })),
+  );
+  res.json(data);
+});
+
+void and;
+
+export default router;

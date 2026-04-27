@@ -1,0 +1,172 @@
+import { Router, type IRouter } from "express";
+import { and, desc, eq, sql } from "drizzle-orm";
+import {
+  db,
+  rigsTable,
+  algorithmsTable,
+  usersTable,
+  reviewsTable,
+} from "@workspace/db";
+import {
+  CreateRigBody,
+  ListMyRigsResponse,
+  UpdateMyRigBody,
+  UpdateMyRigResponse,
+} from "@workspace/api-zod";
+import { requireAuth } from "../lib/auth";
+import { getCommission } from "../lib/commission";
+import { toNum, toUsdString } from "../lib/money";
+
+const router: IRouter = Router();
+
+router.use(requireAuth);
+
+async function selectMyRigs(ownerId: number) {
+  const commission = await getCommission();
+  const renterMultiplier = 1 + commission.renterFeePct / 100;
+
+  const rows = await db
+    .select({
+      id: rigsTable.id,
+      name: rigsTable.name,
+      ownerId: rigsTable.ownerId,
+      ownerDisplayName: usersTable.displayName,
+      algorithmId: algorithmsTable.id,
+      algorithmName: algorithmsTable.name,
+      algorithmUnit: algorithmsTable.unit,
+      basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
+      hashrate: rigsTable.hashrate,
+      minRentalHours: rigsTable.minRentalHours,
+      maxRentalHours: rigsTable.maxRentalHours,
+      status: rigsTable.status,
+      createdAt: rigsTable.createdAt,
+      averageRating: sql<string | null>`AVG(${reviewsTable.rating})`,
+      reviewCount: sql<string>`COUNT(${reviewsTable.id})`,
+    })
+    .from(rigsTable)
+    .innerJoin(usersTable, eq(usersTable.id, rigsTable.ownerId))
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
+    .leftJoin(reviewsTable, eq(reviewsTable.rigId, rigsTable.id))
+    .where(eq(rigsTable.ownerId, ownerId))
+    .groupBy(rigsTable.id, usersTable.id, algorithmsTable.id)
+    .orderBy(desc(rigsTable.createdAt));
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    ownerId: r.ownerId,
+    ownerDisplayName: r.ownerDisplayName,
+    algorithmId: r.algorithmId,
+    algorithmName: r.algorithmName,
+    algorithmUnit: r.algorithmUnit,
+    hashrate: toNum(r.hashrate),
+    pricePerUnitPerHour: toNum(r.basePricePerUnitPerHour) * renterMultiplier,
+    minRentalHours: r.minRentalHours,
+    maxRentalHours: r.maxRentalHours,
+    status: r.status,
+    averageRating:
+      r.averageRating == null
+        ? null
+        : Number(toNum(r.averageRating).toFixed(2)),
+    reviewCount: Number(r.reviewCount),
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+router.get("/me/rigs", async (req, res) => {
+  const data = ListMyRigsResponse.parse(await selectMyRigs(req.currentUser!.id));
+  res.json(data);
+});
+
+router.post("/me/rigs", async (req, res) => {
+  const body = CreateRigBody.parse(req.body);
+  if (body.maxRentalHours < body.minRentalHours) {
+    res.status(400).json({ error: "maxRentalHours must be >= minRentalHours" });
+    return;
+  }
+  const [algo] = await db
+    .select()
+    .from(algorithmsTable)
+    .where(eq(algorithmsTable.id, body.algorithmId));
+  if (!algo) {
+    res.status(400).json({ error: "Unknown algorithm" });
+    return;
+  }
+  await db.insert(rigsTable).values({
+    ownerId: req.currentUser!.id,
+    algorithmId: body.algorithmId,
+    name: body.name,
+    description: body.description,
+    hashrate: toUsdString(body.hashrate),
+    minRentalHours: body.minRentalHours,
+    maxRentalHours: body.maxRentalHours,
+    region: body.region,
+  });
+
+  // Promote renter -> owner the first time they list a rig.
+  if (req.currentUser!.role === "renter") {
+    await db
+      .update(usersTable)
+      .set({ role: "owner" })
+      .where(eq(usersTable.id, req.currentUser!.id));
+  }
+
+  const list = await selectMyRigs(req.currentUser!.id);
+  res.status(201).json(ListMyRigsResponse.parse(list));
+});
+
+router.patch("/me/rigs/:id", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const body = UpdateMyRigBody.parse(req.body);
+
+  const [existing] = await db
+    .select()
+    .from(rigsTable)
+    .where(and(eq(rigsTable.id, id), eq(rigsTable.ownerId, req.currentUser!.id)));
+  if (!existing) {
+    res.status(404).json({ error: "Rig not found" });
+    return;
+  }
+
+  const patch: Record<string, unknown> = {};
+  if (body.name !== undefined) patch["name"] = body.name;
+  if (body.description !== undefined) patch["description"] = body.description;
+  if (body.hashrate !== undefined) patch["hashrate"] = toUsdString(body.hashrate);
+  if (body.minRentalHours !== undefined) patch["minRentalHours"] = body.minRentalHours;
+  if (body.maxRentalHours !== undefined) patch["maxRentalHours"] = body.maxRentalHours;
+  if (body.region !== undefined) patch["region"] = body.region;
+  if (body.status !== undefined) patch["status"] = body.status;
+
+  await db.update(rigsTable).set(patch).where(eq(rigsTable.id, id));
+
+  const list = await selectMyRigs(req.currentUser!.id);
+  const updated = list.find((r) => r.id === id);
+  if (!updated) {
+    res.status(404).json({ error: "Rig not found" });
+    return;
+  }
+  res.json(UpdateMyRigResponse.parse(updated));
+});
+
+router.delete("/me/rigs/:id", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const result = await db
+    .delete(rigsTable)
+    .where(and(eq(rigsTable.id, id), eq(rigsTable.ownerId, req.currentUser!.id)))
+    .returning({ id: rigsTable.id });
+  if (result.length === 0) {
+    res.status(404).json({ error: "Rig not found" });
+    return;
+  }
+  res.status(204).end();
+});
+
+export default router;

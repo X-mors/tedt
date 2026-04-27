@@ -3,20 +3,36 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: RigMarket API — mining rig rental marketplace
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: marketplace
+    description: Public marketplace browsing and aggregates
+  - name: algorithms
+    description: Mining algorithm catalog
+  - name: rigs
+    description: Mining rig listings (lessor inventory)
+  - name: rentals
+    description: Rental orders, quotes, and live stats
+  - name: reviews
+    description: Renter reviews of completed rentals
+  - name: wallet
+    description: Internal balance, deposits, and withdrawals
+  - name: me
+    description: Current authenticated user
+  - name: admin
+    description: Admin-only operations (site owner)
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +40,1774 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ========================================================================
+  # Current user (me)
+  # ========================================================================
+  /me:
+    get:
+      operationId: getMe
+      tags: [me]
+      summary: Get the current authenticated user with role and wallet snapshot
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    patch:
+      operationId: updateMe
+      tags: [me]
+      summary: Update the current user's display name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMeBody"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/sync:
+    post:
+      operationId: syncMe
+      tags: [me]
+      summary: Upsert the current user record from Clerk identity (called once after sign-in)
+      responses:
+        "200":
+          description: Synced user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ========================================================================
+  # Marketplace browsing
+  # ========================================================================
+  /marketplace/summary:
+    get:
+      operationId: getMarketplaceSummary
+      tags: [marketplace]
+      summary: Top-line marketplace statistics (rig counts, total hashrate, average prices)
+      responses:
+        "200":
+          description: Marketplace summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketplaceSummary"
+
+  /algorithms:
+    get:
+      operationId: listAlgorithms
+      tags: [algorithms]
+      summary: List all mining algorithms with pricing and rig counts
+      responses:
+        "200":
+          description: Algorithm catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Algorithm"
+
+  /rigs:
+    get:
+      operationId: listRigs
+      tags: [rigs]
+      summary: Browse available rigs with optional filters
+      parameters:
+        - in: query
+          name: algorithmId
+          required: false
+          schema:
+            type: integer
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [available, rented, offline]
+        - in: query
+          name: sort
+          required: false
+          schema:
+            type: string
+            enum: [price_asc, price_desc, hashrate_desc, newest]
+        - in: query
+          name: search
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Rig listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RigSummary"
+
+  /rigs/{id}:
+    get:
+      operationId: getRig
+      tags: [rigs]
+      summary: Get full details for a single rig
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Rig details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RigDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /rigs/{id}/reviews:
+    get:
+      operationId: listRigReviews
+      tags: [reviews]
+      summary: List reviews for a rig
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Reviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Review"
+
+  # ========================================================================
+  # Rig owner (lessor) endpoints
+  # ========================================================================
+  /me/rigs:
+    get:
+      operationId: listMyRigs
+      tags: [rigs]
+      summary: List rigs owned by the current user
+      responses:
+        "200":
+          description: My rigs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RigSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createRig
+      tags: [rigs]
+      summary: List a new rig for rent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRigBody"
+      responses:
+        "201":
+          description: Created rig
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RigDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/rigs/{id}:
+    patch:
+      operationId: updateMyRig
+      tags: [rigs]
+      summary: Update a rig you own
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRigBody"
+      responses:
+        "200":
+          description: Updated rig
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RigDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      operationId: deleteMyRig
+      tags: [rigs]
+      summary: Delete a rig you own (only if no active rentals)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/rentals/lessor:
+    get:
+      operationId: listLessorRentals
+      tags: [rentals]
+      summary: List rentals on rigs owned by the current user
+      responses:
+        "200":
+          description: Rentals on my rigs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RentalSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ========================================================================
+  # Renter endpoints
+  # ========================================================================
+  /rentals/quote:
+    post:
+      operationId: createRentalQuote
+      tags: [rentals]
+      summary: Compute pricing breakdown for a potential rental (no commit)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RentalQuoteBody"
+      responses:
+        "200":
+          description: Quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalQuote"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /rentals:
+    post:
+      operationId: createRental
+      tags: [rentals]
+      summary: Place a rental order — debits the renter's wallet and reserves the rig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRentalBody"
+      responses:
+        "201":
+          description: Rental created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          description: Insufficient balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /rentals/{id}:
+    get:
+      operationId: getRental
+      tags: [rentals]
+      summary: Get rental details (renter or rig owner only)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Rental
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /rentals/{id}/stats:
+    get:
+      operationId: getRentalStats
+      tags: [rentals]
+      summary: Live mining stats for a rental (placeholder until Stratum proxy ships)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Live stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalStats"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /rentals/{id}/cancel:
+    post:
+      operationId: cancelRental
+      tags: [rentals]
+      summary: Cancel an active rental — refunds remaining time prorated
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Cancelled rental
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /rentals/{id}/review:
+    post:
+      operationId: createRentalReview
+      tags: [reviews]
+      summary: Submit a review for a completed rental (renter only, once)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReviewBody"
+      responses:
+        "201":
+          description: Created review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/rentals:
+    get:
+      operationId: listMyRentals
+      tags: [rentals]
+      summary: List rentals placed by the current user (renter view)
+      responses:
+        "200":
+          description: My rentals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RentalSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ========================================================================
+  # Wallet
+  # ========================================================================
+  /me/wallet:
+    get:
+      operationId: getMyWallet
+      tags: [wallet]
+      summary: Wallet balances and recent transactions for the current user
+      responses:
+        "200":
+          description: Wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/wallet/deposits:
+    post:
+      operationId: createDeposit
+      tags: [wallet]
+      summary: Request a deposit address for BTC or USDT funding (placeholder until wallet integration ships)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDepositBody"
+      responses:
+        "201":
+          description: Deposit instructions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DepositInstructions"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/wallet/withdrawals:
+    get:
+      operationId: listMyWithdrawals
+      tags: [wallet]
+      summary: List the current user's withdrawal requests
+      responses:
+        "200":
+          description: Withdrawal requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WithdrawalRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createWithdrawal
+      tags: [wallet]
+      summary: Submit a withdrawal request (admin must approve)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWithdrawalBody"
+      responses:
+        "201":
+          description: Withdrawal request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WithdrawalRequest"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          description: Insufficient balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ========================================================================
+  # Admin (site owner only)
+  # ========================================================================
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Platform-wide aggregates for the admin dashboard
+      responses:
+        "200":
+          description: Admin stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: List all platform users
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUserRow"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/wallet/credit:
+    post:
+      operationId: adminCreditWallet
+      tags: [admin]
+      summary: Manually credit (or debit) a user's wallet balance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCreditBody"
+      responses:
+        "200":
+          description: Updated wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/commission:
+    get:
+      operationId: getCommissionConfig
+      tags: [admin]
+      summary: Current renter and owner commission percentages
+      responses:
+        "200":
+          description: Commission config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommissionConfig"
+    patch:
+      operationId: updateCommissionConfig
+      tags: [admin]
+      summary: Update commission percentages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCommissionBody"
+      responses:
+        "200":
+          description: Updated commission config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommissionConfig"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/algorithms:
+    post:
+      operationId: createAlgorithm
+      tags: [admin]
+      summary: Add a new algorithm to the catalog
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAlgorithmBody"
+      responses:
+        "201":
+          description: Created algorithm
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Algorithm"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/algorithms/{id}:
+    patch:
+      operationId: updateAlgorithm
+      tags: [admin]
+      summary: Update algorithm name, base price, or unit
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAlgorithmBody"
+      responses:
+        "200":
+          description: Updated algorithm
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Algorithm"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    delete:
+      operationId: deleteAlgorithm
+      tags: [admin]
+      summary: Remove an algorithm from the catalog (only if no rigs use it)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/withdrawals:
+    get:
+      operationId: listAdminWithdrawals
+      tags: [admin]
+      summary: List all withdrawal requests pending approval
+      responses:
+        "200":
+          description: Withdrawal queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminWithdrawalRow"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/withdrawals/{id}/approve:
+    post:
+      operationId: approveWithdrawal
+      tags: [admin]
+      summary: Mark a withdrawal as paid (admin handles the actual transfer off-platform)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApproveWithdrawalBody"
+      responses:
+        "200":
+          description: Approved withdrawal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WithdrawalRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/withdrawals/{id}/reject:
+    post:
+      operationId: rejectWithdrawal
+      tags: [admin]
+      summary: Reject a withdrawal and refund the user's balance
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectWithdrawalBody"
+      responses:
+        "200":
+          description: Rejected withdrawal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WithdrawalRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+# ============================================================================
+# Components
+# ============================================================================
 components:
+  parameters:
+    IdPath:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: integer
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Not allowed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
   schemas:
     HealthStatus:
       type: object
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    Role:
+      type: string
+      enum: [admin, owner, renter]
+      description: A user can act as renter or owner; admin is the site operator.
+
+    MeProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        clerkUserId:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+        role:
+          $ref: "#/components/schemas/Role"
+        balanceUsd:
+          type: number
+          description: Current internal balance in USD
+        totalDepositedUsd:
+          type: number
+        totalEarnedUsd:
+          type: number
+          description: Lifetime earnings as a rig owner
+        totalSpentUsd:
+          type: number
+          description: Lifetime spend as a renter
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - clerkUserId
+        - email
+        - displayName
+        - role
+        - balanceUsd
+        - totalDepositedUsd
+        - totalEarnedUsd
+        - totalSpentUsd
+        - createdAt
+
+    UpdateMeBody:
+      type: object
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 80
+      required: [displayName]
+
+    Algorithm:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          description: Algorithm name (e.g. SHA-256, Scrypt, Ethash, RandomX)
+        slug:
+          type: string
+        unit:
+          type: string
+          description: Hashrate unit shown in UI (e.g. "TH/s", "GH/s", "MH/s", "kH/s")
+        basePricePerUnitPerHour:
+          type: number
+          description: Base USD price per unit of hashrate per hour, set by admin
+        rigCount:
+          type: integer
+          description: Number of available rigs on this algorithm
+        totalHashrate:
+          type: number
+          description: Sum of advertised hashrate for available rigs (in `unit`)
+        averagePricePerUnitPerHour:
+          type: number
+          description: Average renter-facing price across active rigs
+      required:
+        - id
+        - name
+        - slug
+        - unit
+        - basePricePerUnitPerHour
+        - rigCount
+        - totalHashrate
+        - averagePricePerUnitPerHour
+
+    CreateAlgorithmBody:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        slug:
+          type: string
+          minLength: 1
+        unit:
+          type: string
+          minLength: 1
+        basePricePerUnitPerHour:
+          type: number
+          minimum: 0
+      required: [name, slug, unit, basePricePerUnitPerHour]
+
+    UpdateAlgorithmBody:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        unit:
+          type: string
+          minLength: 1
+        basePricePerUnitPerHour:
+          type: number
+          minimum: 0
+
+    RigStatus:
+      type: string
+      enum: [available, rented, offline]
+
+    RigSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        ownerId:
+          type: integer
+        ownerDisplayName:
+          type: string
+        algorithmId:
+          type: integer
+        algorithmName:
+          type: string
+        algorithmUnit:
+          type: string
+        hashrate:
+          type: number
+          description: Advertised hashrate in the algorithm's unit
+        pricePerUnitPerHour:
+          type: number
+          description: Renter-facing price (already includes the renter commission)
+        minRentalHours:
+          type: integer
+        maxRentalHours:
+          type: integer
+        status:
+          $ref: "#/components/schemas/RigStatus"
+        averageRating:
+          type: ["number", "null"]
+        reviewCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - ownerId
+        - ownerDisplayName
+        - algorithmId
+        - algorithmName
+        - algorithmUnit
+        - hashrate
+        - pricePerUnitPerHour
+        - minRentalHours
+        - maxRentalHours
+        - status
+        - averageRating
+        - reviewCount
+        - createdAt
+
+    RigDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        ownerId:
+          type: integer
+        ownerDisplayName:
+          type: string
+        algorithmId:
+          type: integer
+        algorithmName:
+          type: string
+        algorithmUnit:
+          type: string
+        hashrate:
+          type: number
+        pricePerUnitPerHour:
+          type: number
+        minRentalHours:
+          type: integer
+        maxRentalHours:
+          type: integer
+        status:
+          $ref: "#/components/schemas/RigStatus"
+        region:
+          type: string
+        averageRating:
+          type: ["number", "null"]
+        reviewCount:
+          type: integer
+        totalRentals:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - description
+        - ownerId
+        - ownerDisplayName
+        - algorithmId
+        - algorithmName
+        - algorithmUnit
+        - hashrate
+        - pricePerUnitPerHour
+        - minRentalHours
+        - maxRentalHours
+        - status
+        - region
+        - averageRating
+        - reviewCount
+        - totalRentals
+        - createdAt
+
+    CreateRigBody:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        description:
+          type: string
+          maxLength: 1000
+        algorithmId:
+          type: integer
+        hashrate:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+        minRentalHours:
+          type: integer
+          minimum: 1
+        maxRentalHours:
+          type: integer
+          minimum: 1
+        region:
+          type: string
+          minLength: 1
+      required:
+        - name
+        - description
+        - algorithmId
+        - hashrate
+        - minRentalHours
+        - maxRentalHours
+        - region
+
+    UpdateRigBody:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        description:
+          type: string
+          maxLength: 1000
+        hashrate:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+        minRentalHours:
+          type: integer
+          minimum: 1
+        maxRentalHours:
+          type: integer
+          minimum: 1
+        region:
+          type: string
+          minLength: 1
+        status:
+          $ref: "#/components/schemas/RigStatus"
+
+    RentalQuoteBody:
+      type: object
+      properties:
+        rigId:
+          type: integer
+        hours:
+          type: integer
+          minimum: 1
+      required: [rigId, hours]
+
+    RentalQuote:
+      type: object
+      properties:
+        rigId:
+          type: integer
+        hours:
+          type: integer
+        hashrate:
+          type: number
+        algorithmUnit:
+          type: string
+        basePricePerUnitPerHour:
+          type: number
+        renterFeePct:
+          type: number
+        ownerFeePct:
+          type: number
+        baseSubtotalUsd:
+          type: number
+          description: hashrate × basePrice × hours
+        renterFeeUsd:
+          type: number
+        renterTotalUsd:
+          type: number
+          description: Final amount the renter is charged
+        ownerEarningsUsd:
+          type: number
+          description: Amount the rig owner receives if delivery is 100%
+        platformFeeUsd:
+          type: number
+          description: Sum of renter fee + owner fee — site revenue
+      required:
+        - rigId
+        - hours
+        - hashrate
+        - algorithmUnit
+        - basePricePerUnitPerHour
+        - renterFeePct
+        - ownerFeePct
+        - baseSubtotalUsd
+        - renterFeeUsd
+        - renterTotalUsd
+        - ownerEarningsUsd
+        - platformFeeUsd
+
+    CreateRentalBody:
+      type: object
+      properties:
+        rigId:
+          type: integer
+        hours:
+          type: integer
+          minimum: 1
+        poolUrl:
+          type: string
+          minLength: 1
+          description: Renter's stratum pool endpoint (e.g. stratum+tcp://pool.example.com:3333)
+        poolWorker:
+          type: string
+          minLength: 1
+        poolPassword:
+          type: string
+          default: "x"
+      required: [rigId, hours, poolUrl, poolWorker]
+
+    RentalStatus:
+      type: string
+      enum: [pending, active, completed, cancelled]
+
+    RentalSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        rigId:
+          type: integer
+        rigName:
+          type: string
+        algorithmName:
+          type: string
+        algorithmUnit:
+          type: string
+        renterId:
+          type: integer
+        renterDisplayName:
+          type: string
+        ownerId:
+          type: integer
+        ownerDisplayName:
+          type: string
+        hashrate:
+          type: number
+        hours:
+          type: integer
+        renterTotalUsd:
+          type: number
+        ownerEarningsUsd:
+          type: number
+        status:
+          $ref: "#/components/schemas/RentalStatus"
+        startedAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        deliveredHashrateAvg:
+          type: ["number", "null"]
+      required:
+        - id
+        - rigId
+        - rigName
+        - algorithmName
+        - algorithmUnit
+        - renterId
+        - renterDisplayName
+        - ownerId
+        - ownerDisplayName
+        - hashrate
+        - hours
+        - renterTotalUsd
+        - ownerEarningsUsd
+        - status
+        - startedAt
+        - endsAt
+        - deliveredHashrateAvg
+
+    RentalDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        rigId:
+          type: integer
+        rigName:
+          type: string
+        algorithmName:
+          type: string
+        algorithmUnit:
+          type: string
+        renterId:
+          type: integer
+        renterDisplayName:
+          type: string
+        ownerId:
+          type: integer
+        ownerDisplayName:
+          type: string
+        hashrate:
+          type: number
+        hours:
+          type: integer
+        basePricePerUnitPerHour:
+          type: number
+        renterFeePct:
+          type: number
+        ownerFeePct:
+          type: number
+        renterTotalUsd:
+          type: number
+        ownerEarningsUsd:
+          type: number
+        platformFeeUsd:
+          type: number
+        status:
+          $ref: "#/components/schemas/RentalStatus"
+        startedAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        cancelledAt:
+          type: ["string", "null"]
+          format: date-time
+        poolUrl:
+          type: string
+        poolWorker:
+          type: string
+        poolPassword:
+          type: string
+        stratumProxyUrl:
+          type: string
+          description: Where the rented rig should connect (placeholder until Stratum proxy ships)
+        proxyWorker:
+          type: string
+          description: Worker name to advertise to the rig (placeholder)
+        proxyPassword:
+          type: string
+        deliveredHashrateAvg:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - rigId
+        - rigName
+        - algorithmName
+        - algorithmUnit
+        - renterId
+        - renterDisplayName
+        - ownerId
+        - ownerDisplayName
+        - hashrate
+        - hours
+        - basePricePerUnitPerHour
+        - renterFeePct
+        - ownerFeePct
+        - renterTotalUsd
+        - ownerEarningsUsd
+        - platformFeeUsd
+        - status
+        - startedAt
+        - endsAt
+        - cancelledAt
+        - poolUrl
+        - poolWorker
+        - poolPassword
+        - stratumProxyUrl
+        - proxyWorker
+        - proxyPassword
+        - deliveredHashrateAvg
+        - createdAt
+
+    HashSamplePoint:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        hashrate:
+          type: number
+      required: [timestamp, hashrate]
+
+    RentalStats:
+      type: object
+      properties:
+        rentalId:
+          type: integer
+        currentHashrate:
+          type: number
+        averageHashrate:
+          type: number
+        deliveryRatio:
+          type: number
+          description: Average delivered hashrate divided by advertised hashrate (0–1)
+        sharesAccepted:
+          type: integer
+        sharesRejected:
+          type: integer
+        secondsRemaining:
+          type: integer
+        status:
+          $ref: "#/components/schemas/RentalStatus"
+        samples:
+          type: array
+          items:
+            $ref: "#/components/schemas/HashSamplePoint"
+        message:
+          type: ["string", "null"]
+          description: Optional human-readable status note (e.g. "awaiting hash data")
+      required:
+        - rentalId
+        - currentHashrate
+        - averageHashrate
+        - deliveryRatio
+        - sharesAccepted
+        - sharesRejected
+        - secondsRemaining
+        - status
+        - samples
+        - message
+
+    Review:
+      type: object
+      properties:
+        id:
+          type: integer
+        rigId:
+          type: integer
+        rentalId:
+          type: integer
+        renterDisplayName:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - rigId
+        - rentalId
+        - renterDisplayName
+        - rating
+        - body
+        - createdAt
+
+    CreateReviewBody:
+      type: object
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        body:
+          type: string
+          minLength: 1
+          maxLength: 1000
+      required: [rating, body]
+
+    WalletTransactionType:
+      type: string
+      enum:
+        - deposit
+        - withdrawal
+        - rental_charge
+        - rental_payout
+        - rental_refund
+        - admin_credit
+        - admin_debit
+
+    WalletTransaction:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          $ref: "#/components/schemas/WalletTransactionType"
+        amountUsd:
+          type: number
+          description: Signed amount — positive credit, negative debit
+        balanceAfterUsd:
+          type: number
+        memo:
+          type: string
+        relatedRentalId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - type
+        - amountUsd
+        - balanceAfterUsd
+        - memo
+        - relatedRentalId
+        - createdAt
+
+    Wallet:
+      type: object
+      properties:
+        balanceUsd:
+          type: number
+        pendingWithdrawalsUsd:
+          type: number
+        totalDepositedUsd:
+          type: number
+        totalEarnedUsd:
+          type: number
+        totalSpentUsd:
+          type: number
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/WalletTransaction"
+      required:
+        - balanceUsd
+        - pendingWithdrawalsUsd
+        - totalDepositedUsd
+        - totalEarnedUsd
+        - totalSpentUsd
+        - transactions
+
+    DepositAsset:
+      type: string
+      enum: [BTC, USDT]
+
+    CreateDepositBody:
+      type: object
+      properties:
+        asset:
+          $ref: "#/components/schemas/DepositAsset"
+        amountUsd:
+          type: number
+          description: Approximate USD value the user intends to deposit
+          minimum: 0
+          exclusiveMinimum: true
+      required: [asset, amountUsd]
+
+    DepositInstructions:
+      type: object
+      properties:
+        asset:
+          $ref: "#/components/schemas/DepositAsset"
+        depositAddress:
+          type: string
+        memo:
+          type: string
+        amountUsd:
+          type: number
+        note:
+          type: string
+          description: Human-readable note (e.g. "Funds will appear after on-chain confirmation")
+      required:
+        - asset
+        - depositAddress
+        - memo
+        - amountUsd
+        - note
+
+    WithdrawalStatus:
+      type: string
+      enum: [pending, approved, rejected]
+
+    WithdrawalRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        asset:
+          $ref: "#/components/schemas/DepositAsset"
+        destinationAddress:
+          type: string
+        amountUsd:
+          type: number
+        status:
+          $ref: "#/components/schemas/WithdrawalStatus"
+        adminNote:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        decidedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - id
+        - userId
+        - asset
+        - destinationAddress
+        - amountUsd
+        - status
+        - adminNote
+        - createdAt
+        - decidedAt
+
+    CreateWithdrawalBody:
+      type: object
+      properties:
+        asset:
+          $ref: "#/components/schemas/DepositAsset"
+        destinationAddress:
+          type: string
+          minLength: 8
+        amountUsd:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+      required: [asset, destinationAddress, amountUsd]
+
+    ApproveWithdrawalBody:
+      type: object
+      properties:
+        adminNote:
+          type: string
+
+    RejectWithdrawalBody:
+      type: object
+      properties:
+        adminNote:
+          type: string
+
+    CommissionConfig:
+      type: object
+      properties:
+        renterFeePct:
+          type: number
+          description: Percentage charged on top of base price for renters (e.g. 3 = 3%)
+        ownerFeePct:
+          type: number
+          description: Percentage withheld from owner earnings (e.g. 5 = 5%)
+        updatedAt:
+          type: string
+          format: date-time
+      required: [renterFeePct, ownerFeePct, updatedAt]
+
+    UpdateCommissionBody:
+      type: object
+      properties:
+        renterFeePct:
+          type: number
+          minimum: 0
+          maximum: 50
+        ownerFeePct:
+          type: number
+          minimum: 0
+          maximum: 50
+
+    AdminCreditBody:
+      type: object
+      properties:
+        userId:
+          type: integer
+        amountUsd:
+          type: number
+          description: Signed amount; positive credits, negative debits
+        memo:
+          type: string
+          minLength: 1
+          maxLength: 200
+      required: [userId, amountUsd, memo]
+
+    AdminUserRow:
+      type: object
+      properties:
+        id:
+          type: integer
+        clerkUserId:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+        role:
+          $ref: "#/components/schemas/Role"
+        balanceUsd:
+          type: number
+        totalDepositedUsd:
+          type: number
+        totalEarnedUsd:
+          type: number
+        totalSpentUsd:
+          type: number
+        rigCount:
+          type: integer
+        rentalCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - clerkUserId
+        - email
+        - displayName
+        - role
+        - balanceUsd
+        - totalDepositedUsd
+        - totalEarnedUsd
+        - totalSpentUsd
+        - rigCount
+        - rentalCount
+        - createdAt
+
+    AdminWithdrawalRow:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        userEmail:
+          type: string
+        userDisplayName:
+          type: string
+        asset:
+          $ref: "#/components/schemas/DepositAsset"
+        destinationAddress:
+          type: string
+        amountUsd:
+          type: number
+        status:
+          $ref: "#/components/schemas/WithdrawalStatus"
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - userEmail
+        - userDisplayName
+        - asset
+        - destinationAddress
+        - amountUsd
+        - status
+        - createdAt
+
+    AdminStats:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        totalRigs:
+          type: integer
+        availableRigs:
+          type: integer
+        rentedRigs:
+          type: integer
+        activeRentals:
+          type: integer
+        completedRentals:
+          type: integer
+        platformRevenueUsd:
+          type: number
+        totalRentalVolumeUsd:
+          type: number
+        pendingWithdrawalsUsd:
+          type: number
+        last24hRentalsUsd:
+          type: number
+        last24hRentalCount:
+          type: integer
+      required:
+        - totalUsers
+        - totalRigs
+        - availableRigs
+        - rentedRigs
+        - activeRentals
+        - completedRentals
+        - platformRevenueUsd
+        - totalRentalVolumeUsd
+        - pendingWithdrawalsUsd
+        - last24hRentalsUsd
+        - last24hRentalCount
+
+    AlgorithmHashrateBreakdown:
+      type: object
+      properties:
+        algorithmId:
+          type: integer
+        algorithmName:
+          type: string
+        unit:
+          type: string
+        rigCount:
+          type: integer
+        totalHashrate:
+          type: number
+        averagePricePerUnitPerHour:
+          type: number
+      required:
+        - algorithmId
+        - algorithmName
+        - unit
+        - rigCount
+        - totalHashrate
+        - averagePricePerUnitPerHour
+
+    MarketplaceSummary:
+      type: object
+      properties:
+        availableRigs:
+          type: integer
+        activeRentals:
+          type: integer
+        totalLessors:
+          type: integer
+        totalRenters:
+          type: integer
+        algorithmsOnline:
+          type: integer
+        breakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/AlgorithmHashrateBreakdown"
+        topRigs:
+          type: array
+          items:
+            $ref: "#/components/schemas/RigSummary"
+      required:
+        - availableRigs
+        - activeRentals
+        - totalLessors
+        - totalRenters
+        - algorithmsOnline
+        - breakdown
+        - topRigs
