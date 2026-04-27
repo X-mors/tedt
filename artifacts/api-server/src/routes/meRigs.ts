@@ -6,9 +6,11 @@ import {
   algorithmsTable,
   usersTable,
   reviewsTable,
+  rentalsTable,
 } from "@workspace/db";
 import {
   CreateRigBody,
+  GetMyRigResponse,
   ListMyRigsResponse,
   UpdateMyRigBody,
   UpdateMyRigResponse,
@@ -77,6 +79,73 @@ async function selectMyRigs(ownerId: number) {
   }));
 }
 
+async function selectMyRigDetail(ownerId: number, rigId: number) {
+  const commission = await getCommission();
+  const renterMultiplier = 1 + commission.renterFeePct / 100;
+
+  const [row] = await db
+    .select({
+      id: rigsTable.id,
+      name: rigsTable.name,
+      description: rigsTable.description,
+      ownerId: rigsTable.ownerId,
+      ownerDisplayName: usersTable.displayName,
+      algorithmId: algorithmsTable.id,
+      algorithmName: algorithmsTable.name,
+      algorithmUnit: algorithmsTable.unit,
+      basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
+      hashrate: rigsTable.hashrate,
+      minRentalHours: rigsTable.minRentalHours,
+      maxRentalHours: rigsTable.maxRentalHours,
+      status: rigsTable.status,
+      approvalStatus: rigsTable.approvalStatus,
+      approvalNote: rigsTable.approvalNote,
+      region: rigsTable.region,
+      createdAt: rigsTable.createdAt,
+      averageRating: sql<string | null>`AVG(${reviewsTable.rating})`,
+      reviewCount: sql<string>`COUNT(DISTINCT ${reviewsTable.id})`,
+    })
+    .from(rigsTable)
+    .innerJoin(usersTable, eq(usersTable.id, rigsTable.ownerId))
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
+    .leftJoin(reviewsTable, eq(reviewsTable.rigId, rigsTable.id))
+    .where(and(eq(rigsTable.id, rigId), eq(rigsTable.ownerId, ownerId)))
+    .groupBy(rigsTable.id, usersTable.id, algorithmsTable.id);
+
+  if (!row) return null;
+
+  const [rentals] = await db
+    .select({ c: sql<string>`COUNT(*)` })
+    .from(rentalsTable)
+    .where(eq(rentalsTable.rigId, rigId));
+
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    ownerId: row.ownerId,
+    ownerDisplayName: row.ownerDisplayName,
+    algorithmId: row.algorithmId,
+    algorithmName: row.algorithmName,
+    algorithmUnit: row.algorithmUnit,
+    hashrate: toNum(row.hashrate),
+    pricePerUnitPerHour: toNum(row.basePricePerUnitPerHour) * renterMultiplier,
+    minRentalHours: row.minRentalHours,
+    maxRentalHours: row.maxRentalHours,
+    status: row.status,
+    approvalStatus: row.approvalStatus,
+    approvalNote: row.approvalNote,
+    region: row.region,
+    averageRating:
+      row.averageRating == null
+        ? null
+        : Number(toNum(row.averageRating).toFixed(2)),
+    reviewCount: Number(row.reviewCount),
+    totalRentals: Number(rentals?.c ?? 0),
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 router.get("/me/rigs", async (req, res) => {
   const data = ListMyRigsResponse.parse(await selectMyRigs(req.currentUser!.id));
   res.json(data);
@@ -97,17 +166,20 @@ router.post("/me/rigs", async (req, res) => {
     return;
   }
   // Newly listed rigs always start in `pending` and require admin approval.
-  await db.insert(rigsTable).values({
-    ownerId: req.currentUser!.id,
-    algorithmId: body.algorithmId,
-    name: body.name,
-    description: body.description,
-    hashrate: toUsdString(body.hashrate),
-    minRentalHours: body.minRentalHours,
-    maxRentalHours: body.maxRentalHours,
-    region: body.region,
-    approvalStatus: "pending",
-  });
+  const [created] = await db
+    .insert(rigsTable)
+    .values({
+      ownerId: req.currentUser!.id,
+      algorithmId: body.algorithmId,
+      name: body.name,
+      description: body.description,
+      hashrate: toUsdString(body.hashrate),
+      minRentalHours: body.minRentalHours,
+      maxRentalHours: body.maxRentalHours,
+      region: body.region,
+      approvalStatus: "pending",
+    })
+    .returning({ id: rigsTable.id });
 
   // Promote renter -> owner the first time they list a rig.
   if (req.currentUser!.role === "renter") {
@@ -117,8 +189,31 @@ router.post("/me/rigs", async (req, res) => {
       .where(eq(usersTable.id, req.currentUser!.id));
   }
 
-  const list = await selectMyRigs(req.currentUser!.id);
-  res.status(201).json(ListMyRigsResponse.parse(list));
+  if (!created) {
+    res.status(500).json({ error: "Failed to create rig" });
+    return;
+  }
+  const detail = await selectMyRigDetail(req.currentUser!.id, created.id);
+  if (!detail) {
+    res.status(500).json({ error: "Failed to load created rig" });
+    return;
+  }
+  // Spec says POST returns RigDetail (same shape as GET /me/rigs/:id), so reuse that schema.
+  res.status(201).json(GetMyRigResponse.parse(detail));
+});
+
+router.get("/me/rigs/:id", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const detail = await selectMyRigDetail(req.currentUser!.id, id);
+  if (!detail) {
+    res.status(404).json({ error: "Rig not found" });
+    return;
+  }
+  res.json(GetMyRigResponse.parse(detail));
 });
 
 router.patch("/me/rigs/:id", async (req, res) => {
@@ -153,13 +248,12 @@ router.patch("/me/rigs/:id", async (req, res) => {
     await db.update(rigsTable).set(patch).where(eq(rigsTable.id, id));
   }
 
-  const list = await selectMyRigs(req.currentUser!.id);
-  const updated = list.find((r) => r.id === id);
-  if (!updated) {
+  const detail = await selectMyRigDetail(req.currentUser!.id, id);
+  if (!detail) {
     res.status(404).json({ error: "Rig not found" });
     return;
   }
-  res.json(UpdateMyRigResponse.parse(updated));
+  res.json(UpdateMyRigResponse.parse(detail));
 });
 
 router.delete("/me/rigs/:id", async (req, res) => {

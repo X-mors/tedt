@@ -11,6 +11,7 @@ export * from "./adminRentalRow";
 export * from "./adminRigDecisionBody";
 export * from "./adminRigRow";
 export * from "./adminStats";
+export * from "./adminStatsTopAlgorithmsByDemandItem";
 export * from "./adminUserRow";
 export * from "./adminWalletTransactionRow";
 export * from "./adminWithdrawalRow";

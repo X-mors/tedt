@@ -29,6 +29,12 @@ export const GetMeResponse = zod.object({
   totalDepositedUsd: zod.number(),
   totalEarnedUsd: zod.number().describe("Lifetime earnings as a rig owner"),
   totalSpentUsd: zod.number().describe("Lifetime spend as a renter"),
+  rigCount: zod
+    .number()
+    .describe(
+      "Number of rigs the user owns (used by the UI to show the lessor nav)",
+    ),
+  rentalCount: zod.number().describe("Number of rentals the user has placed"),
   createdAt: zod.coerce.date(),
 });
 
@@ -53,6 +59,12 @@ export const UpdateMeResponse = zod.object({
   totalDepositedUsd: zod.number(),
   totalEarnedUsd: zod.number().describe("Lifetime earnings as a rig owner"),
   totalSpentUsd: zod.number().describe("Lifetime spend as a renter"),
+  rigCount: zod
+    .number()
+    .describe(
+      "Number of rigs the user owns (used by the UI to show the lessor nav)",
+    ),
+  rentalCount: zod.number().describe("Number of rentals the user has placed"),
   createdAt: zod.coerce.date(),
 });
 
@@ -71,6 +83,12 @@ export const SyncMeResponse = zod.object({
   totalDepositedUsd: zod.number(),
   totalEarnedUsd: zod.number().describe("Lifetime earnings as a rig owner"),
   totalSpentUsd: zod.number().describe("Lifetime spend as a renter"),
+  rigCount: zod
+    .number()
+    .describe(
+      "Number of rigs the user owns (used by the UI to show the lessor nav)",
+    ),
+  rentalCount: zod.number().describe("Number of rentals the user has placed"),
   createdAt: zod.coerce.date(),
 });
 
@@ -278,6 +296,36 @@ export const CreateRigBody = zod.object({
   minRentalHours: zod.number().min(1),
   maxRentalHours: zod.number().min(1),
   region: zod.string().min(1),
+});
+
+/**
+ * @summary Load a rig you own (works for pending/rejected rigs that are hidden from the public marketplace)
+ */
+export const GetMyRigParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetMyRigResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string(),
+  ownerId: zod.number(),
+  ownerDisplayName: zod.string(),
+  algorithmId: zod.number(),
+  algorithmName: zod.string(),
+  algorithmUnit: zod.string(),
+  hashrate: zod.number(),
+  pricePerUnitPerHour: zod.number(),
+  minRentalHours: zod.number(),
+  maxRentalHours: zod.number(),
+  status: zod.enum(["available", "rented", "offline"]),
+  approvalStatus: zod.enum(["pending", "approved", "rejected"]),
+  approvalNote: zod.string().nullable(),
+  region: zod.string(),
+  averageRating: zod.number().nullable(),
+  reviewCount: zod.number(),
+  totalRentals: zod.number(),
+  createdAt: zod.coerce.date(),
 });
 
 /**
@@ -660,11 +708,41 @@ export const GetAdminStatsResponse = zod.object({
   rentedRigs: zod.number(),
   activeRentals: zod.number(),
   completedRentals: zod.number(),
-  platformRevenueUsd: zod.number(),
+  platformRevenueUsd: zod
+    .number()
+    .describe("All-time platform commission in USD"),
   totalRentalVolumeUsd: zod.number(),
   pendingWithdrawalsUsd: zod.number(),
   last24hRentalsUsd: zod.number(),
   last24hRentalCount: zod.number(),
+  currentlyRentedHashrate: zod
+    .number()
+    .describe(
+      "Sum of hashrate (in each algorithm's unit) currently under active rental",
+    ),
+  grossRevenueTodayUsd: zod
+    .number()
+    .describe("Renter-facing rental volume booked since UTC midnight today"),
+  grossRevenueWeekUsd: zod
+    .number()
+    .describe("Renter-facing rental volume booked over the last 7 days"),
+  grossRevenueMonthUsd: zod
+    .number()
+    .describe("Renter-facing rental volume booked over the last 30 days"),
+  commissionTodayUsd: zod.number(),
+  commissionWeekUsd: zod.number(),
+  commissionMonthUsd: zod.number(),
+  topAlgorithmsByDemand: zod
+    .array(
+      zod.object({
+        algorithmId: zod.number(),
+        algorithmName: zod.string(),
+        unit: zod.string(),
+        rentalCount: zod.number(),
+        totalVolumeUsd: zod.number(),
+      }),
+    )
+    .describe("Algorithms with the most rental volume in the last 30 days"),
 });
 
 /**

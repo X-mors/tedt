@@ -34,7 +34,32 @@ app.use(
 // Clerk proxy middleware must run BEFORE body parsers — it streams raw bytes.
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-app.use(cors({ credentials: true, origin: true }));
+// Restrict CORS to the workspace dev domain and (when set) the production domain.
+// Same-origin requests have no Origin header and are always allowed.
+const allowedOrigins = new Set<string>(
+  [
+    process.env["REPLIT_DEV_DOMAIN"]
+      ? `https://${process.env["REPLIT_DEV_DOMAIN"]}`
+      : null,
+    process.env["REPLIT_DEPLOYMENT_DOMAIN"]
+      ? `https://${process.env["REPLIT_DEPLOYMENT_DOMAIN"]}`
+      : null,
+    process.env["FRONTEND_ORIGIN"] ?? null,
+    "http://localhost:5173",
+    "http://localhost:3000",
+  ].filter((s): s is string => Boolean(s)),
+);
+app.use(
+  cors({
+    credentials: true,
+    origin: (origin, cb) => {
+      // No Origin header (same-origin / curl / mobile clients) → allow.
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.has(origin)) return cb(null, true);
+      return cb(new Error(`Origin ${origin} not allowed by CORS`));
+    },
+  }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

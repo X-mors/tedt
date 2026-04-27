@@ -20,5 +20,9 @@ export interface MeProfile {
   totalEarnedUsd: number;
   /** Lifetime spend as a renter */
   totalSpentUsd: number;
+  /** Number of rigs the user owns (used by the UI to show the lessor nav) */
+  rigCount: number;
+  /** Number of rentals the user has placed */
+  rentalCount: number;
   createdAt: Date;
 }

@@ -5,6 +5,7 @@
  * RigMarket API — mining rig rental marketplace
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminStatsTopAlgorithmsByDemandItem } from "./adminStatsTopAlgorithmsByDemandItem";
 
 export interface AdminStats {
   totalUsers: number;
@@ -13,9 +14,23 @@ export interface AdminStats {
   rentedRigs: number;
   activeRentals: number;
   completedRentals: number;
+  /** All-time platform commission in USD */
   platformRevenueUsd: number;
   totalRentalVolumeUsd: number;
   pendingWithdrawalsUsd: number;
   last24hRentalsUsd: number;
   last24hRentalCount: number;
+  /** Sum of hashrate (in each algorithm's unit) currently under active rental */
+  currentlyRentedHashrate: number;
+  /** Renter-facing rental volume booked since UTC midnight today */
+  grossRevenueTodayUsd: number;
+  /** Renter-facing rental volume booked over the last 7 days */
+  grossRevenueWeekUsd: number;
+  /** Renter-facing rental volume booked over the last 30 days */
+  grossRevenueMonthUsd: number;
+  commissionTodayUsd: number;
+  commissionWeekUsd: number;
+  commissionMonthUsd: number;
+  /** Algorithms with the most rental volume in the last 30 days */
+  topAlgorithmsByDemand: AdminStatsTopAlgorithmsByDemandItem[];
 }

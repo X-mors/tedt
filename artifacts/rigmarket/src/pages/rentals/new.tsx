@@ -12,8 +12,8 @@ import { Server, Activity, DollarSign, Clock, ShieldAlert } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 export default function NewRental() {
-  const { id } = useParams<{ rigId: string }>();
-  const rigId = parseInt(id || "0");
+  const { rigId: rigIdParam } = useParams<{ rigId: string }>();
+  const rigId = parseInt(rigIdParam || "0");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 

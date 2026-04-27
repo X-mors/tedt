@@ -37,6 +37,10 @@ export interface MeProfile {
   totalEarnedUsd: number;
   /** Lifetime spend as a renter */
   totalSpentUsd: number;
+  /** Number of rigs the user owns (used by the UI to show the lessor nav) */
+  rigCount: number;
+  /** Number of rentals the user has placed */
+  rentalCount: number;
   createdAt: string;
 }
 
@@ -577,6 +581,14 @@ export interface AdminWithdrawalRow {
   createdAt: string;
 }
 
+export type AdminStatsTopAlgorithmsByDemandItem = {
+  algorithmId: number;
+  algorithmName: string;
+  unit: string;
+  rentalCount: number;
+  totalVolumeUsd: number;
+};
+
 export interface AdminStats {
   totalUsers: number;
   totalRigs: number;
@@ -584,11 +596,25 @@ export interface AdminStats {
   rentedRigs: number;
   activeRentals: number;
   completedRentals: number;
+  /** All-time platform commission in USD */
   platformRevenueUsd: number;
   totalRentalVolumeUsd: number;
   pendingWithdrawalsUsd: number;
   last24hRentalsUsd: number;
   last24hRentalCount: number;
+  /** Sum of hashrate (in each algorithm's unit) currently under active rental */
+  currentlyRentedHashrate: number;
+  /** Renter-facing rental volume booked since UTC midnight today */
+  grossRevenueTodayUsd: number;
+  /** Renter-facing rental volume booked over the last 7 days */
+  grossRevenueWeekUsd: number;
+  /** Renter-facing rental volume booked over the last 30 days */
+  grossRevenueMonthUsd: number;
+  commissionTodayUsd: number;
+  commissionWeekUsd: number;
+  commissionMonthUsd: number;
+  /** Algorithms with the most rental volume in the last 30 days */
+  topAlgorithmsByDemand: AdminStatsTopAlgorithmsByDemandItem[];
 }
 
 export interface AlgorithmHashrateBreakdown {

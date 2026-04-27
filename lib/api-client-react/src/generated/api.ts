@@ -945,6 +945,93 @@ export const useCreateRig = <
 };
 
 /**
+ * @summary Load a rig you own (works for pending/rejected rigs that are hidden from the public marketplace)
+ */
+export const getGetMyRigUrl = (id: number) => {
+  return `/api/me/rigs/${id}`;
+};
+
+export const getMyRig = async (
+  id: number,
+  options?: RequestInit,
+): Promise<RigDetail> => {
+  return customFetch<RigDetail>(getGetMyRigUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMyRigQueryKey = (id: number) => {
+  return [`/api/me/rigs/${id}`] as const;
+};
+
+export const getGetMyRigQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyRig>>,
+  TError = ErrorType<UnauthorizedResponse | NotFoundResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMyRig>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMyRigQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyRig>>> = ({
+    signal,
+  }) => getMyRig(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getMyRig>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetMyRigQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyRig>>
+>;
+export type GetMyRigQueryError = ErrorType<
+  UnauthorizedResponse | NotFoundResponse
+>;
+
+/**
+ * @summary Load a rig you own (works for pending/rejected rigs that are hidden from the public marketplace)
+ */
+
+export function useGetMyRig<
+  TData = Awaited<ReturnType<typeof getMyRig>>,
+  TError = ErrorType<UnauthorizedResponse | NotFoundResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMyRig>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMyRigQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary Update a rig you own
  */
 export const getUpdateMyRigUrl = (id: number) => {

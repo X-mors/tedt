@@ -67,14 +67,57 @@ router.get("/admin/stats", async (_req, res) => {
     })
     .from(rentalsTable);
 
-  const since = new Date(Date.now() - 24 * 3600 * 1000);
+  const now = Date.now();
+  const since24h = new Date(now - 24 * 3600 * 1000);
+  const startOfTodayUtc = new Date(
+    Date.UTC(
+      new Date(now).getUTCFullYear(),
+      new Date(now).getUTCMonth(),
+      new Date(now).getUTCDate(),
+    ),
+  );
+  const since7d = new Date(now - 7 * 24 * 3600 * 1000);
+  const since30d = new Date(now - 30 * 24 * 3600 * 1000);
+
   const [last24] = await db
     .select({
       vol: sql<string>`COALESCE(SUM(${rentalsTable.renterTotalUsd}), 0)`,
       cnt: sql<string>`COUNT(*)`,
     })
     .from(rentalsTable)
-    .where(gte(rentalsTable.createdAt, since));
+    .where(gte(rentalsTable.createdAt, since24h));
+
+  const [today] = await db
+    .select({
+      vol: sql<string>`COALESCE(SUM(${rentalsTable.renterTotalUsd}), 0)`,
+      fee: sql<string>`COALESCE(SUM(${rentalsTable.platformFeeUsd}), 0)`,
+    })
+    .from(rentalsTable)
+    .where(gte(rentalsTable.createdAt, startOfTodayUtc));
+
+  const [week] = await db
+    .select({
+      vol: sql<string>`COALESCE(SUM(${rentalsTable.renterTotalUsd}), 0)`,
+      fee: sql<string>`COALESCE(SUM(${rentalsTable.platformFeeUsd}), 0)`,
+    })
+    .from(rentalsTable)
+    .where(gte(rentalsTable.createdAt, since7d));
+
+  const [month] = await db
+    .select({
+      vol: sql<string>`COALESCE(SUM(${rentalsTable.renterTotalUsd}), 0)`,
+      fee: sql<string>`COALESCE(SUM(${rentalsTable.platformFeeUsd}), 0)`,
+    })
+    .from(rentalsTable)
+    .where(gte(rentalsTable.createdAt, since30d));
+
+  // Total hashrate currently under active rental (units vary by algorithm; this is a rough demand signal).
+  const [activeHr] = await db
+    .select({
+      sum: sql<string>`COALESCE(SUM(${rentalsTable.hashrate}), 0)`,
+    })
+    .from(rentalsTable)
+    .where(eq(rentalsTable.status, "active"));
 
   const [pending] = await db
     .select({
@@ -82,6 +125,23 @@ router.get("/admin/stats", async (_req, res) => {
     })
     .from(withdrawalsTable)
     .where(eq(withdrawalsTable.status, "pending"));
+
+  // Top algorithms by 30-day rental demand (USD volume).
+  const topAlgoRows = await db
+    .select({
+      algorithmId: algorithmsTable.id,
+      algorithmName: algorithmsTable.name,
+      unit: algorithmsTable.unit,
+      rentalCount: sql<string>`COUNT(${rentalsTable.id})`,
+      totalVolumeUsd: sql<string>`COALESCE(SUM(${rentalsTable.renterTotalUsd}), 0)`,
+    })
+    .from(rentalsTable)
+    .innerJoin(rigsTable, eq(rigsTable.id, rentalsTable.rigId))
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
+    .where(gte(rentalsTable.createdAt, since30d))
+    .groupBy(algorithmsTable.id)
+    .orderBy(sql`COALESCE(SUM(${rentalsTable.renterTotalUsd}), 0) DESC`)
+    .limit(5);
 
   const data = GetAdminStatsResponse.parse({
     totalUsers: Number(users?.c ?? 0),
@@ -95,6 +155,20 @@ router.get("/admin/stats", async (_req, res) => {
     pendingWithdrawalsUsd: toNum(pending?.sum),
     last24hRentalsUsd: toNum(last24?.vol),
     last24hRentalCount: Number(last24?.cnt ?? 0),
+    currentlyRentedHashrate: toNum(activeHr?.sum),
+    grossRevenueTodayUsd: toNum(today?.vol),
+    grossRevenueWeekUsd: toNum(week?.vol),
+    grossRevenueMonthUsd: toNum(month?.vol),
+    commissionTodayUsd: toNum(today?.fee),
+    commissionWeekUsd: toNum(week?.fee),
+    commissionMonthUsd: toNum(month?.fee),
+    topAlgorithmsByDemand: topAlgoRows.map((r) => ({
+      algorithmId: r.algorithmId,
+      algorithmName: r.algorithmName,
+      unit: r.unit,
+      rentalCount: Number(r.rentalCount),
+      totalVolumeUsd: toNum(r.totalVolumeUsd),
+    })),
   });
   res.json(data);
 });

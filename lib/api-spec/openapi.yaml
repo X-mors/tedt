@@ -238,6 +238,23 @@ paths:
           $ref: "#/components/responses/Unauthorized"
 
   /me/rigs/{id}:
+    get:
+      operationId: getMyRig
+      tags: [rigs]
+      summary: Load a rig you own (works for pending/rejected rigs that are hidden from the public marketplace)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Owner-scoped rig detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RigDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
     patch:
       operationId: updateMyRig
       tags: [rigs]
@@ -974,6 +991,12 @@ components:
         totalSpentUsd:
           type: number
           description: Lifetime spend as a renter
+        rigCount:
+          type: integer
+          description: Number of rigs the user owns (used by the UI to show the lessor nav)
+        rentalCount:
+          type: integer
+          description: Number of rentals the user has placed
         createdAt:
           type: string
           format: date-time
@@ -987,6 +1010,8 @@ components:
         - totalDepositedUsd
         - totalEarnedUsd
         - totalSpentUsd
+        - rigCount
+        - rentalCount
         - createdAt
 
     UpdateMeBody:
@@ -2051,6 +2076,7 @@ components:
           type: integer
         platformRevenueUsd:
           type: number
+          description: All-time platform commission in USD
         totalRentalVolumeUsd:
           type: number
         pendingWithdrawalsUsd:
@@ -2059,6 +2085,46 @@ components:
           type: number
         last24hRentalCount:
           type: integer
+        currentlyRentedHashrate:
+          type: number
+          description: Sum of hashrate (in each algorithm's unit) currently under active rental
+        grossRevenueTodayUsd:
+          type: number
+          description: Renter-facing rental volume booked since UTC midnight today
+        grossRevenueWeekUsd:
+          type: number
+          description: Renter-facing rental volume booked over the last 7 days
+        grossRevenueMonthUsd:
+          type: number
+          description: Renter-facing rental volume booked over the last 30 days
+        commissionTodayUsd:
+          type: number
+        commissionWeekUsd:
+          type: number
+        commissionMonthUsd:
+          type: number
+        topAlgorithmsByDemand:
+          type: array
+          description: Algorithms with the most rental volume in the last 30 days
+          items:
+            type: object
+            properties:
+              algorithmId:
+                type: integer
+              algorithmName:
+                type: string
+              unit:
+                type: string
+              rentalCount:
+                type: integer
+              totalVolumeUsd:
+                type: number
+            required:
+              - algorithmId
+              - algorithmName
+              - unit
+              - rentalCount
+              - totalVolumeUsd
       required:
         - totalUsers
         - totalRigs
@@ -2071,6 +2137,14 @@ components:
         - pendingWithdrawalsUsd
         - last24hRentalsUsd
         - last24hRentalCount
+        - currentlyRentedHashrate
+        - grossRevenueTodayUsd
+        - grossRevenueWeekUsd
+        - grossRevenueMonthUsd
+        - commissionTodayUsd
+        - commissionWeekUsd
+        - commissionMonthUsd
+        - topAlgorithmsByDemand
 
     AlgorithmHashrateBreakdown:
       type: object

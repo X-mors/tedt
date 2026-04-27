@@ -1,6 +1,12 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, usersTable } from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
+import {
+  db,
+  rentalsTable,
+  rigsTable,
+  usersTable,
+  type User,
+} from "@workspace/db";
 import {
   GetMeResponse,
   SyncMeResponse,
@@ -12,18 +18,15 @@ import { toNum } from "../lib/money";
 
 const router: IRouter = Router();
 
-function serialize(user: {
-  id: number;
-  clerkUserId: string;
-  email: string;
-  displayName: string;
-  role: "admin" | "owner" | "renter";
-  balanceUsd: string;
-  totalDepositedUsd: string;
-  totalEarnedUsd: string;
-  totalSpentUsd: string;
-  createdAt: Date;
-}) {
+async function serialize(user: User) {
+  const [rigs] = await db
+    .select({ c: sql<string>`COUNT(*)` })
+    .from(rigsTable)
+    .where(eq(rigsTable.ownerId, user.id));
+  const [rentals] = await db
+    .select({ c: sql<string>`COUNT(*)` })
+    .from(rentalsTable)
+    .where(eq(rentalsTable.renterId, user.id));
   return {
     id: user.id,
     clerkUserId: user.clerkUserId,
@@ -34,12 +37,14 @@ function serialize(user: {
     totalDepositedUsd: toNum(user.totalDepositedUsd),
     totalEarnedUsd: toNum(user.totalEarnedUsd),
     totalSpentUsd: toNum(user.totalSpentUsd),
+    rigCount: Number(rigs?.c ?? 0),
+    rentalCount: Number(rentals?.c ?? 0),
     createdAt: user.createdAt.toISOString(),
   };
 }
 
 router.get("/me", requireAuth, async (req, res) => {
-  const data = GetMeResponse.parse(serialize(req.currentUser!));
+  const data = GetMeResponse.parse(await serialize(req.currentUser!));
   res.json(data);
 });
 
@@ -50,7 +55,7 @@ router.patch("/me", requireAuth, async (req, res) => {
     .set({ displayName: body.displayName })
     .where(eq(usersTable.id, req.currentUser!.id))
     .returning();
-  const data = UpdateMeResponse.parse(serialize(updated!));
+  const data = UpdateMeResponse.parse(await serialize(updated!));
   res.json(data);
 });
 
@@ -61,7 +66,7 @@ router.post("/me/sync", async (req, res) => {
     res.status(401).json({ error: "Not signed in" });
     return;
   }
-  const data = SyncMeResponse.parse(serialize(user));
+  const data = SyncMeResponse.parse(await serialize(user));
   res.json(data);
 });
 

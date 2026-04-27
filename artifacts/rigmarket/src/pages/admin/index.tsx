@@ -243,7 +243,7 @@ export default function AdminDashboard() {
         </Card>
         <Card className="bg-card/50 border-border/50">
           <CardHeader className="pb-2">
-             <CardTitle className="text-xs text-muted-foreground uppercase">Platform Rev</CardTitle>
+             <CardTitle className="text-xs text-muted-foreground uppercase">Platform Rev (All-Time)</CardTitle>
           </CardHeader>
           <CardContent><div className="text-2xl font-mono text-primary">{formatMoney(stats?.platformRevenueUsd || 0)}</div></CardContent>
         </Card>
@@ -254,6 +254,72 @@ export default function AdminDashboard() {
           <CardContent><div className="text-2xl font-mono">{formatMoney(stats?.pendingWithdrawalsUsd || 0)}</div></CardContent>
         </Card>
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="bg-card/50 border-border/50">
+          <CardHeader className="pb-2">
+             <CardTitle className="text-xs text-muted-foreground uppercase">Today (UTC)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-mono">{formatMoney(stats?.grossRevenueTodayUsd || 0)}</div>
+            <div className="text-xs text-muted-foreground font-mono mt-1">
+              Commission: <span className="text-primary">{formatMoney(stats?.commissionTodayUsd || 0)}</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-border/50">
+          <CardHeader className="pb-2">
+             <CardTitle className="text-xs text-muted-foreground uppercase">Last 7 Days</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-mono">{formatMoney(stats?.grossRevenueWeekUsd || 0)}</div>
+            <div className="text-xs text-muted-foreground font-mono mt-1">
+              Commission: <span className="text-primary">{formatMoney(stats?.commissionWeekUsd || 0)}</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/50 border-border/50">
+          <CardHeader className="pb-2">
+             <CardTitle className="text-xs text-muted-foreground uppercase">Last 30 Days</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-mono">{formatMoney(stats?.grossRevenueMonthUsd || 0)}</div>
+            <div className="text-xs text-muted-foreground font-mono mt-1">
+              Commission: <span className="text-primary">{formatMoney(stats?.commissionMonthUsd || 0)}</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {stats?.topAlgorithmsByDemand && stats.topAlgorithmsByDemand.length > 0 && (
+        <Card className="bg-card/50 border-border/50">
+          <CardHeader>
+            <CardTitle className="text-sm font-mono uppercase tracking-wider text-muted-foreground">
+              Top Algorithms by Demand (Last 30d)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow>
+                  <TableHead className="font-mono text-xs">ALGORITHM</TableHead>
+                  <TableHead className="font-mono text-xs text-right">RENTALS</TableHead>
+                  <TableHead className="font-mono text-xs text-right">VOLUME (USD)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {stats.topAlgorithmsByDemand.map((a) => (
+                  <TableRow key={a.algorithmId}>
+                    <TableCell className="font-mono">{a.algorithmName} <span className="text-muted-foreground text-xs">({a.unit})</span></TableCell>
+                    <TableCell className="font-mono text-right">{a.rentalCount}</TableCell>
+                    <TableCell className="font-mono text-right text-primary">{formatMoney(a.totalVolumeUsd)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="pending-rigs" className="w-full">
         <TabsList className="bg-muted/50 w-full justify-start border-b rounded-none px-0 h-auto flex-wrap">

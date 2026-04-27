@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
-import { useCreateRig, useUpdateMyRig, useGetRig, useListAlgorithms, getListMyRigsQueryKey, getGetRigQueryKey } from "@workspace/api-client-react";
+import { useCreateRig, useUpdateMyRig, useGetMyRig, useListAlgorithms, getListMyRigsQueryKey, getGetMyRigQueryKey, getGetRigQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,8 @@ export default function RigForm() {
   const queryClient = useQueryClient();
 
   const { data: algorithms } = useListAlgorithms();
-  const { data: rig, isLoading: rigLoading } = useGetRig(rigId, { query: { enabled: isEditing } });
+  // Use the owner-scoped endpoint so pending/rejected rigs (hidden from public marketplace) can still be edited.
+  const { data: rig, isLoading: rigLoading } = useGetMyRig(rigId, { query: { enabled: isEditing } });
 
   const createRig = useCreateRig();
   const updateRig = useUpdateMyRig();
@@ -68,6 +69,7 @@ export default function RigForm() {
       updateRig.mutate({ id: rigId, data }, {
         onSuccess: () => {
           toast({ title: "Rig Updated", description: "Changes saved successfully." });
+          queryClient.invalidateQueries({ queryKey: getGetMyRigQueryKey(rigId) });
           queryClient.invalidateQueries({ queryKey: getGetRigQueryKey(rigId) });
           queryClient.invalidateQueries({ queryKey: getListMyRigsQueryKey() });
           setLocation("/lessor");
