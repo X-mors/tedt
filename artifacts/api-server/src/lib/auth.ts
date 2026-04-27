@@ -3,9 +3,17 @@ import { getAuth, clerkClient } from "@clerk/express";
 import { eq } from "drizzle-orm";
 import { db, usersTable, type User } from "@workspace/db";
 
-declare module "express-serve-static-core" {
-  interface Request {
-    currentUser?: User;
+// Augment the Express Request via the global Express namespace, which is the
+// shape exported by @types/express-serve-static-core 5.x. The previous
+// `declare module "express-serve-static-core"` form did not merge with the
+// default-exported Request type and left `req.currentUser` typed as unknown
+// in every route file.
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      currentUser?: User;
+    }
   }
 }
 

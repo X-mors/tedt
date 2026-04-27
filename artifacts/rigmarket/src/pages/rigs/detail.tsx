@@ -12,8 +12,9 @@ export default function RigDetail() {
   const { id } = useParams<{ id: string }>();
   const rigId = parseInt(id || "0");
   
-  const { data: rig, isLoading } = useGetRig(rigId, { query: { enabled: !!rigId } });
-  const { data: reviews } = useListRigReviews(rigId, { query: { enabled: !!rigId } });
+  // orval defaults `enabled: !!id`, so we can omit it.
+  const { data: rig, isLoading } = useGetRig(rigId);
+  const { data: reviews } = useListRigReviews(rigId);
   const { data: me } = useGetMe();
 
   if (isLoading) {

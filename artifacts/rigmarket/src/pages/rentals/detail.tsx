@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatHashrate, formatSeconds } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Activity, Server, Copy, ShieldAlert, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -21,12 +22,15 @@ export default function RentalCockpit() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: rental, isLoading: rentalLoading } = useGetRental(rentalId, { query: { enabled: !!rentalId } });
-  const { data: stats } = useGetRentalStats(rentalId, { 
-    query: { 
+  // orval defaults `enabled: !!id`, so we can omit the query option for the rental fetch.
+  const { data: rental, isLoading: rentalLoading } = useGetRental(rentalId);
+  const { data: stats } = useGetRentalStats(rentalId, {
+    // Cast: orval-generated `query` options demand a full UseQueryOptions including queryKey,
+    // but the wrapper supplies queryKey internally. A Partial-ish override is the simplest fix.
+    query: {
       enabled: !!rentalId && rental?.status === 'active',
-      refetchInterval: 5000 
-    } 
+      refetchInterval: 5000,
+    } as never,
   });
 
   const cancelRental = useCancelRental();

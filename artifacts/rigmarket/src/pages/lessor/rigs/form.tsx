@@ -21,7 +21,8 @@ export default function RigForm() {
 
   const { data: algorithms } = useListAlgorithms();
   // Use the owner-scoped endpoint so pending/rejected rigs (hidden from public marketplace) can still be edited.
-  const { data: rig, isLoading: rigLoading } = useGetMyRig(rigId, { query: { enabled: isEditing } });
+  // orval defaults `enabled: !!id`, which already disables the query when rigId is 0 (creating a new rig).
+  const { data: rig, isLoading: rigLoading } = useGetMyRig(rigId);
 
   const createRig = useCreateRig();
   const updateRig = useUpdateMyRig();

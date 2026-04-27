@@ -7,7 +7,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
-  const { data: me } = useGetMe({ query: { enabled: !!user } });
+  // Cast: orval-generated `query` options demand a full UseQueryOptions including queryKey,
+  // but the wrapper supplies queryKey internally. A Partial-ish override is the simplest fix.
+  const { data: me } = useGetMe({ query: { enabled: !!user } as never });
 
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
   const stripBase = (path: string) =>

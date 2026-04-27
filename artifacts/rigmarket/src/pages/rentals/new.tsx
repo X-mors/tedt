@@ -17,7 +17,8 @@ export default function NewRental() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  const { data: rig, isLoading: rigLoading } = useGetRig(rigId, { query: { enabled: !!rigId } });
+  // orval defaults `enabled: !!rigId`, so we can omit the query option.
+  const { data: rig, isLoading: rigLoading } = useGetRig(rigId);
   const { data: me } = useGetMe();
   
   const [hours, setHours] = useState(1);
@@ -41,6 +42,7 @@ export default function NewRental() {
       }, 300);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [rigId, hours, rig?.minRentalHours]);
 
   const handleDeploy = () => {
