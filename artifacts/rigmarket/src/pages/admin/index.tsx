@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   useGetAdminStats,
   useListAdminUsers,
@@ -55,6 +56,38 @@ export default function AdminDashboard() {
     query: { refetchInterval: 5000, queryKey: getGetAdminProxyQueryKey() },
   });
   const disconnectRig = useAdminProxyDisconnectRig();
+
+  const { data: proxySettings, refetch: refetchProxySettings } = useQuery({
+    queryKey: ["admin-proxy-settings"],
+    queryFn: async () => {
+      const r = await fetch("/api/admin/proxy/settings");
+      if (!r.ok) throw new Error("Failed to load proxy settings");
+      return r.json() as Promise<{
+        settings: { lowDeliveryThresholdPct: number; lowDeliveryWindowSec: number; minSharesForCheck: number };
+        defaults: { lowDeliveryThresholdPct: number; lowDeliveryWindowSec: number; minSharesForCheck: number };
+      }>;
+    },
+  });
+  const saveProxySettings = useMutation({
+    mutationFn: async (body: Record<string, number>) => {
+      const r = await fetch("/api/admin/proxy/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error("Failed to save proxy settings");
+      return r.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Settings Saved", description: "Proxy delivery policy updated." });
+      void refetchProxySettings();
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const [settingThreshold, setSettingThreshold] = useState("");
+  const [settingWindow, setSettingWindow] = useState("");
+  const [settingMinShares, setSettingMinShares] = useState("");
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -816,6 +849,81 @@ export default function AdminDashboard() {
                     </TableBody>
                   </Table>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Proxy delivery policy settings */}
+            <Card className="bg-card/50 border-border/50">
+              <CardHeader>
+                <CardTitle className="text-lg font-mono">Delivery Policy Settings</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Controls when low-hashrate auto-cancellation is triggered.
+                  Defaults: threshold {((proxySettings?.defaults.lowDeliveryThresholdPct ?? 0.70) * 100).toFixed(0)}%, window {proxySettings?.defaults.lowDeliveryWindowSec ?? 1800}s, min shares {proxySettings?.defaults.minSharesForCheck ?? 5}.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label className="font-mono text-xs">Low-Delivery Threshold (%)</Label>
+                    <Input
+                      className="font-mono text-xs"
+                      placeholder={(((proxySettings?.settings.lowDeliveryThresholdPct ?? 0.70) * 100).toFixed(0))}
+                      value={settingThreshold}
+                      onChange={(e) => setSettingThreshold(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Current: {((proxySettings?.settings.lowDeliveryThresholdPct ?? 0.70) * 100).toFixed(0)}%</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-mono text-xs">Measurement Window (seconds)</Label>
+                    <Input
+                      className="font-mono text-xs"
+                      placeholder={String(proxySettings?.settings.lowDeliveryWindowSec ?? 1800)}
+                      value={settingWindow}
+                      onChange={(e) => setSettingWindow(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Current: {proxySettings?.settings.lowDeliveryWindowSec ?? 1800}s</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-mono text-xs">Min Shares Required</Label>
+                    <Input
+                      className="font-mono text-xs"
+                      placeholder={String(proxySettings?.settings.minSharesForCheck ?? 5)}
+                      value={settingMinShares}
+                      onChange={(e) => setSettingMinShares(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Current: {proxySettings?.settings.minSharesForCheck ?? 5}</p>
+                  </div>
+                </div>
+                <Button
+                  className="mt-4 font-mono text-xs"
+                  disabled={saveProxySettings.isPending}
+                  onClick={() => {
+                    const updates: Record<string, number> = {};
+                    if (settingThreshold) {
+                      const v = parseFloat(settingThreshold) / 100;
+                      if (!isNaN(v)) updates["low_delivery_threshold_pct"] = v;
+                    }
+                    if (settingWindow) {
+                      const v = parseInt(settingWindow, 10);
+                      if (!isNaN(v)) updates["low_delivery_window_sec"] = v;
+                    }
+                    if (settingMinShares) {
+                      const v = parseInt(settingMinShares, 10);
+                      if (!isNaN(v)) updates["min_shares_for_check"] = v;
+                    }
+                    if (Object.keys(updates).length > 0) {
+                      saveProxySettings.mutate(updates, {
+                        onSuccess: () => {
+                          setSettingThreshold("");
+                          setSettingWindow("");
+                          setSettingMinShares("");
+                        },
+                      });
+                    }
+                  }}
+                >
+                  {saveProxySettings.isPending ? "SAVING..." : "SAVE_SETTINGS"}
+                </Button>
               </CardContent>
             </Card>
           </div>

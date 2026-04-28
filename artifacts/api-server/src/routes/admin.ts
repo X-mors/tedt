@@ -12,6 +12,11 @@ import {
 } from "@workspace/db";
 import { proxyState } from "../lib/stratum/state";
 import {
+  getProxySettings,
+  setProxySetting,
+  proxySettingsDefaults,
+} from "../lib/platformSettings";
+import {
   AdminCreditWalletBody,
   AdminCreditWalletResponse,
   ApproveRigBody,
@@ -902,6 +907,52 @@ router.post("/admin/proxy/rigs/:rigId/disconnect", (req, res) => {
     return;
   }
   res.json({ ok: true, message: `Rig ${rigId} disconnected` });
+});
+
+/**
+ * GET /admin/proxy/settings — return current proxy policy settings.
+ * PUT /admin/proxy/settings — update one or more proxy policy settings.
+ */
+router.get("/admin/proxy/settings", async (_req, res) => {
+  const settings = await getProxySettings();
+  res.json({
+    settings,
+    defaults: proxySettingsDefaults,
+    keys: {
+      lowDeliveryThresholdPct: "low_delivery_threshold_pct",
+      lowDeliveryWindowSec: "low_delivery_window_sec",
+      minSharesForCheck: "min_shares_for_check",
+    },
+  });
+});
+
+router.put("/admin/proxy/settings", async (req, res) => {
+  const body = req.body as Record<string, unknown>;
+  const allowed: Record<string, (v: number) => boolean> = {
+    low_delivery_threshold_pct: (v) => v > 0 && v <= 1,
+    low_delivery_window_sec: (v) => v >= 60 && v <= 86400,
+    min_shares_for_check: (v) => v >= 0 && v <= 10000,
+  };
+  const updates: Array<{ key: string; value: string }> = [];
+  for (const [key, validator] of Object.entries(allowed)) {
+    if (key in body) {
+      const raw = Number(body[key]);
+      if (!Number.isFinite(raw) || !validator(raw)) {
+        res.status(400).json({ error: `Invalid value for ${key}` });
+        return;
+      }
+      updates.push({ key, value: String(raw) });
+    }
+  }
+  if (updates.length === 0) {
+    res.status(400).json({ error: "No valid settings provided" });
+    return;
+  }
+  for (const { key, value } of updates) {
+    await setProxySetting(key, value);
+  }
+  const updated = await getProxySettings();
+  res.json({ ok: true, settings: updated });
 });
 
 export default router;

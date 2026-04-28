@@ -130,7 +130,14 @@ export async function settleExpiredRentals(): Promise<number> {
     if (ok) settled++;
 
     // Tear down any live proxy routing now that the rental is done.
+    // deactivateRental() also removes the share window from proxyState so
+    // the flush loop stops inserting samples for this finished rental.
     proxyState.getRigSession(rigId)?.deactivateRental();
+    // If no active session exists, remove the window directly (rig offline
+    // at time of settlement).
+    if (!proxyState.getRigSession(rigId)) {
+      proxyState.removeShareWindow(id);
+    }
   }
 
   return settled;

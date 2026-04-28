@@ -13,11 +13,9 @@ import { logger } from "../logger";
 import { proxyState } from "./state";
 import { DownstreamSession } from "./downstream";
 import { round6, toNum, toUsdString, unitMultiplier } from "../money";
+import { getProxySettings } from "../platformSettings";
 
 const FLUSH_INTERVAL_MS = 60_000;
-const LOW_DELIVERY_THRESHOLD = 0.70;
-const LOW_DELIVERY_WINDOW_SECS = 1800;
-const MIN_SHARES_FOR_LOW_DELIVERY_CHECK = 5;
 
 export class StratumServer {
   private tcpServer: net.Server;
@@ -121,6 +119,10 @@ export class StratumServer {
   }
 
   private async _checkLowDelivery(rentalId: number): Promise<void> {
+    // Read admin-configurable thresholds on each check (cached 60 s).
+    const settings = await getProxySettings();
+    const { lowDeliveryThresholdPct, lowDeliveryWindowSec, minSharesForCheck } = settings;
+
     const [rental] = await db
       .select({
         id: rentalsTable.id,
@@ -144,7 +146,7 @@ export class StratumServer {
     if (!rental) return;
 
     const elapsedMs = Date.now() - rental.startedAt.getTime();
-    if (elapsedMs < LOW_DELIVERY_WINDOW_SECS * 1000) return;
+    if (elapsedMs < lowDeliveryWindowSec * 1000) return;
 
     const recentSamples = await db
       .select({
@@ -157,7 +159,7 @@ export class StratumServer {
           eq(rentalHashSamplesTable.rentalId, rentalId),
           gte(
             rentalHashSamplesTable.sampledAt,
-            new Date(Date.now() - LOW_DELIVERY_WINDOW_SECS * 1000),
+            new Date(Date.now() - lowDeliveryWindowSec * 1000),
           ),
         ),
       );
@@ -166,7 +168,7 @@ export class StratumServer {
       (s, r) => s + r.sharesAccepted,
       0,
     );
-    if (totalShares < MIN_SHARES_FOR_LOW_DELIVERY_CHECK) return;
+    if (totalShares < minSharesForCheck) return;
 
     const avgHashrateH =
       recentSamples.reduce(
@@ -180,25 +182,28 @@ export class StratumServer {
     const advertisedH = toNum(rental.hashrate) * mult;
     const ratio = avgHashrateH / advertisedH;
 
-    if (ratio < LOW_DELIVERY_THRESHOLD) {
+    if (ratio < lowDeliveryThresholdPct) {
       logger.warn(
         { rentalId, ratio, avgHashrateH, advertisedH },
         "stratum:server low delivery — auto-cancelling rental",
       );
-      await this._autoCancelRental(rental);
+      await this._autoCancelRental(rental, lowDeliveryThresholdPct);
     }
   }
 
-  private async _autoCancelRental(rental: {
-    id: number;
-    renterTotalUsd: string;
-    ownerEarningsUsd: string;
-    renterId: number;
-    ownerId: number;
-    rigId: number;
-    startedAt: Date;
-    endsAt: Date;
-  }): Promise<void> {
+  private async _autoCancelRental(
+    rental: {
+      id: number;
+      renterTotalUsd: string;
+      ownerEarningsUsd: string;
+      renterId: number;
+      ownerId: number;
+      rigId: number;
+      startedAt: Date;
+      endsAt: Date;
+    },
+    thresholdPct: number,
+  ): Promise<void> {
     try {
       await db.transaction(async (tx) => {
         const now = new Date();
@@ -220,7 +225,7 @@ export class StratumServer {
           .set({
             status: "offline",
             approvalStatus: "pending",
-            approvalNote: `Auto-cancelled rental #${rental.id}: sustained hashrate below ${Math.round(LOW_DELIVERY_THRESHOLD * 100)}% of advertised value.`,
+            approvalNote: `Auto-cancelled rental #${rental.id}: sustained hashrate below ${Math.round(thresholdPct * 100)}% of advertised value.`,
           })
           .where(eq(rigsTable.id, rental.rigId));
 
@@ -259,6 +264,9 @@ export class StratumServer {
         }
       });
 
+      // Remove share window and evict algUnit cache for the ended rental.
+      proxyState.removeShareWindow(rental.id);
+      this.algUnitCache.delete(rental.id);
       proxyState.forceDisconnect(rental.rigId);
     } catch (err) {
       logger.error(

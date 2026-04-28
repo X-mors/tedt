@@ -121,6 +121,21 @@ class ProxyState {
     }
   }
 
+  /**
+   * Remove a share window and any associated parked upstream when a rental
+   * ends (completed, cancelled, or auto-cancelled). Stops the flush loop from
+   * inserting further samples for the finished rental.
+   */
+  removeShareWindow(rentalId: number): void {
+    this.shareWindows.delete(rentalId);
+    const parked = this.parkedUpstreams.get(rentalId);
+    if (parked) {
+      clearTimeout(parked.timer);
+      parked.upstream.destroy();
+      this.parkedUpstreams.delete(rentalId);
+    }
+  }
+
   flushAndResetWindow(rentalId: number): ShareWindow | null {
     const window = this.shareWindows.get(rentalId);
     if (!window) return null;

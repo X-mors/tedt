@@ -28,6 +28,7 @@ import { getCommission } from "../lib/commission";
 import { round2, round6, toNum, toUsdString, unitMultiplier } from "../lib/money";
 import { settleExpiredRentals } from "../lib/settlement";
 import { randomBytes } from "node:crypto";
+import * as dns from "node:dns/promises";
 
 // Private/reserved IP ranges that must not be reachable via the Stratum proxy.
 const PRIVATE_CIDRS: Array<[number, number, number]> = [
@@ -55,7 +56,7 @@ function isPrivateIp(ip: string): boolean {
   return false;
 }
 
-function validatePoolUrl(poolUrl: string): string | null {
+async function validatePoolUrl(poolUrl: string): Promise<string | null> {
   let u: URL;
   try {
     u = new URL(poolUrl);
@@ -77,8 +78,30 @@ function validatePoolUrl(poolUrl: string): string | null {
   if (BLOCKED_SUFFIXES.some((s) => host.endsWith(s))) {
     return "poolUrl hostname is not permitted";
   }
+  // Immediate check if it looks like a literal private IP.
   if (isPrivateIp(host)) {
     return "poolUrl hostname resolves to a reserved/private address";
+  }
+  // Resolve DNS and check every returned address to prevent DNS-rebinding /
+  // public-hostname-to-private-IP attacks.
+  try {
+    const [v4, v6] = await Promise.allSettled([
+      dns.resolve4(host),
+      dns.resolve6(host),
+    ]);
+    const ips: string[] = [];
+    if (v4.status === "fulfilled") ips.push(...v4.value);
+    if (v6.status === "fulfilled") ips.push(...v6.value);
+    if (ips.length === 0) {
+      return "poolUrl hostname could not be resolved";
+    }
+    for (const ip of ips) {
+      if (isPrivateIp(ip)) {
+        return "poolUrl hostname resolves to a reserved/private address";
+      }
+    }
+  } catch {
+    return "poolUrl hostname could not be resolved";
   }
   return null;
 }
@@ -169,7 +192,7 @@ router.post("/rentals", async (req, res) => {
   // SSRF guard — only stratum+tcp:// or stratum:// (plain TCP); no TLS variant
   // since the proxy speaks plain TCP only. Block private/loopback/reserved hosts.
   {
-    const ssrfError = validatePoolUrl(body.poolUrl);
+    const ssrfError = await validatePoolUrl(body.poolUrl);
     if (ssrfError) {
       res.status(400).json({ error: ssrfError });
       return;

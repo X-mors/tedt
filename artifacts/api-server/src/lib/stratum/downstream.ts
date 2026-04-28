@@ -220,6 +220,7 @@ export class DownstreamSession extends EventEmitter {
   }
 
   deactivateRental(): void {
+    const prevRentalId = this.rentalId;
     if (this.upstream) {
       this.upstream.destroy();
       this.upstream = null;
@@ -229,6 +230,11 @@ export class DownstreamSession extends EventEmitter {
     if (this.rigId != null) {
       proxyState.setRigAuthorized(this.rigId, null);
       proxyState.setUpstreamConnected(this.rigId, false);
+    }
+    // Remove the share window so the flush loop stops inserting samples for
+    // this finished rental.
+    if (prevRentalId != null) {
+      proxyState.removeShareWindow(prevRentalId);
     }
     this._notify("mining.set_difficulty", [1]);
     logger.info({ rigId: this.rigId }, "stratum:downstream rental deactivated, miner now idle");
