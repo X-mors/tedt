@@ -829,6 +829,9 @@ router.post("/admin/withdrawals/:id/reject", async (req, res) => {
       .returning();
     if (!updated) return null;
 
+    // Refund the held balance back to the user. Throw on failure so the
+    // entire transaction rolls back — the withdrawal must not be marked
+    // rejected without the user being credited.
     const refundStr = updated.amountUsd;
     const [credited] = await tx
       .update(usersTable)
@@ -837,15 +840,15 @@ router.post("/admin/withdrawals/:id/reject", async (req, res) => {
       })
       .where(eq(usersTable.id, updated.userId))
       .returning({ balanceUsd: usersTable.balanceUsd });
-    if (credited) {
-      await tx.insert(walletTransactionsTable).values({
-        userId: updated.userId,
-        type: "rental_refund",
-        amountUsd: refundStr,
-        balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
-        memo: `Refund for rejected withdrawal #${updated.id}`,
-      });
-    }
+    if (!credited) throw new Error("Failed to credit refund for rejected withdrawal");
+
+    await tx.insert(walletTransactionsTable).values({
+      userId: updated.userId,
+      type: "admin_credit",
+      amountUsd: refundStr,
+      balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
+      memo: `Refund for rejected withdrawal #${updated.id}`,
+    });
     return updated;
   });
 
