@@ -7,14 +7,12 @@ import {
   withdrawalsTable,
 } from "@workspace/db";
 import {
-  CreateDepositBody,
   CreateWithdrawalBody,
   GetMyWalletResponse,
   ListMyWithdrawalsResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
 import { round6, toNum, toUsdString } from "../lib/money";
-import { randomBytes } from "node:crypto";
 
 const router: IRouter = Router();
 
@@ -59,27 +57,14 @@ router.get("/me/wallet", async (req, res) => {
   res.json(data);
 });
 
-router.post("/me/wallet/deposits", async (req, res) => {
-  const body = CreateDepositBody.parse(req.body);
-  // Generate a deterministic-looking address per request — production would
-  // call a real wallet service. The site operator monitors incoming funds
-  // and credits the user via the admin panel.
-  const tag = randomBytes(20).toString("hex");
-  const address =
-    body.asset === "BTC"
-      ? `bc1q${tag.slice(0, 38)}`
-      : `T${tag.slice(0, 33)}`;
-  const memo = `RM-${req.currentUser!.id}-${randomBytes(4).toString("hex")}`;
-
-  res.status(201).json({
-    asset: body.asset,
-    depositAddress: address,
-    memo,
-    amountUsd: body.amountUsd,
-    note:
-      body.asset === "BTC"
-        ? "Send BTC to the address above. Funds will appear after 1 on-chain confirmation."
-        : "Send USDT (TRC-20) to the address above. Include the memo if your wallet supports it.",
+router.post("/me/wallet/deposits", async (_req, res) => {
+  // Crypto deposit rails are not yet active (Task #3).
+  // Return 503 with a clear message so no client code can accidentally
+  // treat this as a real deposit flow.
+  res.status(503).json({
+    error: "DEPOSITS_NOT_YET_ACTIVE",
+    message:
+      "On-chain BTC and USDT deposits are not yet available. Contact support to have your balance credited manually.",
   });
 });
 

@@ -32,12 +32,12 @@ import type {
   BadRequestResponse,
   CommissionConfig,
   CreateAlgorithmBody,
+  CreateDeposit503,
   CreateDepositBody,
   CreateRentalBody,
   CreateReviewBody,
   CreateRigBody,
   CreateWithdrawalBody,
-  DepositInstructions,
   ErrorResponse,
   ForbiddenResponse,
   GetMarketplaceFeaturedParams,
@@ -2223,17 +2223,17 @@ export function useGetMyWallet<
 }
 
 /**
- * @summary Request a deposit address for BTC or USDT funding (placeholder until wallet integration ships)
+ * @summary Placeholder — crypto deposit rails not yet active (Task #3)
  */
 export const getCreateDepositUrl = () => {
   return `/api/me/wallet/deposits`;
 };
 
 export const createDeposit = async (
-  createDepositBody: CreateDepositBody,
+  createDepositBody?: CreateDepositBody,
   options?: RequestInit,
-): Promise<DepositInstructions> => {
-  return customFetch<DepositInstructions>(getCreateDepositUrl(), {
+): Promise<unknown> => {
+  return customFetch<unknown>(getCreateDepositUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
@@ -2242,7 +2242,7 @@ export const createDeposit = async (
 };
 
 export const getCreateDepositMutationOptions = <
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<UnauthorizedResponse | CreateDeposit503>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -2283,13 +2283,15 @@ export type CreateDepositMutationResult = NonNullable<
   Awaited<ReturnType<typeof createDeposit>>
 >;
 export type CreateDepositMutationBody = BodyType<CreateDepositBody>;
-export type CreateDepositMutationError = ErrorType<UnauthorizedResponse>;
+export type CreateDepositMutationError = ErrorType<
+  UnauthorizedResponse | CreateDeposit503
+>;
 
 /**
- * @summary Request a deposit address for BTC or USDT funding (placeholder until wallet integration ships)
+ * @summary Placeholder — crypto deposit rails not yet active (Task #3)
  */
 export const useCreateDeposit = <
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<UnauthorizedResponse | CreateDeposit503>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<

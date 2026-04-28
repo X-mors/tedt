@@ -542,20 +542,26 @@ paths:
     post:
       operationId: createDeposit
       tags: [wallet]
-      summary: Request a deposit address for BTC or USDT funding (placeholder until wallet integration ships)
+      summary: "Placeholder — crypto deposit rails not yet active (Task #3)"
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/CreateDepositBody"
       responses:
-        "201":
-          description: Deposit instructions
+        "503":
+          description: Deposits not yet active — placeholder endpoint
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DepositInstructions"
+                type: object
+                properties:
+                  error:
+                    type: string
+                  message:
+                    type: string
+                required: [error, message]
         "401":
           $ref: "#/components/responses/Unauthorized"
 

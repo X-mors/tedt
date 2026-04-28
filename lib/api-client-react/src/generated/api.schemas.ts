@@ -752,6 +752,11 @@ export const ListRigsSort = {
   rating_desc: "rating_desc",
 } as const;
 
+export type CreateDeposit503 = {
+  error: string;
+  message: string;
+};
+
 export type ListAdminRigsParams = {
   approvalStatus?: RigApprovalStatus;
 };

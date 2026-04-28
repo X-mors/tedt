@@ -771,7 +771,7 @@ export const GetMyWalletResponse = zod.object({
 });
 
 /**
- * @summary Request a deposit address for BTC or USDT funding (placeholder until wallet integration ships)
+ * @summary Placeholder — crypto deposit rails not yet active (Task #3)
  */
 export const createDepositBodyAmountUsdExclusiveMin = 0;
 

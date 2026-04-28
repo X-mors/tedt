@@ -23,6 +23,7 @@ export * from "./approveWithdrawalBody";
 export * from "./badRequestResponse";
 export * from "./commissionConfig";
 export * from "./createAlgorithmBody";
+export * from "./createDeposit503";
 export * from "./createDepositBody";
 export * from "./createRentalBody";
 export * from "./createReviewBody";
