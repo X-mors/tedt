@@ -12,7 +12,7 @@ import {
 import { logger } from "../logger";
 import { proxyState } from "./state";
 import { DownstreamSession } from "./downstream";
-import { round6, toNum, toUsdString, unitMultiplier } from "../money";
+import { round6, toNum, toUsdString, unitMultiplier, computeDeliveryRatio } from "../money";
 import { getProxySettings } from "../platformSettings";
 
 const FLUSH_INTERVAL_MS = 60_000;
@@ -244,12 +244,10 @@ export class StratumServer {
         );
         const usedRatio = totalSecs > 0 ? usedSecs / totalSecs : 1;
 
-        const advertisedHashrate = toNum(rental.hashrate);
-        const deliveredHashrate = toNum(rental.deliveredHashrateAvg ?? "0");
-        const deliveryRatio =
-          deliveredHashrate > 0 && advertisedHashrate > 0
-            ? Math.min(1.05, deliveredHashrate / advertisedHashrate)
-            : 0.0;
+        const deliveryRatio = computeDeliveryRatio(
+          rental.deliveredHashrateAvg,
+          rental.hashrate,
+        );
 
         const effectiveRatio = deliveryRatio * usedRatio;
         const ownerPayout = round6(toNum(rental.ownerEarningsUsd) * effectiveRatio);

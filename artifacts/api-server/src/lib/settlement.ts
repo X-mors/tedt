@@ -6,7 +6,7 @@ import {
   usersTable,
   walletTransactionsTable,
 } from "@workspace/db";
-import { round6, toNum, toUsdString } from "./money";
+import { round6, toNum, toUsdString, computeDeliveryRatio } from "./money";
 import { proxyState } from "./stratum/state";
 
 /**
@@ -54,16 +54,14 @@ export async function settleExpiredRentals(): Promise<number> {
         .returning();
       if (!claimed) return false;
 
-      const advertisedHashrate = toNum(claimed.hashrate);
-      const deliveredHashrate = toNum(claimed.deliveredHashrateAvg);
-
-      // If no hashrate was recorded (null/0), the owner did not demonstrably
-      // deliver any work — refund the renter fully rather than defaulting to
-      // full payout. This incentivizes owners to keep rigs online.
-      const deliveryRatio =
-        deliveredHashrate > 0 && advertisedHashrate > 0
-          ? Math.min(1.05, deliveredHashrate / advertisedHashrate)
-          : 0.0;
+      // Delivery ratio uses the canonical helper from money.ts:
+      //  - null deliveredHashrateAvg → 1.0 (proxy never connected, owner not penalised)
+      //  - 0    deliveredHashrateAvg → 0.0 (proxy connected, no shares delivered)
+      //  - n>0  deliveredHashrateAvg → CLIP(delivered/advertised, 0, 1.05)
+      const deliveryRatio = computeDeliveryRatio(
+        claimed.deliveredHashrateAvg,
+        claimed.hashrate,
+      );
 
       const ownerPayout = round6(toNum(claimed.ownerEarningsUsd) * deliveryRatio);
       const renterRefund = round6(toNum(claimed.renterTotalUsd) * (1 - deliveryRatio));

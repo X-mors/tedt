@@ -48,6 +48,8 @@ export class DownstreamSession extends EventEmitter {
    * when upstream reconnects (no duplicate reply to miner).
    */
   private submitBuffer: BufferedSubmit[] = [];
+  /** Tracks the last time we wrote lastSeenAt to DB to avoid per-share writes. */
+  private lastSeenAtWrittenMs = 0;
 
   constructor(private readonly socket: net.Socket) {
     super();
@@ -438,6 +440,15 @@ export class DownstreamSession extends EventEmitter {
 
     if (this.rigId != null) {
       proxyState.recordShare(this.rigId, accepted, diff);
+      // Refresh lastSeenAt heartbeat at most once per minute to avoid DB hotspot.
+      const nowMs = Date.now();
+      if (nowMs - this.lastSeenAtWrittenMs > 60_000) {
+        this.lastSeenAtWrittenMs = nowMs;
+        void db
+          .update(rigsTable)
+          .set({ lastSeenAt: new Date(nowMs) })
+          .where(eq(rigsTable.id, this.rigId));
+      }
     }
 
     logger.debug(

@@ -25,86 +25,10 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
 import { getCommission } from "../lib/commission";
-import { round2, round6, toNum, toUsdString, unitMultiplier } from "../lib/money";
+import { round2, round6, toNum, toUsdString, unitMultiplier, computeDeliveryRatio } from "../lib/money";
 import { settleExpiredRentals } from "../lib/settlement";
+import { validatePoolUrl } from "../lib/ssrf";
 import { randomBytes } from "node:crypto";
-import * as dns from "node:dns/promises";
-
-// Private/reserved IP ranges that must not be reachable via the Stratum proxy.
-const PRIVATE_CIDRS: Array<[number, number, number]> = [
-  [0x7f000000, 0xff000000, 8],   // 127.0.0.0/8   loopback
-  [0x0a000000, 0xff000000, 8],   // 10.0.0.0/8
-  [0xac100000, 0xfff00000, 12],  // 172.16.0.0/12
-  [0xc0a80000, 0xffff0000, 16],  // 192.168.0.0/16
-  [0xa9fe0000, 0xffff0000, 16],  // 169.254.0.0/16  link-local + AWS metadata
-  [0xc0000000, 0xffffff00, 24],  // 192.0.0.0/24  IANA special
-  [0x00000000, 0xff000000, 8],   // 0.0.0.0/8
-];
-const BLOCKED_HOSTNAMES = new Set(["localhost"]);
-const BLOCKED_SUFFIXES = [".local", ".internal", ".localhost", ".corp", ".home"];
-
-function isPrivateIp(ip: string): boolean {
-  const parts = ip.split(".").map(Number);
-  if (parts.length === 4 && parts.every((p) => p >= 0 && p <= 255)) {
-    const n = (parts[0]! << 24 | parts[1]! << 16 | parts[2]! << 8 | parts[3]!) >>> 0;
-    return PRIVATE_CIDRS.some(([net, mask]) => (n & mask) === (net & mask));
-  }
-  // IPv6 loopback
-  if (ip === "::1" || ip.startsWith("fe80:") || ip.startsWith("fc") || ip.startsWith("fd")) {
-    return true;
-  }
-  return false;
-}
-
-async function validatePoolUrl(poolUrl: string): Promise<string | null> {
-  let u: URL;
-  try {
-    u = new URL(poolUrl);
-  } catch {
-    return "poolUrl is not a valid URL";
-  }
-  // Only allow plain-TCP stratum (TLS variants not supported by proxy)
-  if (u.protocol !== "stratum+tcp:" && u.protocol !== "stratum:") {
-    return "poolUrl must use stratum+tcp:// or stratum:// (TLS not supported by proxy)";
-  }
-  const host = u.hostname.toLowerCase();
-  const port = u.port ? parseInt(u.port, 10) : null;
-  if (!port || port < 1 || port > 65535) {
-    return "poolUrl must include an explicit port (1–65535)";
-  }
-  if (BLOCKED_HOSTNAMES.has(host)) {
-    return "poolUrl hostname is not permitted";
-  }
-  if (BLOCKED_SUFFIXES.some((s) => host.endsWith(s))) {
-    return "poolUrl hostname is not permitted";
-  }
-  // Immediate check if it looks like a literal private IP.
-  if (isPrivateIp(host)) {
-    return "poolUrl hostname resolves to a reserved/private address";
-  }
-  // Resolve DNS and check every returned address to prevent DNS-rebinding /
-  // public-hostname-to-private-IP attacks.
-  try {
-    const [v4, v6] = await Promise.allSettled([
-      dns.resolve4(host),
-      dns.resolve6(host),
-    ]);
-    const ips: string[] = [];
-    if (v4.status === "fulfilled") ips.push(...v4.value);
-    if (v6.status === "fulfilled") ips.push(...v6.value);
-    if (ips.length === 0) {
-      return "poolUrl hostname could not be resolved";
-    }
-    for (const ip of ips) {
-      if (isPrivateIp(ip)) {
-        return "poolUrl hostname resolves to a reserved/private address";
-      }
-    }
-  } catch {
-    return "poolUrl hostname could not be resolved";
-  }
-  return null;
-}
 
 const router: IRouter = Router();
 
@@ -666,12 +590,10 @@ router.post("/rentals/:id/cancel", async (req, res) => {
     );
     const usedRatio = totalSeconds > 0 ? usedSeconds / totalSeconds : 1;
 
-    const advertisedHashrate = toNum(rental.hashrate);
-    const deliveredHashrate = toNum(rental.deliveredHashrateAvg);
-    const deliveryRatio =
-      deliveredHashrate > 0 && advertisedHashrate > 0
-        ? Math.min(1.05, deliveredHashrate / advertisedHashrate)
-        : 0.0;
+    const deliveryRatio = computeDeliveryRatio(
+      rental.deliveredHashrateAvg,
+      rental.hashrate,
+    );
 
     const effectiveRatio = deliveryRatio * usedRatio;
     const ownerPayout = round6(toNum(rental.ownerEarningsUsd) * effectiveRatio);

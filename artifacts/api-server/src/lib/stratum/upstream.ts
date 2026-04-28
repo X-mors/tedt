@@ -1,6 +1,8 @@
 import * as net from "node:net";
+import * as dns from "node:dns/promises";
 import { EventEmitter } from "node:events";
 import { logger } from "../logger";
+import { isPrivateIp } from "../ssrf";
 import type { JsonRpcMessage } from "./types";
 
 const RECONNECT_DELAYS = [1000, 2000, 5000, 10000, 30000];
@@ -31,6 +33,11 @@ export class UpstreamClient extends EventEmitter {
   }
 
   connect(): void {
+    // Kick off the async connect path without blocking the caller.
+    void this._connectAsync();
+  }
+
+  private async _connectAsync(): Promise<void> {
     if (this.destroyed) return;
     this._clearConnectTimer();
     const parsed = this._parsePoolUrl(this.poolUrl);
@@ -43,11 +50,37 @@ export class UpstreamClient extends EventEmitter {
       return;
     }
     const { host, port } = parsed;
+
+    // Re-resolve the hostname on every connect attempt and validate the returned
+    // IPs to defend against DNS rebinding after rental creation.
+    let resolvedHost: string = host;
+    try {
+      const { address } = await dns.lookup(host, { family: 4 }).catch(
+        () => dns.lookup(host, { family: 6 }),
+      );
+      if (isPrivateIp(address)) {
+        logger.error(
+          { rentalId: this.rentalId, host, address },
+          "stratum:upstream resolved IP is private/reserved — connection blocked (DNS rebinding guard)",
+        );
+        this.emit("error", new Error(`Pool hostname resolved to private IP: ${address}`));
+        return;
+      }
+      resolvedHost = address;
+    } catch {
+      logger.error(
+        { rentalId: this.rentalId, host },
+        "stratum:upstream hostname resolution failed",
+      );
+      this.emit("error", new Error(`Pool hostname could not be resolved: ${host}`));
+      return;
+    }
+
     logger.info(
-      { rentalId: this.rentalId, host, port },
+      { rentalId: this.rentalId, host, resolvedHost, port },
       "stratum:upstream connecting",
     );
-    const sock = net.createConnection({ host, port });
+    const sock = net.createConnection({ host: resolvedHost, port });
     this.socket = sock;
     sock.setEncoding("utf8");
     sock.setTimeout(120_000);
