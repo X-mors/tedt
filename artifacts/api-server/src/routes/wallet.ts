@@ -163,7 +163,7 @@ router.get(
 
       try {
         const orderId = `user-${userId}-${currency}-${Date.now()}`;
-        const payment = await createDepositPayment(currency, orderId, requiredConfirmations);
+        const payment = await createDepositPayment(currency, orderId);
         const processorExpiry = payment.valid_until ?? payment.expiration_estimate_date;
         const parsedExpiry = processorExpiry ? new Date(processorExpiry) : null;
         const expiresAt =

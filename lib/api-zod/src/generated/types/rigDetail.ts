@@ -45,5 +45,9 @@ export interface RigDetail {
    * @nullable
    */
   ownerPassword: string | null;
+  /** True while the owner's miner is connected to the Stratum proxy */
+  isOnline: boolean;
+  /** True when the rig has a fallback pool configured (will mine there when not rented) */
+  hasFallbackPool: boolean;
   createdAt: Date;
 }

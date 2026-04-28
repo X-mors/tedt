@@ -43,6 +43,12 @@ export class DownstreamSession extends EventEmitter {
   private currentDifficulty = 1;
   private lastJobId: string | null = null;
   /**
+   * True when `this.upstream` is connected to the rig owner's fallback pool
+   * (not a renter's pool). Shares submitted in this mode are forwarded to the
+   * owner's pool but are NOT tracked in rental accounting.
+   */
+  private isFallback = false;
+  /**
    * Bounded buffer of share parameters received while upstream is unavailable.
    * The miner receives `result: true` immediately; actual pool result is applied
    * when upstream reconnects (no duplicate reply to miner).
@@ -178,7 +184,15 @@ export class DownstreamSession extends EventEmitter {
     }
 
     const [rig] = await db
-      .select({ id: rigsTable.id, name: rigsTable.name, proxyToken: rigsTable.proxyToken })
+      .select({
+        id: rigsTable.id,
+        name: rigsTable.name,
+        proxyToken: rigsTable.proxyToken,
+        stratumHost: rigsTable.stratumHost,
+        stratumPort: rigsTable.stratumPort,
+        stratumUser: rigsTable.stratumUser,
+        stratumPassword: rigsTable.stratumPassword,
+      })
       .from(rigsTable)
       .where(eq(rigsTable.id, rigId));
 
@@ -216,7 +230,10 @@ export class DownstreamSession extends EventEmitter {
     logger.info({ rigId: rig.id, rentalId: this.rentalId }, "stratum:downstream authorized");
 
     if (activeRental) {
+      this.isFallback = false;
       await this._startUpstream(activeRental);
+    } else if (rig.stratumHost && rig.stratumPort > 0) {
+      await this._startFallbackUpstream(rig);
     } else {
       this._notify("mining.set_difficulty", [1]);
       logger.info({ rigId: rig.id }, "stratum:downstream no active rental, miner idle");
@@ -249,6 +266,7 @@ export class DownstreamSession extends EventEmitter {
       this.upstream.destroy();
       this.upstream = null;
     }
+    this.isFallback = false;
     this.rentalId = rentalId;
     if (this.rigId != null) proxyState.setRigAuthorized(this.rigId, rentalId);
     await this._startUpstream({ id: rentalId, poolUrl, poolWorker, poolPassword, endsAt: new Date(Date.now() + 9999999) });
@@ -262,6 +280,7 @@ export class DownstreamSession extends EventEmitter {
     }
     this.submitBuffer = [];
     this.rentalId = null;
+    this.isFallback = false;
     if (this.rigId != null) {
       proxyState.setRigAuthorized(this.rigId, null);
       proxyState.setUpstreamConnected(this.rigId, false);
@@ -272,7 +291,104 @@ export class DownstreamSession extends EventEmitter {
       proxyState.removeShareWindow(prevRentalId);
     }
     this._notify("mining.set_difficulty", [1]);
-    logger.info({ rigId: this.rigId }, "stratum:downstream rental deactivated, miner now idle");
+    logger.info({ rigId: this.rigId }, "stratum:downstream rental deactivated, reconnecting to fallback pool if configured");
+
+    // After rental ends, reconnect to owner's fallback pool if configured.
+    if (this.rigId != null) {
+      void this._connectFallbackIfConfigured(this.rigId);
+    }
+  }
+
+  /**
+   * Look up the rig's fallback pool settings from DB and connect to them.
+   * Called after auth (no rental) and after a rental ends.
+   */
+  private async _connectFallbackIfConfigured(rigId: number): Promise<void> {
+    const [rig] = await db
+      .select({
+        id: rigsTable.id,
+        stratumHost: rigsTable.stratumHost,
+        stratumPort: rigsTable.stratumPort,
+        stratumUser: rigsTable.stratumUser,
+        stratumPassword: rigsTable.stratumPassword,
+      })
+      .from(rigsTable)
+      .where(eq(rigsTable.id, rigId));
+
+    if (rig?.stratumHost && rig.stratumPort > 0) {
+      await this._startFallbackUpstream(rig);
+    }
+  }
+
+  /**
+   * Start an upstream connection to the rig owner's own pool (fallback mode).
+   * Shares forwarded in this mode are NOT counted toward any rental accounting.
+   */
+  private async _startFallbackUpstream(rig: {
+    id: number;
+    stratumHost: string;
+    stratumPort: number;
+    stratumUser: string;
+    stratumPassword: string;
+  }): Promise<void> {
+    this.isFallback = true;
+    const poolUrl = `stratum+tcp://${rig.stratumHost}:${rig.stratumPort}`;
+    const worker = rig.stratumUser || `rig-${rig.id}`;
+    const password = rig.stratumPassword || "x";
+
+    // Use 0 as a sentinel rentalId for fallback connections (no real rental).
+    const upstream = new UpstreamClient(poolUrl, worker, password, 0);
+    this.upstream = upstream;
+    this._wireFallbackUpstreamEvents(rig.id);
+    upstream.connect();
+
+    logger.info(
+      { rigId: rig.id, poolUrl, worker },
+      "stratum:downstream connecting to owner fallback pool",
+    );
+  }
+
+  /** Wire upstream events for a fallback pool connection (no rental accounting). */
+  private _wireFallbackUpstreamEvents(rigId: number): void {
+    const upstream = this.upstream;
+    if (!upstream) return;
+
+    upstream.on("setDifficulty", (diff: number) => {
+      this.currentDifficulty = diff;
+      this._notify("mining.set_difficulty", [diff]);
+    });
+
+    upstream.on("notify", (params: unknown) => {
+      this.lastJobId = Array.isArray(params) ? String(params[0]) : null;
+      this._notify("mining.notify", params as unknown[]);
+    });
+
+    upstream.on("subscribed", ({ extranonce1, extranonce2Size }: { extranonce1: string; extranonce2Size: number }) => {
+      this.extranonce1 = extranonce1 ?? this.extranonce1;
+      this.extranonce2Size = extranonce2Size;
+      this._notify("mining.set_extranonce", [this.extranonce1, this.extranonce2Size]);
+    });
+
+    upstream.on("setExtranonce", ({ extranonce1, extranonce2Size }: { extranonce1: string; extranonce2Size: number }) => {
+      this.extranonce1 = extranonce1;
+      this.extranonce2Size = extranonce2Size;
+      this._notify("mining.set_extranonce", [extranonce1, extranonce2Size]);
+    });
+
+    upstream.on("ready", () => {
+      proxyState.setUpstreamConnected(rigId, true);
+      void this._flushSubmitBuffer();
+      logger.info({ rigId }, "stratum:downstream fallback upstream ready");
+    });
+
+    upstream.on("disconnected", () => {
+      proxyState.setUpstreamConnected(rigId, false);
+      proxyState.incrementUpstreamDisconnect(rigId);
+    });
+
+    upstream.on("error", () => {
+      proxyState.incrementUpstreamError(rigId);
+    });
   }
 
   private async _startUpstream(rental: {
@@ -379,7 +495,9 @@ export class DownstreamSession extends EventEmitter {
       } catch {
         accepted = false;
       }
-      if (this.rigId != null) {
+      // Only track rental shares in accounting; fallback shares go to the owner's
+      // pool but are not counted toward any rental window.
+      if (this.rigId != null && !this.isFallback) {
         proxyState.recordShare(this.rigId, accepted, diff);
       }
     }
@@ -398,13 +516,12 @@ export class DownstreamSession extends EventEmitter {
     const nonce = params[4] ?? "";
 
     if (!this.upstream) {
-      if (this.rentalId == null) {
+      // Return error only when there is no rental AND no fallback configured.
+      if (this.rentalId == null && !this.isFallback) {
         this._reply(msg.id, false, [21, "No active rental"]);
         return;
       }
-      // Upstream is temporarily unavailable. Buffer the share so it can be
-      // submitted to the pool on reconnect. Reply true to the miner immediately
-      // to keep it connected — the miner never needs a second reply.
+      // Upstream temporarily unavailable — buffer the share for replay.
       if (this.submitBuffer.length < SUBMIT_BUFFER_MAX) {
         this.submitBuffer.push({ jobId, extranonce2, ntime, nonce, diff: this.currentDifficulty });
         logger.debug(
@@ -412,13 +529,10 @@ export class DownstreamSession extends EventEmitter {
           "stratum:downstream share buffered (upstream unavailable)",
         );
       } else {
-        // Buffer full — this share cannot be recovered; increment dropped counter.
         if (this.rigId != null) proxyState.incrementDropped(this.rigId);
         logger.warn({ rigId: this.rigId }, "stratum:downstream submit buffer full, share dropped");
       }
       // Optimistic accept keeps the miner connected and hashing.
-      // NOTE: proxyState.recordShare() is NOT called here; shares are only
-      //       recorded after the pool confirms them in _flushSubmitBuffer().
       this._reply(msg.id, true, null);
       return;
     }
@@ -438,9 +552,20 @@ export class DownstreamSession extends EventEmitter {
 
     this._reply(msg.id, accepted, accepted ? null : [23, "Low difficulty share"]);
 
-    if (this.rigId != null) {
+    // Only track shares in rental accounting; fallback shares are excluded.
+    if (this.rigId != null && !this.isFallback) {
       proxyState.recordShare(this.rigId, accepted, diff);
       // Refresh lastSeenAt heartbeat at most once per minute to avoid DB hotspot.
+      const nowMs = Date.now();
+      if (nowMs - this.lastSeenAtWrittenMs > 60_000) {
+        this.lastSeenAtWrittenMs = nowMs;
+        void db
+          .update(rigsTable)
+          .set({ lastSeenAt: new Date(nowMs) })
+          .where(eq(rigsTable.id, this.rigId));
+      }
+    } else if (this.rigId != null && this.isFallback) {
+      // Still update lastSeenAt for fallback connections (owner's rig is online).
       const nowMs = Date.now();
       if (nowMs - this.lastSeenAtWrittenMs > 60_000) {
         this.lastSeenAtWrittenMs = nowMs;
@@ -452,7 +577,7 @@ export class DownstreamSession extends EventEmitter {
     }
 
     logger.debug(
-      { rigId: this.rigId, rentalId: this.rentalId, accepted, diff },
+      { rigId: this.rigId, rentalId: this.rentalId, isFallback: this.isFallback, accepted, diff },
       "stratum:downstream share",
     );
   }
@@ -475,14 +600,16 @@ export class DownstreamSession extends EventEmitter {
         .set({ isOnline: false })
         .where(eq(rigsTable.id, this.rigId));
     }
-    // Park the upstream for the reconnect grace period instead of destroying it
-    // immediately. This keeps the pool connection alive for 60 s while the rig
-    // reconnects after a brief network glitch.
-    if (this.upstream != null && this.rentalId != null) {
-      proxyState.parkUpstream(this.rentalId, this.upstream);
-      this.upstream = null;
-    } else if (this.upstream != null) {
-      this.upstream.destroy();
+    if (this.upstream != null) {
+      if (this.rentalId != null && !this.isFallback) {
+        // Park rental upstream for the reconnect grace period — keeps the pool
+        // connection alive for 60 s while the rig reconnects after a brief glitch.
+        proxyState.parkUpstream(this.rentalId, this.upstream);
+      } else {
+        // Fallback upstreams are not parked — the owner's pool is cheap to
+        // reconnect and parking by rentalId=0 would cause collisions.
+        this.upstream.destroy();
+      }
       this.upstream = null;
     }
     logger.info({ rigId: this.rigId }, "stratum:downstream closed");

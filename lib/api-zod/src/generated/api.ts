@@ -319,6 +319,14 @@ export const GetRigResponse = zod.object({
     .string()
     .nullable()
     .describe("Password the owner's miner should use"),
+  isOnline: zod
+    .boolean()
+    .describe("True while the owner's miner is connected to the Stratum proxy"),
+  hasFallbackPool: zod
+    .boolean()
+    .describe(
+      "True when the rig has a fallback pool configured (will mine there when not rented)",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -429,6 +437,14 @@ export const GetMyRigResponse = zod.object({
     .string()
     .nullable()
     .describe("Password the owner's miner should use"),
+  isOnline: zod
+    .boolean()
+    .describe("True while the owner's miner is connected to the Stratum proxy"),
+  hasFallbackPool: zod
+    .boolean()
+    .describe(
+      "True when the rig has a fallback pool configured (will mine there when not rented)",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -489,6 +505,14 @@ export const UpdateMyRigResponse = zod.object({
     .string()
     .nullable()
     .describe("Password the owner's miner should use"),
+  isOnline: zod
+    .boolean()
+    .describe("True while the owner's miner is connected to the Stratum proxy"),
+  hasFallbackPool: zod
+    .boolean()
+    .describe(
+      "True when the rig has a fallback pool configured (will mine there when not rented)",
+    ),
   createdAt: zod.coerce.date(),
 });
 

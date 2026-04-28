@@ -1540,6 +1540,12 @@ components:
         ownerPassword:
           type: ["string", "null"]
           description: "Password the owner's miner should use"
+        isOnline:
+          type: boolean
+          description: "True while the owner's miner is connected to the Stratum proxy"
+        hasFallbackPool:
+          type: boolean
+          description: "True when the rig has a fallback pool configured (will mine there when not rented)"
         createdAt:
           type: string
           format: date-time
@@ -1566,6 +1572,8 @@ components:
         - ownerStratumUrl
         - ownerWorker
         - ownerPassword
+        - isOnline
+        - hasFallbackPool
         - createdAt
 
     CreateRigBody:

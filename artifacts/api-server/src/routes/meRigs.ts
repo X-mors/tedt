@@ -55,6 +55,9 @@ async function selectMyRigs(ownerId: number) {
       status: rigsTable.status,
       approvalStatus: rigsTable.approvalStatus,
       approvalNote: rigsTable.approvalNote,
+      isOnline: rigsTable.isOnline,
+      stratumHost: rigsTable.stratumHost,
+      stratumPort: rigsTable.stratumPort,
       createdAt: rigsTable.createdAt,
       averageRating: sql<string | null>`AVG(${reviewsTable.rating})`,
       reviewCount: sql<string>`COUNT(${reviewsTable.id})`,
@@ -82,6 +85,8 @@ async function selectMyRigs(ownerId: number) {
     status: r.status,
     approvalStatus: r.approvalStatus,
     approvalNote: r.approvalNote,
+    isOnline: r.isOnline,
+    hasFallbackPool: !!(r.stratumHost && r.stratumPort > 0),
     averageRating:
       r.averageRating == null
         ? null

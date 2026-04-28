@@ -83,12 +83,29 @@ export default function LessorDashboard() {
                         <Link href={`/rigs/${rig.id}`} className="hover:text-primary transition-colors">{rig.name}</Link>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={`font-mono text-[10px] uppercase
-                          ${rig.status === 'available' ? 'bg-primary/20 text-primary border-primary/30' : 
-                            rig.status === 'rented' ? 'bg-secondary/50 text-secondary-foreground border-secondary' : 
-                            'bg-destructive/20 text-destructive border-destructive/30'}`}>
-                          {rig.status}
-                        </Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant="outline" className={`font-mono text-[10px] uppercase w-fit
+                            ${rig.status === 'available' ? 'bg-primary/20 text-primary border-primary/30' : 
+                              rig.status === 'rented' ? 'bg-secondary/50 text-secondary-foreground border-secondary' : 
+                              'bg-destructive/20 text-destructive border-destructive/30'}`}>
+                            {rig.status}
+                          </Badge>
+                          {rig.isOnline && rig.status !== 'rented' && rig.hasFallbackPool && (
+                            <Badge variant="outline" className="font-mono text-[10px] uppercase w-fit bg-yellow-500/10 text-yellow-500 border-yellow-500/30">
+                              MINING FALLBACK
+                            </Badge>
+                          )}
+                          {rig.isOnline && rig.status !== 'rented' && !rig.hasFallbackPool && (
+                            <Badge variant="outline" className="font-mono text-[10px] uppercase w-fit bg-green-500/10 text-green-500 border-green-500/30">
+                              ONLINE · IDLE
+                            </Badge>
+                          )}
+                          {rig.isOnline && rig.status === 'rented' && (
+                            <Badge variant="outline" className="font-mono text-[10px] uppercase w-fit bg-green-500/10 text-green-500 border-green-500/30">
+                              CONNECTED
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-sm">{rig.algorithmName}</TableCell>
                       <TableCell className="text-right font-mono font-medium">{formatHashrate(rig.hashrate, rig.algorithmUnit)}</TableCell>
