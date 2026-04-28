@@ -971,6 +971,13 @@ export const ListRigsSort = {
   rating_desc: "rating_desc",
 } as const;
 
+export type GetProcessorStatus200 = {
+  configured: boolean;
+  reachable: boolean;
+  latencyMs?: number | null;
+  error?: string | null;
+};
+
 export type NowpaymentsWebhook200 = {
   ok: boolean;
 };

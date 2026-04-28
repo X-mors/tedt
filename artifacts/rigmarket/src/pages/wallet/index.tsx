@@ -6,6 +6,7 @@ import {
   useListMyWithdrawals,
   useGetDepositAddresses,
   useListMyDeposits,
+  useGetProcessorStatus,
   getGetMyWalletQueryKey,
   getListMyWithdrawalsQueryKey,
   getGetDepositAddressesQueryKey,
@@ -41,6 +42,7 @@ function statusColor(status: string) {
 
 function DepositSection() {
   const { data, isLoading, refetch, isRefetching } = useGetDepositAddresses();
+  const { data: processorStatus } = useGetProcessorStatus({ query: { refetchInterval: 60_000, queryKey: ["processorStatus"] } });
   const { data: deposits, isLoading: depositsLoading } = useListMyDeposits();
   const { toast } = useToast();
   const [selectedCurrency, setSelectedCurrency] = useState<"btc" | "usdt_trc20">("usdt_trc20");
@@ -52,6 +54,7 @@ function DepositSection() {
 
   const addresses = data?.addresses ?? [];
   const processorConfigured = data?.processorConfigured ?? false;
+  const processorReachable = processorStatus?.reachable ?? true;
   const activeAddress = addresses.find((a) => a.currency === selectedCurrency);
 
   return (
@@ -63,6 +66,18 @@ function DepositSection() {
             <p className="font-semibold text-yellow-500 font-mono text-sm">PROCESSOR_NOT_CONFIGURED</p>
             <p className="text-sm text-muted-foreground mt-1">
               The crypto payment processor is not yet configured. Contact the site admin to enable deposits.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {processorConfigured && !processorReachable && (
+        <div className="flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/10 p-4">
+          <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-red-500 font-mono text-sm">PROCESSOR_OUTAGE</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              The payment processor is temporarily unreachable. Existing deposits will still be processed when connectivity is restored. New address provisioning may fail.
             </p>
           </div>
         </div>

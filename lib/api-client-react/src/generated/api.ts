@@ -42,6 +42,7 @@ import type {
   ErrorResponse,
   ForbiddenResponse,
   GetMarketplaceFeaturedParams,
+  GetProcessorStatus200,
   HealthStatus,
   ListAdminRigsParams,
   ListAdminWalletTransactionsParams,
@@ -2309,6 +2310,81 @@ export function useGetMyWallet<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetMyWalletQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Check NOWPayments processor health (no auth required)
+ */
+export const getGetProcessorStatusUrl = () => {
+  return `/api/wallet/processor-status`;
+};
+
+export const getProcessorStatus = async (
+  options?: RequestInit,
+): Promise<GetProcessorStatus200> => {
+  return customFetch<GetProcessorStatus200>(getGetProcessorStatusUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetProcessorStatusQueryKey = () => {
+  return [`/api/wallet/processor-status`] as const;
+};
+
+export const getGetProcessorStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProcessorStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getProcessorStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetProcessorStatusQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getProcessorStatus>>
+  > = ({ signal }) => getProcessorStatus({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProcessorStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetProcessorStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProcessorStatus>>
+>;
+export type GetProcessorStatusQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Check NOWPayments processor health (no auth required)
+ */
+
+export function useGetProcessorStatus<
+  TData = Awaited<ReturnType<typeof getProcessorStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getProcessorStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetProcessorStatusQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

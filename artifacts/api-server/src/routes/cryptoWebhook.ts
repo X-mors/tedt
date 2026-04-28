@@ -102,6 +102,15 @@ router.post(
         ? walletSettings.btcMinDepositUsd
         : walletSettings.usdtTrc20MinDepositUsd;
 
+    // Parse observed confirmation count from network_precision field in IPN payload.
+    let ipnConf: number | null = null;
+    if (payload.network_precision != null) {
+      const s = String(payload.network_precision);
+      const slashIdx = s.indexOf("/");
+      const parsed = slashIdx >= 0 ? parseInt(s.slice(0, slashIdx), 10) : parseInt(s, 10);
+      if (Number.isFinite(parsed) && parsed >= 0) ipnConf = parsed;
+    }
+
     if (npStatus === "finished" && actuallyPaid > 0 && userId) {
       // NOWPayments `finished` is the authoritative signal that the deposit has
       // met the required confirmation depth (enforced by NOWPayments internally).
@@ -246,7 +255,11 @@ router.post(
         if ((existingDeposit.status as string) !== "credited") {
           await db
             .update(cryptoDepositsTable)
-            .set({ status: "confirming", lastCheckedAt: new Date() })
+            .set({
+              status: "confirming",
+              ...(ipnConf !== null ? { confirmations: ipnConf } : {}),
+              lastCheckedAt: new Date(),
+            })
             .where(eq(cryptoDepositsTable.id, existingDeposit.id));
         }
       } else {
@@ -259,7 +272,7 @@ router.post(
             amountCrypto: String(actuallyPaid),
             processorPaymentId: paymentId,
             status: "confirming",
-            confirmations: 0,
+            confirmations: ipnConf ?? 0,
             requiredConfirmations: requiredConf,
             lastCheckedAt: new Date(),
           })

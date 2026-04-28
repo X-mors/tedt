@@ -56,12 +56,18 @@ async function pollPendingDeposits() {
         ?? (statusAny["payin_extra_id"] as string | undefined)
         ?? null;
 
-      // NOWPayments `finished` is the authoritative confirmation signal — they
-      // enforce block-confirmation depth internally per their platform settings.
-      // Our admin-configurable `requiredConfirmations` is the value we request
-      // NOWPayments to enforce on their side; it is passed as confirmation_required
-      // when the payment is created and is reflected back in deposit.requiredConfirmations.
-      // We trust `finished` to mean the deposit has met the required threshold.
+      // Parse observed confirmation count from network_precision field.
+      // NOWPayments encodes confirmation progress as "X/Y" (current/required) or
+      // a plain integer in this field during confirming/finished states.
+      let observedConf: number = deposit.confirmations ?? 0;
+      const rawPrec = status.network_precision;
+      if (rawPrec != null) {
+        const s = String(rawPrec);
+        const slashIdx = s.indexOf("/");
+        const parsed = slashIdx >= 0 ? parseInt(s.slice(0, slashIdx), 10) : parseInt(s, 10);
+        if (Number.isFinite(parsed) && parsed >= 0) observedConf = parsed;
+      }
+
       const requiredConf = await getRequiredConfirmations(deposit.currency);
 
       if (npStatus === "finished") {
@@ -95,7 +101,7 @@ async function pollPendingDeposits() {
               amountCrypto: String(amountCrypto),
               amountUsd: toUsdString(amountUsd),
               exchangeRate: toUsdString(rate),
-              confirmations: requiredConf,
+              confirmations: Math.max(observedConf, requiredConf),
               txid: onChainTxid ?? deposit.txid,
               creditedAt: new Date(),
               lastCheckedAt: new Date(),
@@ -136,6 +142,7 @@ async function pollPendingDeposits() {
           .update(cryptoDepositsTable)
           .set({
             status: "confirming",
+            confirmations: observedConf,
             txid: onChainTxid ?? deposit.txid,
             lastCheckedAt: new Date(),
           })

@@ -91,9 +91,10 @@ function toNpCurrency(currency: "btc" | "usdt_trc20"): NpCurrency {
 export async function createDepositPayment(
   currency: "btc" | "usdt_trc20",
   orderId: string,
+  confirmationRequired?: number,
 ): Promise<NpPayment> {
   const payCurrency = toNpCurrency(currency);
-  const body = {
+  const body: Record<string, unknown> = {
     price_amount: 1,
     price_currency: "usd",
     pay_currency: payCurrency,
@@ -102,7 +103,10 @@ export async function createDepositPayment(
     is_fixed_rate: false,
     is_fee_paid_by_user: false,
   };
-  logger.info({ currency, orderId }, "Creating NOWPayments deposit payment");
+  if (confirmationRequired != null && confirmationRequired > 0) {
+    body["confirmation_required"] = confirmationRequired;
+  }
+  logger.info({ currency, orderId, confirmationRequired }, "Creating NOWPayments deposit payment");
   return npFetch<NpPayment>("/payment", {
     method: "POST",
     body: JSON.stringify(body),
@@ -218,3 +222,16 @@ function sortObject(obj: unknown): unknown {
 
 export const nowpaymentsConfigured = (): boolean =>
   Boolean(process.env["NOWPAYMENTS_API_KEY"]);
+
+export async function nowpaymentsReachable(): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
+  if (!nowpaymentsConfigured()) {
+    return { ok: false, error: "API key not configured" };
+  }
+  const start = Date.now();
+  try {
+    await npFetch<{ message: string }>("/status");
+    return { ok: true, latencyMs: Date.now() - start };
+  } catch (err) {
+    return { ok: false, latencyMs: Date.now() - start, error: err instanceof Error ? err.message : String(err) };
+  }
+}

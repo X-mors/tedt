@@ -40,6 +40,7 @@ export * from "./depositInstructions";
 export * from "./errorResponse";
 export * from "./forbiddenResponse";
 export * from "./getMarketplaceFeaturedParams";
+export * from "./getProcessorStatus200";
 export * from "./hashSamplePoint";
 export * from "./healthStatus";
 export * from "./listAdminRigsParams";

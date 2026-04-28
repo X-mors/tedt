@@ -813,6 +813,16 @@ export const GetMyWalletResponse = zod.object({
 });
 
 /**
+ * @summary Check NOWPayments processor health (no auth required)
+ */
+export const GetProcessorStatusResponse = zod.object({
+  configured: zod.boolean(),
+  reachable: zod.boolean(),
+  latencyMs: zod.number().nullish(),
+  error: zod.string().nullish(),
+});
+
+/**
  * @summary Get or provision per-currency deposit addresses for the current user
  */
 export const GetDepositAddressesResponse = zod.object({

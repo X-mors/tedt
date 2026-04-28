@@ -18,11 +18,24 @@ import { round6, toNum, toUsdString } from "../lib/money";
 import {
   createDepositPayment,
   nowpaymentsConfigured,
+  nowpaymentsReachable,
 } from "../lib/nowpayments";
 import { logger } from "../lib/logger";
 import { getWalletSettings } from "../lib/platformSettings";
 
 const router: IRouter = Router();
+
+// Processor health endpoint — no auth required so the wallet UI can poll it
+// before the user is fully authenticated (e.g. for the deposit page banner).
+router.get("/wallet/processor-status", async (_req, res) => {
+  const result = await nowpaymentsReachable();
+  res.json({
+    configured: nowpaymentsConfigured(),
+    reachable: result.ok,
+    latencyMs: result.latencyMs ?? null,
+    error: result.error ?? null,
+  });
+});
 
 router.use(requireAuth);
 
@@ -148,7 +161,7 @@ router.get(
 
       try {
         const orderId = `user-${userId}-${currency}-${Date.now()}`;
-        const payment = await createDepositPayment(currency, orderId);
+        const payment = await createDepositPayment(currency, orderId, requiredConfirmations);
         const expiresAt = new Date(Date.now() + ADDRESS_VALIDITY_MS);
 
         const [row] = await db

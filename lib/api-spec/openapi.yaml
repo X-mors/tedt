@@ -555,6 +555,31 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /wallet/processor-status:
+    get:
+      operationId: getProcessorStatus
+      tags: [wallet]
+      summary: Check NOWPayments processor health (no auth required)
+      responses:
+        "200":
+          description: Processor status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configured:
+                    type: boolean
+                  reachable:
+                    type: boolean
+                  latencyMs:
+                    type: number
+                    nullable: true
+                  error:
+                    type: string
+                    nullable: true
+                required: [configured, reachable]
+
   /me/wallet/deposit-addresses:
     get:
       operationId: getDepositAddresses
