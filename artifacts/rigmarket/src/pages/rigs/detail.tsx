@@ -27,12 +27,27 @@ export default function RigDetail() {
     <div className="container py-8 px-4 max-w-5xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start gap-4">
         <div>
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex flex-wrap items-center gap-3 mb-2">
             <h1 className="text-3xl font-bold tracking-tight">{rig.name}</h1>
             <Badge variant={rig.status === 'available' ? 'default' : rig.status === 'rented' ? 'secondary' : 'destructive'} 
                    className={`font-mono text-xs uppercase ${rig.status === 'available' ? 'bg-primary/20 text-primary border-primary/30' : ''}`}>
               {rig.status}
             </Badge>
+            {rig.isOnline && rig.status !== 'rented' && rig.hasFallbackPool && (
+              <Badge variant="outline" className="font-mono text-xs uppercase bg-yellow-500/10 text-yellow-500 border-yellow-500/30">
+                MINING FALLBACK
+              </Badge>
+            )}
+            {rig.isOnline && rig.status !== 'rented' && !rig.hasFallbackPool && (
+              <Badge variant="outline" className="font-mono text-xs uppercase bg-green-500/10 text-green-500 border-green-500/30">
+                ONLINE · IDLE
+              </Badge>
+            )}
+            {rig.isOnline && rig.status === 'rented' && (
+              <Badge variant="outline" className="font-mono text-xs uppercase bg-green-500/10 text-green-500 border-green-500/30">
+                CONNECTED
+              </Badge>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-1"><Server className="w-4 h-4" /> {rig.ownerDisplayName}</span>

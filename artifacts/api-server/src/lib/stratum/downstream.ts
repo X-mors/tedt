@@ -315,7 +315,9 @@ export class DownstreamSession extends EventEmitter {
       .from(rigsTable)
       .where(eq(rigsTable.id, rigId));
 
-    if (rig?.stratumHost && rig.stratumPort > 0) {
+    // Guard: if a rental has started while we were awaiting the DB read, do not
+    // overwrite the active rental upstream with a fallback connection.
+    if (rig?.stratumHost && rig.stratumPort > 0 && this.rentalId === null) {
       await this._startFallbackUpstream(rig);
     }
   }
