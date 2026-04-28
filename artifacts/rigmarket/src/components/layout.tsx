@@ -1,15 +1,13 @@
 import { Link, useLocation } from "wouter";
 import { Show, useUser, useClerk } from "@clerk/react";
-import { Wallet, LogOut, LayoutDashboard, Server, BarChart3, ShieldAlert } from "lucide-react";
-import { useGetMe } from "@workspace/api-client-react";
+import { Wallet, LogOut, LayoutDashboard, Server, BarChart3, ShieldAlert, User } from "lucide-react";
+import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
-  // Cast: orval-generated `query` options demand a full UseQueryOptions including queryKey,
-  // but the wrapper supplies queryKey internally. A Partial-ish override is the simplest fix.
-  const { data: me } = useGetMe({ query: { enabled: !!user } as never });
+  const { data: me } = useGetMe({ query: { enabled: !!user, queryKey: getGetMeQueryKey() } });
 
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
   const stripBase = (path: string) =>
@@ -77,6 +75,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     ${me.balanceUsd.toFixed(2)}
                   </Link>
                 )}
+                <Link
+                  href="/profile"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  title="Profile"
+                >
+                  <User className="h-4 w-4" />
+                </Link>
                 <button
                   onClick={() => signOut(() => setLocation("/"))}
                   className="text-muted-foreground hover:text-foreground transition-colors"

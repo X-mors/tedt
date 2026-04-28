@@ -18,6 +18,24 @@ import {
 import { requireAuth } from "../lib/auth";
 import { getCommission } from "../lib/commission";
 import { toNum, toUsdString } from "../lib/money";
+import { createHash } from "node:crypto";
+
+// Placeholder stratum endpoint shown to owners before Task 2 ships the real proxy.
+// The host/port are intentionally obviously placeholder so owners know it's not live yet.
+const PROXY_HOST = process.env["STRATUM_PROXY_HOST"] ?? "proxy.rigmarket.dev";
+const PROXY_PORT = process.env["STRATUM_PROXY_PORT"] ?? "3333";
+
+function ownerStratumFields(rigId: number, createdAt: Date) {
+  const token = createHash("sha256")
+    .update(`rigmarket-owner-${rigId}-${createdAt.getTime()}`)
+    .digest("hex")
+    .slice(0, 20);
+  return {
+    ownerStratumUrl: `stratum+tcp://${PROXY_HOST}:${PROXY_PORT}`,
+    ownerWorker: `rig-${rigId}`,
+    ownerPassword: token,
+  };
+}
 
 const router: IRouter = Router();
 
@@ -143,6 +161,9 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
     reviewCount: Number(row.reviewCount),
     totalRentals: Number(rentals?.c ?? 0),
     createdAt: row.createdAt.toISOString(),
+    // Placeholder stratum endpoint for the owner to connect their miner.
+    // Task 2 (Stratum proxy service) will replace these with live credentials.
+    ...ownerStratumFields(row.id, row.createdAt),
   };
 }
 

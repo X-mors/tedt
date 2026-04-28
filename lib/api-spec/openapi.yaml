@@ -78,6 +78,29 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /me/upgrade-to-owner:
+    post:
+      operationId: upgradeToOwner
+      tags: [me]
+      summary: Upgrade the current renter account to owner role so they can list rigs
+      security:
+        - clerk: []
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "400":
+          description: Already an owner or admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /me/sync:
     post:
       operationId: syncMe
@@ -1285,6 +1308,18 @@ components:
           type: integer
         totalRentals:
           type: integer
+        # Placeholder stratum endpoint the owner should point their miner at.
+        # Populated for the rig owner; null for public / renter views.
+        # Real routing is wired in Task 2 (Stratum proxy service).
+        ownerStratumUrl:
+          type: ["string", "null"]
+          description: "stratum+tcp:// URL for the owner to point their miner at (placeholder until Task 2)"
+        ownerWorker:
+          type: ["string", "null"]
+          description: "Worker name the owner's miner should use"
+        ownerPassword:
+          type: ["string", "null"]
+          description: "Password the owner's miner should use"
         createdAt:
           type: string
           format: date-time
@@ -1308,6 +1343,9 @@ components:
         - averageRating
         - reviewCount
         - totalRentals
+        - ownerStratumUrl
+        - ownerWorker
+        - ownerPassword
         - createdAt
 
     CreateRigBody:

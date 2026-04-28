@@ -150,6 +150,21 @@ export interface RigDetail {
   averageRating: number | null;
   reviewCount: number;
   totalRentals: number;
+  /**
+   * stratum+tcp:// URL for the owner to point their miner at (placeholder until Task 2)
+   * @nullable
+   */
+  ownerStratumUrl: string | null;
+  /**
+   * Worker name the owner's miner should use
+   * @nullable
+   */
+  ownerWorker: string | null;
+  /**
+   * Password the owner's miner should use
+   * @nullable
+   */
+  ownerPassword: string | null;
   createdAt: string;
 }
 

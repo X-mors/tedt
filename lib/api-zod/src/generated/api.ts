@@ -69,6 +69,30 @@ export const UpdateMeResponse = zod.object({
 });
 
 /**
+ * @summary Upgrade the current renter account to owner role so they can list rigs
+ */
+export const UpgradeToOwnerResponse = zod.object({
+  id: zod.number(),
+  clerkUserId: zod.string(),
+  email: zod.string(),
+  displayName: zod.string(),
+  role: zod
+    .enum(["admin", "owner", "renter"])
+    .describe("A user can act as renter or owner; admin is the site operator."),
+  balanceUsd: zod.number().describe("Current internal balance in USD"),
+  totalDepositedUsd: zod.number(),
+  totalEarnedUsd: zod.number().describe("Lifetime earnings as a rig owner"),
+  totalSpentUsd: zod.number().describe("Lifetime spend as a renter"),
+  rigCount: zod
+    .number()
+    .describe(
+      "Number of rigs the user owns (used by the UI to show the lessor nav)",
+    ),
+  rentalCount: zod.number().describe("Number of rentals the user has placed"),
+  createdAt: zod.coerce.date(),
+});
+
+/**
  * @summary Upsert the current user record from Clerk identity (called once after sign-in)
  */
 export const SyncMeResponse = zod.object({
@@ -281,6 +305,20 @@ export const GetRigResponse = zod.object({
   averageRating: zod.number().nullable(),
   reviewCount: zod.number(),
   totalRentals: zod.number(),
+  ownerStratumUrl: zod
+    .string()
+    .nullable()
+    .describe(
+      "stratum+tcp:\/\/ URL for the owner to point their miner at (placeholder until Task 2)",
+    ),
+  ownerWorker: zod
+    .string()
+    .nullable()
+    .describe("Worker name the owner's miner should use"),
+  ownerPassword: zod
+    .string()
+    .nullable()
+    .describe("Password the owner's miner should use"),
   createdAt: zod.coerce.date(),
 });
 
@@ -377,6 +415,20 @@ export const GetMyRigResponse = zod.object({
   averageRating: zod.number().nullable(),
   reviewCount: zod.number(),
   totalRentals: zod.number(),
+  ownerStratumUrl: zod
+    .string()
+    .nullable()
+    .describe(
+      "stratum+tcp:\/\/ URL for the owner to point their miner at (placeholder until Task 2)",
+    ),
+  ownerWorker: zod
+    .string()
+    .nullable()
+    .describe("Worker name the owner's miner should use"),
+  ownerPassword: zod
+    .string()
+    .nullable()
+    .describe("Password the owner's miner should use"),
   createdAt: zod.coerce.date(),
 });
 
@@ -423,6 +475,20 @@ export const UpdateMyRigResponse = zod.object({
   averageRating: zod.number().nullable(),
   reviewCount: zod.number(),
   totalRentals: zod.number(),
+  ownerStratumUrl: zod
+    .string()
+    .nullable()
+    .describe(
+      "stratum+tcp:\/\/ URL for the owner to point their miner at (placeholder until Task 2)",
+    ),
+  ownerWorker: zod
+    .string()
+    .nullable()
+    .describe("Worker name the owner's miner should use"),
+  ownerPassword: zod
+    .string()
+    .nullable()
+    .describe("Password the owner's miner should use"),
   createdAt: zod.coerce.date(),
 });
 

@@ -12,6 +12,7 @@ import {
   SyncMeResponse,
   UpdateMeBody,
   UpdateMeResponse,
+  UpgradeToOwnerResponse,
 } from "@workspace/api-zod";
 import { ensureUserRecord, requireAuth } from "../lib/auth";
 import { toNum } from "../lib/money";
@@ -56,6 +57,21 @@ router.patch("/me", requireAuth, async (req, res) => {
     .where(eq(usersTable.id, req.currentUser!.id))
     .returning();
   const data = UpdateMeResponse.parse(await serialize(updated!));
+  res.json(data);
+});
+
+router.post("/me/upgrade-to-owner", requireAuth, async (req, res) => {
+  const user = req.currentUser!;
+  if (user.role !== "renter") {
+    res.status(400).json({ error: "Account is already an owner or admin" });
+    return;
+  }
+  const [updated] = await db
+    .update(usersTable)
+    .set({ role: "owner" })
+    .where(eq(usersTable.id, user.id))
+    .returning();
+  const data = UpgradeToOwnerResponse.parse(await serialize(updated!));
   res.json(data);
 });
 

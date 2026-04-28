@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useParams } from "wouter";
-import { useGetRental, useGetRentalStats, useCancelRental, useCreateRentalReview, getGetRentalQueryKey } from "@workspace/api-client-react";
+import { useGetRental, useGetRentalStats, getGetRentalStatsQueryKey, useCancelRental, useCreateRentalReview, getGetRentalQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatHashrate, formatSeconds } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -25,12 +25,12 @@ export default function RentalCockpit() {
   // orval defaults `enabled: !!id`, so we can omit the query option for the rental fetch.
   const { data: rental, isLoading: rentalLoading } = useGetRental(rentalId);
   const { data: stats } = useGetRentalStats(rentalId, {
-    // Cast: orval-generated `query` options demand a full UseQueryOptions including queryKey,
-    // but the wrapper supplies queryKey internally. A Partial-ish override is the simplest fix.
     query: {
       enabled: !!rentalId && rental?.status === 'active',
       refetchInterval: 5000,
-    } as never,
+      // Supply the queryKey explicitly so UseQueryOptions<T> is fully satisfied.
+      queryKey: getGetRentalStatsQueryKey(rentalId),
+    },
   });
 
   const cancelRental = useCancelRental();

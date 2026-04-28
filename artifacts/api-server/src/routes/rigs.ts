@@ -188,6 +188,10 @@ router.get("/rigs/:id", async (req, res) => {
         : Number(toNum(row.averageRating).toFixed(2)),
     reviewCount: Number(row.reviewCount),
     totalRentals: Number(row.totalRentals),
+    // Public endpoint does not expose owner-private stratum credentials.
+    ownerStratumUrl: null,
+    ownerWorker: null,
+    ownerPassword: null,
     createdAt: row.createdAt.toISOString(),
   });
 

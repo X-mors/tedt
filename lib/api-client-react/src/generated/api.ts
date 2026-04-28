@@ -302,6 +302,89 @@ export const useUpdateMe = <
 };
 
 /**
+ * @summary Upgrade the current renter account to owner role so they can list rigs
+ */
+export const getUpgradeToOwnerUrl = () => {
+  return `/api/me/upgrade-to-owner`;
+};
+
+export const upgradeToOwner = async (
+  options?: RequestInit,
+): Promise<MeProfile> => {
+  return customFetch<MeProfile>(getUpgradeToOwnerUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getUpgradeToOwnerMutationOptions = <
+  TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upgradeToOwner>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upgradeToOwner>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["upgradeToOwner"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upgradeToOwner>>,
+    void
+  > = () => {
+    return upgradeToOwner(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpgradeToOwnerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upgradeToOwner>>
+>;
+
+export type UpgradeToOwnerMutationError = ErrorType<
+  ErrorResponse | UnauthorizedResponse
+>;
+
+/**
+ * @summary Upgrade the current renter account to owner role so they can list rigs
+ */
+export const useUpgradeToOwner = <
+  TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upgradeToOwner>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upgradeToOwner>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getUpgradeToOwnerMutationOptions(options));
+};
+
+/**
  * @summary Upsert the current user record from Clerk identity (called once after sign-in)
  */
 export const getSyncMeUrl = () => {
