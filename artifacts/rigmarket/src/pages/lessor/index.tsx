@@ -78,12 +78,31 @@ export default function LessorDashboard() {
                     </TableRow>
                   ) : rigs?.map(rig => (
                     <TableRow key={rig.id}>
-                      <TableCell className="font-medium flex items-center gap-2">
-                        <Server className="w-4 h-4 text-muted-foreground" />
-                        <Link href={`/rigs/${rig.id}`} className="hover:text-primary transition-colors">{rig.name}</Link>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <Server className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                          <div className="flex flex-col">
+                            <Link href={`/rigs/${rig.id}`} className="hover:text-primary transition-colors">{rig.name}</Link>
+                            {rig.stratumName ? (
+                              <span className="text-[10px] font-mono text-muted-foreground">worker: {rig.stratumName}</span>
+                            ) : (
+                              <span className="text-[10px] font-mono text-muted-foreground/50">no stratum name</span>
+                            )}
+                          </div>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
+                          {rig.approvalStatus === 'pending' && (
+                            <Badge variant="outline" className="font-mono text-[10px] uppercase w-fit bg-orange-500/10 text-orange-500 border-orange-500/30">
+                              PENDING REVIEW
+                            </Badge>
+                          )}
+                          {rig.approvalStatus === 'rejected' && (
+                            <Badge variant="outline" className="font-mono text-[10px] uppercase w-fit bg-destructive/10 text-destructive border-destructive/30">
+                              REJECTED
+                            </Badge>
+                          )}
                           <Badge variant="outline" className={`font-mono text-[10px] uppercase w-fit
                             ${rig.status === 'available' ? 'bg-primary/20 text-primary border-primary/30' : 
                               rig.status === 'rented' ? 'bg-secondary/50 text-secondary-foreground border-secondary' : 

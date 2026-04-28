@@ -117,6 +117,7 @@ router.get("/marketplace/featured", async (req, res) => {
       approvalStatus: "approved" as const,
       isOnline: r.isOnline,
       hasFallbackPool: false,
+      stratumName: null,
       averageRating: r.averageRating == null ? null : Number(toNum(r.averageRating).toFixed(2)),
       reviewCount: Number(r.reviewCount),
       createdAt: r.createdAt.toISOString(),
@@ -285,6 +286,7 @@ router.get("/marketplace/summary", async (_req, res) => {
       approvalStatus: "approved" as const,
       isOnline: r.isOnline,
       hasFallbackPool: false,
+      stratumName: null,
       averageRating:
         r.averageRating == null ? null : Number(toNum(r.averageRating).toFixed(2)),
       reviewCount: Number(r.reviewCount),

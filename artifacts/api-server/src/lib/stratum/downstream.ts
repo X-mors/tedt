@@ -1,8 +1,8 @@
 import * as net from "node:net";
 import { EventEmitter } from "node:events";
 import { randomBytes } from "node:crypto";
-import { eq, and } from "drizzle-orm";
-import { db, rigsTable, rentalsTable, proxyAuthFailuresTable } from "@workspace/db";
+import { eq, and, asc } from "drizzle-orm";
+import { db, rigsTable, rentalsTable, proxyAuthFailuresTable, usersTable, algorithmsTable } from "@workspace/db";
 import { logger } from "../logger";
 import { proxyState } from "./state";
 import { UpstreamClient } from "./upstream";
@@ -171,17 +171,32 @@ export class DownstreamSession extends EventEmitter {
     const workerStr = params[0] ?? "";
     const password = params[1] ?? "";
 
-    const parts = workerStr.split(".");
-    const rigIdStr = parts[0]?.replace(/^rig-/, "") ?? "";
-    const rigId = parseInt(rigIdStr, 10);
+    // -----------------------------------------------------------------------
+    // Determine auth mode:
+    //   Legacy: "rig-{number}" or "rig-{number}.suffix"  → authenticate by proxyToken
+    //   New:    "{stratumUsername}.{rigname}"              → authenticate by stratumToken
+    // -----------------------------------------------------------------------
+    const firstDotIdx = workerStr.indexOf(".");
+    const firstSegment = firstDotIdx >= 0 ? workerStr.slice(0, firstDotIdx) : workerStr;
+    const isLegacy = /^rig-\d+$/.test(firstSegment);
 
-    if (Number.isNaN(rigId)) {
-      logger.warn({ workerStr }, "stratum:downstream bad worker format");
+    if (isLegacy) {
+      await this._authorizeByProxyToken(msg, workerStr, password);
+    } else if (firstDotIdx >= 0) {
+      await this._authorizeByStratumToken(msg, workerStr, password, firstDotIdx);
+    } else {
+      // No dot and not legacy format — reject.
+      logger.warn({ workerStr }, "stratum:downstream bad worker format (no dot separator)");
       this._recordAuthFailure(null, `Bad worker format: ${workerStr}`);
-      this._reply(msg.id, false, [24, "Bad worker format, expected rig-{id}[.worker]"]);
+      this._reply(msg.id, false, [24, "Bad worker format. Use {username}.{rigname} or rig-{id}"]);
       this._close();
-      return;
     }
+  }
+
+  /** Legacy auth: worker = "rig-{id}[.anything]", password = proxyToken */
+  private async _authorizeByProxyToken(msg: JsonRpcMessage, workerStr: string, password: string): Promise<void> {
+    const rigIdStr = workerStr.split(".")[0]?.replace(/^rig-/, "") ?? "";
+    const rigId = parseInt(rigIdStr, 10);
 
     const [rig] = await db
       .select({
@@ -197,7 +212,7 @@ export class DownstreamSession extends EventEmitter {
       .where(eq(rigsTable.id, rigId));
 
     if (!rig) {
-      logger.warn({ rigId }, "stratum:downstream rig not found");
+      logger.warn({ rigId }, "stratum:downstream legacy auth: rig not found");
       this._recordAuthFailure(rigId, "Rig not found");
       this._reply(msg.id, false, [24, "Rig not found"]);
       this._close();
@@ -205,13 +220,135 @@ export class DownstreamSession extends EventEmitter {
     }
 
     if (!rig.proxyToken || password !== rig.proxyToken) {
-      logger.warn({ rigId }, "stratum:downstream bad credentials");
+      logger.warn({ rigId }, "stratum:downstream legacy auth: bad credentials");
       this._recordAuthFailure(rigId, "Bad credentials — token mismatch");
       this._reply(msg.id, false, [24, "Bad credentials"]);
       this._close();
       return;
     }
 
+    await this._completeAuth(msg, rig);
+  }
+
+  /**
+   * New auth: worker = "{stratumUsername}.{rigname}", password = stratumToken.
+   * If no rig with that stratumName exists under the user's account, one is
+   * auto-created with approvalStatus=pending so the admin can configure it.
+   */
+  private async _authorizeByStratumToken(
+    msg: JsonRpcMessage,
+    workerStr: string,
+    password: string,
+    firstDotIdx: number,
+  ): Promise<void> {
+    const stratumUsername = workerStr.slice(0, firstDotIdx).toLowerCase();
+    const rigname = workerStr.slice(firstDotIdx + 1);
+
+    if (!stratumUsername || !rigname) {
+      logger.warn({ workerStr }, "stratum:downstream new auth: empty username or rigname");
+      this._recordAuthFailure(null, `Bad worker format: ${workerStr}`);
+      this._reply(msg.id, false, [24, "Bad worker format — both username and rigname are required"]);
+      this._close();
+      return;
+    }
+
+    // Look up user by stratumUsername.
+    const [user] = await db
+      .select({ id: usersTable.id, stratumToken: usersTable.stratumToken })
+      .from(usersTable)
+      .where(eq(usersTable.stratumUsername, stratumUsername));
+
+    if (!user) {
+      logger.warn({ stratumUsername }, "stratum:downstream new auth: username not found");
+      this._recordAuthFailure(null, `Unknown stratum username: ${stratumUsername}`);
+      this._reply(msg.id, false, [24, "Unknown username"]);
+      this._close();
+      return;
+    }
+
+    if (!user.stratumToken || password !== user.stratumToken) {
+      logger.warn({ stratumUsername }, "stratum:downstream new auth: bad stratumToken");
+      this._recordAuthFailure(null, "Bad stratumToken");
+      this._reply(msg.id, false, [24, "Bad credentials"]);
+      this._close();
+      return;
+    }
+
+    // Find or auto-create the rig for this (ownerId, stratumName) pair.
+    const [existingRig] = await db
+      .select({
+        id: rigsTable.id,
+        name: rigsTable.name,
+        proxyToken: rigsTable.proxyToken,
+        stratumHost: rigsTable.stratumHost,
+        stratumPort: rigsTable.stratumPort,
+        stratumUser: rigsTable.stratumUser,
+        stratumPassword: rigsTable.stratumPassword,
+      })
+      .from(rigsTable)
+      .where(and(eq(rigsTable.ownerId, user.id), eq(rigsTable.stratumName, rigname)));
+
+    if (existingRig) {
+      await this._completeAuth(msg, existingRig);
+      return;
+    }
+
+    // Auto-create: use the first algorithm as a placeholder — admin sets the
+    // correct algorithm and hashrate during the approval process.
+    const [firstAlgo] = await db
+      .select({ id: algorithmsTable.id })
+      .from(algorithmsTable)
+      .orderBy(asc(algorithmsTable.id))
+      .limit(1);
+
+    if (!firstAlgo) {
+      logger.error("stratum:downstream new auth: no algorithms in DB — cannot auto-create rig");
+      this._reply(msg.id, false, [20, "Server configuration error"]);
+      this._close();
+      return;
+    }
+
+    const proxyToken = randomBytes(32).toString("hex");
+    const [created] = await db
+      .insert(rigsTable)
+      .values({
+        ownerId: user.id,
+        algorithmId: firstAlgo.id,
+        name: rigname,
+        description: "",
+        hashrate: "0",
+        approvalStatus: "pending",
+        status: "offline",
+        proxyToken,
+        stratumName: rigname,
+      })
+      .returning({
+        id: rigsTable.id,
+        name: rigsTable.name,
+        proxyToken: rigsTable.proxyToken,
+        stratumHost: rigsTable.stratumHost,
+        stratumPort: rigsTable.stratumPort,
+        stratumUser: rigsTable.stratumUser,
+        stratumPassword: rigsTable.stratumPassword,
+      });
+
+    logger.info(
+      { ownerId: user.id, stratumUsername, rigname, rigId: created?.id },
+      "stratum:downstream auto-created rig on first connect",
+    );
+
+    await this._completeAuth(msg, created!);
+  }
+
+  /** Shared post-authentication logic for both legacy and new auth paths. */
+  private async _completeAuth(msg: JsonRpcMessage, rig: {
+    id: number;
+    name: string;
+    stratumHost: string;
+    stratumPort: number;
+    stratumUser: string;
+    stratumPassword: string;
+  }): Promise<void> {
     this.rigId = rig.id;
     this.authorized = true;
     proxyState.addRig(rig.id, this, rig.name);

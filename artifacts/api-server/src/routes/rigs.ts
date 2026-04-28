@@ -118,6 +118,7 @@ router.get("/rigs", async (req, res) => {
       approvalNote: r.approvalNote,
       isOnline: r.isOnline,
       hasFallbackPool: false,
+      stratumName: null,
       averageRating:
         r.averageRating == null
           ? null
@@ -207,6 +208,7 @@ router.get("/rigs/:id", async (req, res) => {
     ownerPassword: null,
     isOnline: row.isOnline,
     hasFallbackPool: false,
+    stratumName: null,
     createdAt: row.createdAt.toISOString(),
   });
 

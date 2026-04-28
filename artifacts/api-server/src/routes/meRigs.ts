@@ -58,6 +58,7 @@ async function selectMyRigs(ownerId: number) {
       isOnline: rigsTable.isOnline,
       stratumHost: rigsTable.stratumHost,
       stratumPort: rigsTable.stratumPort,
+      stratumName: rigsTable.stratumName,
       createdAt: rigsTable.createdAt,
       averageRating: sql<string | null>`AVG(${reviewsTable.rating})`,
       reviewCount: sql<string>`COUNT(${reviewsTable.id})`,
@@ -87,6 +88,7 @@ async function selectMyRigs(ownerId: number) {
     approvalNote: r.approvalNote,
     isOnline: r.isOnline,
     hasFallbackPool: !!(r.stratumHost && r.stratumPort > 0),
+    stratumName: r.stratumName ?? null,
     averageRating:
       r.averageRating == null
         ? null
@@ -121,6 +123,7 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
       isOnline: rigsTable.isOnline,
       stratumHost: rigsTable.stratumHost,
       stratumPort: rigsTable.stratumPort,
+      stratumName: rigsTable.stratumName,
       proxyToken: rigsTable.proxyToken,
       createdAt: rigsTable.createdAt,
       averageRating: sql<string | null>`AVG(${reviewsTable.rating})`,
@@ -159,6 +162,7 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
     region: row.region,
     isOnline: row.isOnline,
     hasFallbackPool: !!(row.stratumHost && row.stratumPort > 0),
+    stratumName: row.stratumName ?? null,
     averageRating:
       row.averageRating == null
         ? null

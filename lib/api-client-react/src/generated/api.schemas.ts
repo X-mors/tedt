@@ -42,6 +42,10 @@ export interface MeProfile {
   /** Number of rentals the user has placed */
   rentalCount: number;
   createdAt: string;
+  /** User-chosen Stratum username (prefix in `username.rigname` worker format). Null until set. */
+  stratumUsername: string | null;
+  /** Stratum authentication token. Auto-generated on first profile view. Use as the miner password. */
+  stratumToken: string | null;
 }
 
 export interface UpdateMeBody {
@@ -49,7 +53,12 @@ export interface UpdateMeBody {
    * @minLength 1
    * @maxLength 80
    */
-  displayName: string;
+  displayName?: string;
+  /**
+   * Stratum username slug (3-24 chars, lowercase letters, digits, hyphens only). Must be globally unique.
+   * @pattern ^[a-z0-9-]{3,24}$
+   */
+  stratumUsername?: string;
 }
 
 export interface Algorithm {
@@ -130,6 +139,8 @@ export interface RigSummary {
   isOnline: boolean;
   /** True when the rig has a fallback pool configured (always false in public/marketplace views) */
   hasFallbackPool: boolean;
+  /** Worker name component in the `username.rigname` format. Null for rigs created before this feature or not yet connected via new-style auth. */
+  stratumName: string | null;
   createdAt: string;
 }
 
@@ -174,6 +185,8 @@ export interface RigDetail {
   isOnline: boolean;
   /** True when the rig has a fallback pool configured (will mine there when not rented) */
   hasFallbackPool: boolean;
+  /** Worker name component in the `username.rigname` format. Null for legacy/web-created rigs not yet connected via new-style auth. */
+  stratumName: string | null;
   createdAt: string;
 }
 

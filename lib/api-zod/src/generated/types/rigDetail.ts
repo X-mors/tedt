@@ -49,5 +49,7 @@ export interface RigDetail {
   isOnline: boolean;
   /** True when the rig has a fallback pool configured (will mine there when not rented) */
   hasFallbackPool: boolean;
+  /** Worker name component in the `username.rigname` format. Null for legacy/web-created rigs not yet connected via new-style auth. */
+  stratumName: string | null;
   createdAt: Date;
 }

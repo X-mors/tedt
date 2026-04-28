@@ -6,6 +6,7 @@ import {
   boolean,
   numeric,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 import { algorithmsTable } from "./algorithms";
@@ -40,8 +41,15 @@ export const rigsTable = pgTable("rigs", {
   stratumPort: integer("stratum_port").notNull().default(0),
   stratumUser: text("stratum_user").notNull().default(""),
   stratumPassword: text("stratum_password").notNull().default("x"),
-  // Cryptographically random secret issued at rig creation; used by the proxy to authenticate the miner.
+  // Cryptographically random secret issued at rig creation; used by the proxy to authenticate the miner (legacy format).
   proxyToken: text("proxy_token").notNull().default(""),
+  /**
+   * The {rigname} portion of the `{stratumUsername}.{rigname}` worker format.
+   * Unique per owner. Null for rigs created via the web UI before this feature
+   * was introduced (legacy rigs still use proxyToken auth).
+   * Auto-populated when a miner first connects with a new rigname.
+   */
+  stratumName: text("stratum_name"),
   // Set by the Stratum proxy: true while miner TCP session is connected, false on disconnect.
   isOnline: boolean("is_online").notNull().default(false),
   // Set by the Stratum proxy when the miner authenticates.
@@ -53,7 +61,9 @@ export const rigsTable = pgTable("rigs", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-});
+}, (table) => [
+  uniqueIndex("rigs_owner_stratum_name_unique").on(table.ownerId, table.stratumName),
+]);
 
 export type Rig = typeof rigsTable.$inferSelect;
 export type InsertRig = typeof rigsTable.$inferInsert;

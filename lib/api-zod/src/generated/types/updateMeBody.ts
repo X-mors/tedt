@@ -11,5 +11,10 @@ export interface UpdateMeBody {
    * @minLength 1
    * @maxLength 80
    */
-  displayName: string;
+  displayName?: string;
+  /**
+   * Stratum username slug (3-24 chars, lowercase letters, digits, hyphens only). Must be globally unique.
+   * @pattern ^[a-z0-9-]{3,24}$
+   */
+  stratumUsername?: string;
 }

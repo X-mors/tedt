@@ -116,6 +116,21 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /me/stratum-token/reset:
+    post:
+      operationId: resetStratumToken
+      tags: [me]
+      summary: Regenerate the user's Stratum authentication token (invalidates all current rig connections)
+      responses:
+        "200":
+          description: Updated profile with new token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   # ========================================================================
   # Marketplace browsing
   # ========================================================================
@@ -1335,6 +1350,14 @@ components:
         createdAt:
           type: string
           format: date-time
+        stratumUsername:
+          type: string
+          nullable: true
+          description: User-chosen Stratum username (prefix in `username.rigname` worker format). Null until set.
+        stratumToken:
+          type: string
+          nullable: true
+          description: Stratum authentication token. Auto-generated on first profile view. Use as the miner password.
       required:
         - id
         - clerkUserId
@@ -1348,6 +1371,8 @@ components:
         - rigCount
         - rentalCount
         - createdAt
+        - stratumUsername
+        - stratumToken
 
     UpdateMeBody:
       type: object
@@ -1356,7 +1381,10 @@ components:
           type: string
           minLength: 1
           maxLength: 80
-      required: [displayName]
+        stratumUsername:
+          type: string
+          pattern: "^[a-z0-9-]{3,24}$"
+          description: Stratum username slug (3-24 chars, lowercase letters, digits, hyphens only). Must be globally unique.
 
     Algorithm:
       type: object
@@ -1472,6 +1500,10 @@ components:
         hasFallbackPool:
           type: boolean
           description: "True when the rig has a fallback pool configured (always false in public/marketplace views)"
+        stratumName:
+          type: string
+          nullable: true
+          description: "Worker name component in the `username.rigname` format. Null for rigs created before this feature or not yet connected via new-style auth."
         createdAt:
           type: string
           format: date-time
@@ -1493,6 +1525,7 @@ components:
         - reviewCount
         - isOnline
         - hasFallbackPool
+        - stratumName
         - createdAt
 
     RigDetail:
@@ -1554,6 +1587,10 @@ components:
         hasFallbackPool:
           type: boolean
           description: "True when the rig has a fallback pool configured (will mine there when not rented)"
+        stratumName:
+          type: string
+          nullable: true
+          description: "Worker name component in the `username.rigname` format. Null for legacy/web-created rigs not yet connected via new-style auth."
         createdAt:
           type: string
           format: date-time
@@ -1582,6 +1619,7 @@ components:
         - ownerPassword
         - isOnline
         - hasFallbackPool
+        - stratumName
         - createdAt
 
     CreateRigBody:

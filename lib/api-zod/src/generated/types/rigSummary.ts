@@ -31,5 +31,7 @@ export interface RigSummary {
   isOnline: boolean;
   /** True when the rig has a fallback pool configured (always false in public/marketplace views) */
   hasFallbackPool: boolean;
+  /** Worker name component in the `username.rigname` format. Null for rigs created before this feature or not yet connected via new-style auth. */
+  stratumName: string | null;
   createdAt: Date;
 }

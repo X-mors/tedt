@@ -36,6 +36,18 @@ export const GetMeResponse = zod.object({
     ),
   rentalCount: zod.number().describe("Number of rentals the user has placed"),
   createdAt: zod.coerce.date(),
+  stratumUsername: zod
+    .string()
+    .nullable()
+    .describe(
+      "User-chosen Stratum username (prefix in `username.rigname` worker format). Null until set.",
+    ),
+  stratumToken: zod
+    .string()
+    .nullable()
+    .describe(
+      "Stratum authentication token. Auto-generated on first profile view. Use as the miner password.",
+    ),
 });
 
 /**
@@ -43,8 +55,19 @@ export const GetMeResponse = zod.object({
  */
 export const updateMeBodyDisplayNameMax = 80;
 
+export const updateMeBodyStratumUsernameRegExp = new RegExp(
+  "^[a-z0-9-]{3,24}$",
+);
+
 export const UpdateMeBody = zod.object({
-  displayName: zod.string().min(1).max(updateMeBodyDisplayNameMax),
+  displayName: zod.string().min(1).max(updateMeBodyDisplayNameMax).optional(),
+  stratumUsername: zod
+    .string()
+    .regex(updateMeBodyStratumUsernameRegExp)
+    .optional()
+    .describe(
+      "Stratum username slug (3-24 chars, lowercase letters, digits, hyphens only). Must be globally unique.",
+    ),
 });
 
 export const UpdateMeResponse = zod.object({
@@ -66,6 +89,18 @@ export const UpdateMeResponse = zod.object({
     ),
   rentalCount: zod.number().describe("Number of rentals the user has placed"),
   createdAt: zod.coerce.date(),
+  stratumUsername: zod
+    .string()
+    .nullable()
+    .describe(
+      "User-chosen Stratum username (prefix in `username.rigname` worker format). Null until set.",
+    ),
+  stratumToken: zod
+    .string()
+    .nullable()
+    .describe(
+      "Stratum authentication token. Auto-generated on first profile view. Use as the miner password.",
+    ),
 });
 
 /**
@@ -90,6 +125,18 @@ export const UpgradeToOwnerResponse = zod.object({
     ),
   rentalCount: zod.number().describe("Number of rentals the user has placed"),
   createdAt: zod.coerce.date(),
+  stratumUsername: zod
+    .string()
+    .nullable()
+    .describe(
+      "User-chosen Stratum username (prefix in `username.rigname` worker format). Null until set.",
+    ),
+  stratumToken: zod
+    .string()
+    .nullable()
+    .describe(
+      "Stratum authentication token. Auto-generated on first profile view. Use as the miner password.",
+    ),
 });
 
 /**
@@ -114,6 +161,54 @@ export const SyncMeResponse = zod.object({
     ),
   rentalCount: zod.number().describe("Number of rentals the user has placed"),
   createdAt: zod.coerce.date(),
+  stratumUsername: zod
+    .string()
+    .nullable()
+    .describe(
+      "User-chosen Stratum username (prefix in `username.rigname` worker format). Null until set.",
+    ),
+  stratumToken: zod
+    .string()
+    .nullable()
+    .describe(
+      "Stratum authentication token. Auto-generated on first profile view. Use as the miner password.",
+    ),
+});
+
+/**
+ * @summary Regenerate the user's Stratum authentication token (invalidates all current rig connections)
+ */
+export const ResetStratumTokenResponse = zod.object({
+  id: zod.number(),
+  clerkUserId: zod.string(),
+  email: zod.string(),
+  displayName: zod.string(),
+  role: zod
+    .enum(["admin", "owner", "renter"])
+    .describe("A user can act as renter or owner; admin is the site operator."),
+  balanceUsd: zod.number().describe("Current internal balance in USD"),
+  totalDepositedUsd: zod.number(),
+  totalEarnedUsd: zod.number().describe("Lifetime earnings as a rig owner"),
+  totalSpentUsd: zod.number().describe("Lifetime spend as a renter"),
+  rigCount: zod
+    .number()
+    .describe(
+      "Number of rigs the user owns (used by the UI to show the lessor nav)",
+    ),
+  rentalCount: zod.number().describe("Number of rentals the user has placed"),
+  createdAt: zod.coerce.date(),
+  stratumUsername: zod
+    .string()
+    .nullable()
+    .describe(
+      "User-chosen Stratum username (prefix in `username.rigname` worker format). Null until set.",
+    ),
+  stratumToken: zod
+    .string()
+    .nullable()
+    .describe(
+      "Stratum authentication token. Auto-generated on first profile view. Use as the miner password.",
+    ),
 });
 
 /**
@@ -152,6 +247,12 @@ export const GetMarketplaceFeaturedResponseItem = zod.object({
     .boolean()
     .describe(
       "True when the rig has a fallback pool configured (always false in public\/marketplace views)",
+    ),
+  stratumName: zod
+    .string()
+    .nullable()
+    .describe(
+      "Worker name component in the `username.rigname` format. Null for rigs created before this feature or not yet connected via new-style auth.",
     ),
   createdAt: zod.coerce.date(),
 });
@@ -228,6 +329,12 @@ export const GetMarketplaceSummaryResponse = zod.object({
         .describe(
           "True when the rig has a fallback pool configured (always false in public\/marketplace views)",
         ),
+      stratumName: zod
+        .string()
+        .nullable()
+        .describe(
+          "Worker name component in the `username.rigname` format. Null for rigs created before this feature or not yet connected via new-style auth.",
+        ),
       createdAt: zod.coerce.date(),
     }),
   ),
@@ -300,6 +407,12 @@ export const ListRigsResponseItem = zod.object({
     .describe(
       "True when the rig has a fallback pool configured (always false in public\/marketplace views)",
     ),
+  stratumName: zod
+    .string()
+    .nullable()
+    .describe(
+      "Worker name component in the `username.rigname` format. Null for rigs created before this feature or not yet connected via new-style auth.",
+    ),
   createdAt: zod.coerce.date(),
 });
 export const ListRigsResponse = zod.array(ListRigsResponseItem);
@@ -352,6 +465,12 @@ export const GetRigResponse = zod.object({
     .boolean()
     .describe(
       "True when the rig has a fallback pool configured (will mine there when not rented)",
+    ),
+  stratumName: zod
+    .string()
+    .nullable()
+    .describe(
+      "Worker name component in the `username.rigname` format. Null for legacy\/web-created rigs not yet connected via new-style auth.",
     ),
   createdAt: zod.coerce.date(),
 });
@@ -406,6 +525,12 @@ export const ListMyRigsResponseItem = zod.object({
     .boolean()
     .describe(
       "True when the rig has a fallback pool configured (always false in public\/marketplace views)",
+    ),
+  stratumName: zod
+    .string()
+    .nullable()
+    .describe(
+      "Worker name component in the `username.rigname` format. Null for rigs created before this feature or not yet connected via new-style auth.",
     ),
   createdAt: zod.coerce.date(),
 });
@@ -479,6 +604,12 @@ export const GetMyRigResponse = zod.object({
     .describe(
       "True when the rig has a fallback pool configured (will mine there when not rented)",
     ),
+  stratumName: zod
+    .string()
+    .nullable()
+    .describe(
+      "Worker name component in the `username.rigname` format. Null for legacy\/web-created rigs not yet connected via new-style auth.",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -546,6 +677,12 @@ export const UpdateMyRigResponse = zod.object({
     .boolean()
     .describe(
       "True when the rig has a fallback pool configured (will mine there when not rented)",
+    ),
+  stratumName: zod
+    .string()
+    .nullable()
+    .describe(
+      "Worker name component in the `username.rigname` format. Null for legacy\/web-created rigs not yet connected via new-style auth.",
     ),
   createdAt: zod.coerce.date(),
 });
