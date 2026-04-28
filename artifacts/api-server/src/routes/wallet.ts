@@ -110,53 +110,65 @@ router.post("/me/wallet/withdrawals", async (req, res) => {
   const body = CreateWithdrawalBody.parse(req.body);
   const amountStr = toUsdString(body.amountUsd);
 
-  // Atomic conditional debit — only succeeds if the user actually has the
-  // funds at the moment the UPDATE runs, avoiding stale-snapshot races.
-  const result = await db.transaction(async (tx) => {
-    const [debited] = await tx
-      .update(usersTable)
-      .set({ balanceUsd: sql`${usersTable.balanceUsd} - ${amountStr}` })
-      .where(
-        and(
-          eq(usersTable.id, req.currentUser!.id),
-          sql`${usersTable.balanceUsd} >= ${amountStr}`,
-        ),
-      )
-      .returning({ balanceUsd: usersTable.balanceUsd });
-    if (!debited) return { error: "insufficient" as const };
-
-    const newBalance = round6(toNum(debited.balanceUsd));
-    const [row] = await tx
-      .insert(withdrawalsTable)
-      .values({
-        userId: req.currentUser!.id,
-        asset: body.asset,
-        destinationAddress: body.destinationAddress,
-        amountUsd: amountStr,
-      })
-      .returning();
-    if (!row) return { error: "insert" as const };
-
-    await tx.insert(walletTransactionsTable).values({
-      userId: req.currentUser!.id,
-      type: "withdrawal",
-      amountUsd: toUsdString(-body.amountUsd),
-      balanceAfterUsd: toUsdString(newBalance),
-      memo: `Withdrawal request #${row.id} (${body.asset})`,
-    });
-    return { row };
-  });
-
-  if ("error" in result) {
-    if (result.error === "insufficient") {
-      res.status(402).json({ error: "Insufficient balance for withdrawal." });
-    } else {
-      res.status(500).json({ error: "Failed to create withdrawal" });
+  class TxError extends Error {
+    constructor(public readonly code: "insufficient" | "insert") {
+      super(code);
+      this.name = "TxError";
     }
-    return;
   }
 
-  const w = result.row;
+  let withdrawalRow: typeof withdrawalsTable.$inferSelect;
+  try {
+    // Atomic conditional debit — only succeeds if the user actually has the
+    // funds at the moment the UPDATE runs, avoiding stale-snapshot races.
+    // Throwing inside the callback guarantees Drizzle rolls back on any failure.
+    withdrawalRow = await db.transaction(async (tx) => {
+      const [debited] = await tx
+        .update(usersTable)
+        .set({ balanceUsd: sql`${usersTable.balanceUsd} - ${amountStr}` })
+        .where(
+          and(
+            eq(usersTable.id, req.currentUser!.id),
+            sql`${usersTable.balanceUsd} >= ${amountStr}`,
+          ),
+        )
+        .returning({ balanceUsd: usersTable.balanceUsd });
+      if (!debited) throw new TxError("insufficient");
+
+      const newBalance = round6(toNum(debited.balanceUsd));
+      const [row] = await tx
+        .insert(withdrawalsTable)
+        .values({
+          userId: req.currentUser!.id,
+          asset: body.asset,
+          destinationAddress: body.destinationAddress,
+          amountUsd: amountStr,
+        })
+        .returning();
+      if (!row) throw new TxError("insert");
+
+      await tx.insert(walletTransactionsTable).values({
+        userId: req.currentUser!.id,
+        type: "withdrawal",
+        amountUsd: toUsdString(-body.amountUsd),
+        balanceAfterUsd: toUsdString(newBalance),
+        memo: `Withdrawal request #${row.id} (${body.asset})`,
+      });
+      return row;
+    });
+  } catch (err) {
+    if (err instanceof TxError) {
+      if (err.code === "insufficient") {
+        res.status(402).json({ error: "Insufficient balance for withdrawal." });
+      } else {
+        res.status(500).json({ error: "Failed to create withdrawal" });
+      }
+      return;
+    }
+    throw err;
+  }
+
+  const w = withdrawalRow;
   res.status(201).json({
     id: w.id,
     userId: w.userId,

@@ -161,89 +161,100 @@ router.post("/rentals", async (req, res) => {
 
   const renterTotalStr = toUsdString(pricing.renterTotalUsd);
 
-  const result = await db.transaction(async (tx) => {
-    // Atomic conditional debit — fails if the renter doesn't have funds at
-    // the moment the UPDATE runs, regardless of stale snapshots in Express.
-    const [debited] = await tx
-      .update(usersTable)
-      .set({
-        balanceUsd: sql`${usersTable.balanceUsd} - ${renterTotalStr}`,
-        totalSpentUsd: sql`${usersTable.totalSpentUsd} + ${renterTotalStr}`,
-      })
-      .where(
-        sql`${usersTable.id} = ${req.currentUser!.id} AND ${usersTable.balanceUsd} >= ${renterTotalStr}`,
-      )
-      .returning({ balanceUsd: usersTable.balanceUsd });
-    if (!debited) return { error: "insufficient" as const };
-
-    // Atomic rig reservation — fails if someone else just rented it.
-    const [reserved] = await tx
-      .update(rigsTable)
-      .set({ status: "rented" })
-      .where(
-        sql`${rigsTable.id} = ${body.rigId} AND ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved'`,
-      )
-      .returning({ id: rigsTable.id });
-    if (!reserved) return { error: "unavailable" as const };
-
-    const proxy = buildProxyCreds();
-    const startedAt = new Date();
-    const endsAt = new Date(startedAt.getTime() + body.hours * 3600 * 1000);
-
-    const [rental] = await tx
-      .insert(rentalsTable)
-      .values({
-        rigId: rigRow.id,
-        renterId: req.currentUser!.id,
-        ownerId: rigRow.ownerId,
-        hours: body.hours,
-        hashrate: toUsdString(hashrate),
-        basePricePerUnitPerHour: toUsdString(basePrice),
-        renterFeePct: commission.renterFeePct.toString(),
-        ownerFeePct: commission.ownerFeePct.toString(),
-        renterTotalUsd: renterTotalStr,
-        ownerEarningsUsd: toUsdString(pricing.ownerEarningsUsd),
-        platformFeeUsd: toUsdString(pricing.platformFeeUsd),
-        status: "active",
-        poolUrl: body.poolUrl,
-        poolWorker: body.poolWorker,
-        poolPassword: body.poolPassword ?? "x",
-        stratumProxyUrl: proxy.stratumProxyUrl,
-        proxyWorker: proxy.proxyWorker,
-        proxyPassword: proxy.proxyPassword,
-        startedAt,
-        endsAt,
-      })
-      .returning();
-
-    if (!rental) return { error: "create" as const };
-
-    await tx.insert(walletTransactionsTable).values({
-      userId: req.currentUser!.id,
-      type: "rental_charge",
-      amountUsd: toUsdString(-pricing.renterTotalUsd),
-      balanceAfterUsd: toUsdString(round6(toNum(debited.balanceUsd))),
-      memo: `Rental #${rental.id} on rig ${rigRow.id}`,
-      relatedRentalId: rental.id,
-    });
-
-    return { rental };
-  });
-
-  if ("error" in result) {
-    if (result.error === "insufficient") {
-      res.status(402).json({
-        error: `Insufficient balance. Need $${pricing.renterTotalUsd.toFixed(2)}.`,
-      });
-    } else if (result.error === "unavailable") {
-      res.status(400).json({ error: "Rig is not available" });
-    } else {
-      res.status(500).json({ error: "Failed to create rental" });
+  class TxError extends Error {
+    constructor(public readonly code: "insufficient" | "unavailable" | "create") {
+      super(code);
+      this.name = "TxError";
     }
-    return;
   }
 
-  res.status(201).json(await loadRentalDetail(result.rental.id));
+  let rentalId: number;
+  try {
+    rentalId = await db.transaction(async (tx) => {
+      // Atomic conditional debit — fails if the renter doesn't have funds at
+      // the moment the UPDATE runs, regardless of stale snapshots in Express.
+      const [debited] = await tx
+        .update(usersTable)
+        .set({
+          balanceUsd: sql`${usersTable.balanceUsd} - ${renterTotalStr}`,
+          totalSpentUsd: sql`${usersTable.totalSpentUsd} + ${renterTotalStr}`,
+        })
+        .where(
+          sql`${usersTable.id} = ${req.currentUser!.id} AND ${usersTable.balanceUsd} >= ${renterTotalStr}`,
+        )
+        .returning({ balanceUsd: usersTable.balanceUsd });
+      if (!debited) throw new TxError("insufficient");
+
+      // Atomic rig reservation — fails if someone else just rented it.
+      // Throwing here causes Drizzle to roll back the debit above.
+      const [reserved] = await tx
+        .update(rigsTable)
+        .set({ status: "rented" })
+        .where(
+          sql`${rigsTable.id} = ${body.rigId} AND ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved'`,
+        )
+        .returning({ id: rigsTable.id });
+      if (!reserved) throw new TxError("unavailable");
+
+      const proxy = buildProxyCreds();
+      const startedAt = new Date();
+      const endsAt = new Date(startedAt.getTime() + body.hours * 3600 * 1000);
+
+      const [rental] = await tx
+        .insert(rentalsTable)
+        .values({
+          rigId: rigRow.id,
+          renterId: req.currentUser!.id,
+          ownerId: rigRow.ownerId,
+          hours: body.hours,
+          hashrate: toUsdString(hashrate),
+          basePricePerUnitPerHour: toUsdString(basePrice),
+          renterFeePct: commission.renterFeePct.toString(),
+          ownerFeePct: commission.ownerFeePct.toString(),
+          renterTotalUsd: renterTotalStr,
+          ownerEarningsUsd: toUsdString(pricing.ownerEarningsUsd),
+          platformFeeUsd: toUsdString(pricing.platformFeeUsd),
+          status: "active",
+          poolUrl: body.poolUrl,
+          poolWorker: body.poolWorker,
+          poolPassword: body.poolPassword ?? "x",
+          stratumProxyUrl: proxy.stratumProxyUrl,
+          proxyWorker: proxy.proxyWorker,
+          proxyPassword: proxy.proxyPassword,
+          startedAt,
+          endsAt,
+        })
+        .returning();
+      if (!rental) throw new TxError("create");
+
+      await tx.insert(walletTransactionsTable).values({
+        userId: req.currentUser!.id,
+        type: "rental_charge",
+        amountUsd: toUsdString(-pricing.renterTotalUsd),
+        balanceAfterUsd: toUsdString(round6(toNum(debited.balanceUsd))),
+        memo: `Rental #${rental.id} on rig ${rigRow.id}`,
+        relatedRentalId: rental.id,
+      });
+
+      return rental.id;
+    });
+  } catch (err) {
+    if (err instanceof TxError) {
+      if (err.code === "insufficient") {
+        res.status(402).json({
+          error: `Insufficient balance. Need $${pricing.renterTotalUsd.toFixed(2)}.`,
+        });
+      } else if (err.code === "unavailable") {
+        res.status(400).json({ error: "Rig is not available" });
+      } else {
+        res.status(500).json({ error: "Failed to create rental" });
+      }
+      return;
+    }
+    throw err;
+  }
+
+  res.status(201).json(await loadRentalDetail(rentalId));
 });
 
 async function loadRentalDetail(id: number) {
