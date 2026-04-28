@@ -33,8 +33,26 @@ class ProxyState {
         sharesRejected: 0,
         lastShareAt: null,
         upstreamConnected: false,
+        submitsDropped: 0,
+        upstreamErrors: 0,
+        upstreamDisconnects: 0,
       },
     });
+  }
+
+  incrementDropped(rigId: number): void {
+    const conn = this.rigConnections.get(rigId);
+    if (conn) conn.entry.submitsDropped++;
+  }
+
+  incrementUpstreamError(rigId: number): void {
+    const conn = this.rigConnections.get(rigId);
+    if (conn) conn.entry.upstreamErrors++;
+  }
+
+  incrementUpstreamDisconnect(rigId: number): void {
+    const conn = this.rigConnections.get(rigId);
+    if (conn) conn.entry.upstreamDisconnects++;
   }
 
   removeRig(rigId: number): void {

@@ -3,6 +3,7 @@ import {
   serial,
   text,
   integer,
+  boolean,
   numeric,
   timestamp,
 } from "drizzle-orm/pg-core";
@@ -41,6 +42,8 @@ export const rigsTable = pgTable("rigs", {
   stratumPassword: text("stratum_password").notNull().default("x"),
   // Cryptographically random secret issued at rig creation; used by the proxy to authenticate the miner.
   proxyToken: text("proxy_token").notNull().default(""),
+  // Set by the Stratum proxy: true while miner TCP session is connected, false on disconnect.
+  isOnline: boolean("is_online").notNull().default(false),
   // Set by the Stratum proxy when the miner authenticates.
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })

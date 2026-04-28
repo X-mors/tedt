@@ -31,6 +31,12 @@ export interface ProxyRigEntry {
   sharesRejected: number;
   lastShareAt: Date | null;
   upstreamConnected: boolean;
+  /** Number of mining.submit messages that were buffered and dropped (buffer full) */
+  submitsDropped: number;
+  /** Number of upstream connection errors observed for this session */
+  upstreamErrors: number;
+  /** Number of times the upstream disconnected / was lost during this session */
+  upstreamDisconnects: number;
 }
 
 export interface ProxyAdminStatus {

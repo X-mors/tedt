@@ -167,10 +167,10 @@ export class DownstreamSession extends EventEmitter {
     this.authorized = true;
     proxyState.addRig(rig.id, this, rig.name);
 
-    // Persist last-seen timestamp so admin can see when a rig was last active.
+    // Persist online state and last-seen timestamp so admin can track connectivity.
     await db
       .update(rigsTable)
-      .set({ lastSeenAt: new Date() })
+      .set({ isOnline: true, lastSeenAt: new Date() })
       .where(eq(rigsTable.id, rig.id));
 
     const activeRental = await this._findActiveRental(rig.id);
@@ -313,7 +313,14 @@ export class DownstreamSession extends EventEmitter {
     });
 
     upstream.on("disconnected", () => {
-      if (this.rigId != null) proxyState.setUpstreamConnected(this.rigId, false);
+      if (this.rigId != null) {
+        proxyState.setUpstreamConnected(this.rigId, false);
+        proxyState.incrementUpstreamDisconnect(this.rigId);
+      }
+    });
+
+    upstream.on("error", () => {
+      if (this.rigId != null) proxyState.incrementUpstreamError(this.rigId);
     });
   }
 
@@ -353,6 +360,7 @@ export class DownstreamSession extends EventEmitter {
           );
         } else {
           logger.warn({ rigId: this.rigId }, "stratum:downstream submit buffer full, share dropped");
+          if (this.rigId != null) proxyState.incrementDropped(this.rigId);
         }
         // Respond accepted optimistically so the miner does not stall.
         this._reply(msg.id, true, null);
@@ -399,6 +407,11 @@ export class DownstreamSession extends EventEmitter {
   private _onClose(): void {
     if (this.rigId != null) {
       proxyState.removeRig(this.rigId);
+      // Mark rig offline in DB (best-effort — do not await to avoid blocking).
+      void db
+        .update(rigsTable)
+        .set({ isOnline: false })
+        .where(eq(rigsTable.id, this.rigId));
     }
     // Park the upstream for the reconnect grace period instead of destroying it
     // immediately. This keeps the pool connection alive for 60 s while the rig

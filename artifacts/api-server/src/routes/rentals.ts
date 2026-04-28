@@ -639,18 +639,6 @@ router.post("/rentals/:id/cancel", async (req, res) => {
 
   await db.transaction(async (tx) => {
     const now = new Date();
-    const totalSeconds =
-      (rental.endsAt.getTime() - rental.startedAt.getTime()) / 1000;
-    const usedSeconds = Math.max(
-      0,
-      Math.min(
-        totalSeconds,
-        (now.getTime() - rental.startedAt.getTime()) / 1000,
-      ),
-    );
-    const usedRatio = totalSeconds > 0 ? usedSeconds / totalSeconds : 1;
-    const renterTotal = toNum(rental.renterTotalUsd);
-    const refund = round2(renterTotal * (1 - usedRatio));
 
     // Atomic claim — only the first concurrent caller wins.
     const [claimed] = await tx
@@ -666,13 +654,36 @@ router.post("/rentals/:id/cancel", async (req, res) => {
       .returning();
     if (!claimed) return;
 
+    // Delivery-based cancellation settlement (same model as expiry settlement).
+    // deliveryRatio: what fraction of advertised hashrate was actually delivered.
+    // usedRatio: what fraction of the booked time elapsed before cancellation.
+    // effectiveRatio = deliveryRatio × usedRatio → owner earned this fraction of fees.
+    const totalSeconds =
+      (rental.endsAt.getTime() - rental.startedAt.getTime()) / 1000;
+    const usedSeconds = Math.max(
+      0,
+      Math.min(totalSeconds, (now.getTime() - rental.startedAt.getTime()) / 1000),
+    );
+    const usedRatio = totalSeconds > 0 ? usedSeconds / totalSeconds : 1;
+
+    const advertisedHashrate = toNum(rental.hashrate);
+    const deliveredHashrate = toNum(rental.deliveredHashrateAvg);
+    const deliveryRatio =
+      deliveredHashrate > 0 && advertisedHashrate > 0
+        ? Math.min(1.05, deliveredHashrate / advertisedHashrate)
+        : 0.0;
+
+    const effectiveRatio = deliveryRatio * usedRatio;
+    const ownerPayout = round6(toNum(rental.ownerEarningsUsd) * effectiveRatio);
+    const renterRefund = round6(toNum(rental.renterTotalUsd) * (1 - effectiveRatio));
+
     await tx
       .update(rigsTable)
       .set({ status: "available" })
       .where(eq(rigsTable.id, rental.rigId));
 
-    if (refund > 0) {
-      const refundStr = toUsdString(refund);
+    if (renterRefund > 0) {
+      const refundStr = toUsdString(renterRefund);
       const [credited] = await tx
         .update(usersTable)
         .set({
@@ -687,16 +698,12 @@ router.post("/rentals/:id/cancel", async (req, res) => {
           type: "rental_refund",
           amountUsd: refundStr,
           balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
-          memo: `Refund for cancelled rental #${rental.id}`,
+          memo: `Delivery-based refund for cancelled rental #${rental.id} (${Math.round(effectiveRatio * 100)}% of value delivered)`,
           relatedRentalId: rental.id,
         });
       }
     }
 
-    // Owner gets a prorated payout (same logic, will be replaced by real
-    // delivered-hours-based settlement once the Stratum proxy ships).
-    const ownerEarningsTotal = toNum(rental.ownerEarningsUsd);
-    const ownerPayout = round2(ownerEarningsTotal * usedRatio);
     if (ownerPayout > 0) {
       const payoutStr = toUsdString(ownerPayout);
       const [credited] = await tx
@@ -713,7 +720,7 @@ router.post("/rentals/:id/cancel", async (req, res) => {
           type: "rental_payout",
           amountUsd: payoutStr,
           balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
-          memo: `Prorated payout for cancelled rental #${rental.id}`,
+          memo: `Delivery-based payout for cancelled rental #${rental.id} (${Math.round(deliveryRatio * 100)}% delivery × ${Math.round(usedRatio * 100)}% time used)`,
           relatedRentalId: rental.id,
         });
       }
