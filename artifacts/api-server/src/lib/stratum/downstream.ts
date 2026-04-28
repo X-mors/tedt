@@ -309,7 +309,9 @@ export class DownstreamSession extends EventEmitter {
     }
 
     const proxyToken = randomBytes(32).toString("hex");
-    const [created] = await db
+    // Use ON CONFLICT DO NOTHING to handle concurrent first-connect races on the
+    // (ownerId, stratumName) unique index, then re-select the winning row.
+    await db
       .insert(rigsTable)
       .values({
         ownerId: user.id,
@@ -322,7 +324,10 @@ export class DownstreamSession extends EventEmitter {
         proxyToken,
         stratumName: rigname,
       })
-      .returning({
+      .onConflictDoNothing();
+
+    const [autoRig] = await db
+      .select({
         id: rigsTable.id,
         name: rigsTable.name,
         proxyToken: rigsTable.proxyToken,
@@ -330,14 +335,23 @@ export class DownstreamSession extends EventEmitter {
         stratumPort: rigsTable.stratumPort,
         stratumUser: rigsTable.stratumUser,
         stratumPassword: rigsTable.stratumPassword,
-      });
+      })
+      .from(rigsTable)
+      .where(and(eq(rigsTable.ownerId, user.id), eq(rigsTable.stratumName, rigname)));
+
+    if (!autoRig) {
+      logger.error({ ownerId: user.id, rigname }, "stratum:downstream auto-create + re-select failed");
+      this._reply(msg.id, false, [20, "Server error creating rig"]);
+      this._close();
+      return;
+    }
 
     logger.info(
-      { ownerId: user.id, stratumUsername, rigname, rigId: created?.id },
+      { ownerId: user.id, stratumUsername, rigname, rigId: autoRig.id },
       "stratum:downstream auto-created rig on first connect",
     );
 
-    await this._completeAuth(msg, created!);
+    await this._completeAuth(msg, autoRig);
   }
 
   /** Shared post-authentication logic for both legacy and new auth paths. */

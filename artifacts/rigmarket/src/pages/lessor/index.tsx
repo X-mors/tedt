@@ -94,9 +94,11 @@ export default function LessorDashboard() {
                       <TableCell>
                         <div className="flex flex-col gap-1">
                           {rig.approvalStatus === 'pending' && (
-                            <Badge variant="outline" className="font-mono text-[10px] uppercase w-fit bg-orange-500/10 text-orange-500 border-orange-500/30">
-                              PENDING REVIEW
-                            </Badge>
+                            <span title="Admin must approve this rig before it appears in the marketplace">
+                              <Badge variant="outline" className="font-mono text-[10px] uppercase w-fit bg-orange-500/10 text-orange-500 border-orange-500/30">
+                                PENDING REVIEW
+                              </Badge>
+                            </span>
                           )}
                           {rig.approvalStatus === 'rejected' && (
                             <Badge variant="outline" className="font-mono text-[10px] uppercase w-fit bg-destructive/10 text-destructive border-destructive/30">
