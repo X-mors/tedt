@@ -765,8 +765,12 @@ export default function AdminDashboard() {
                 <CardContent><p className="text-3xl font-bold font-mono text-primary">{proxyStatus?.activeRoutes ?? 0}</p></CardContent>
               </Card>
               <Card className="bg-card/50 border-border/50">
-                <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground uppercase tracking-wider">Total Shares Seen</CardTitle></CardHeader>
-                <CardContent><p className="text-3xl font-bold font-mono">{proxyStatus?.totalSharesPerSec ?? 0}</p></CardContent>
+                <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground uppercase tracking-wider">Shares/sec (live)</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold font-mono text-primary">{(proxyStatus?.currentSharesPerSec ?? 0).toFixed(2)}</p></CardContent>
+              </Card>
+              <Card className="bg-card/50 border-border/50">
+                <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground uppercase tracking-wider">Total Shares This Session</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold font-mono">{proxyStatus?.totalSharesThisSession ?? 0}</p></CardContent>
               </Card>
             </div>
 
@@ -789,6 +793,7 @@ export default function AdminDashboard() {
                         <TableHead className="font-mono text-xs">Miner</TableHead>
                         <TableHead className="font-mono text-xs">Pool</TableHead>
                         <TableHead className="font-mono text-xs text-right">Shares A/R</TableHead>
+                        <TableHead className="font-mono text-xs text-right">Dropped/Err/Disc</TableHead>
                         <TableHead className="font-mono text-xs">Connected</TableHead>
                         <TableHead className="font-mono text-xs text-right">Action</TableHead>
                       </TableRow>
@@ -821,6 +826,13 @@ export default function AdminDashboard() {
                             <span className="text-green-500">{rig.sharesAccepted}</span>
                             <span className="text-muted-foreground"> / </span>
                             <span className="text-destructive">{rig.sharesRejected}</span>
+                          </TableCell>
+                          <TableCell className="text-right font-mono">
+                            <span className={rig.submitsDropped > 0 ? "text-yellow-500" : "text-muted-foreground"}>{rig.submitsDropped}</span>
+                            <span className="text-muted-foreground">/</span>
+                            <span className={rig.upstreamErrors > 0 ? "text-destructive" : "text-muted-foreground"}>{rig.upstreamErrors}</span>
+                            <span className="text-muted-foreground">/</span>
+                            <span className={rig.upstreamDisconnects > 0 ? "text-orange-500" : "text-muted-foreground"}>{rig.upstreamDisconnects}</span>
                           </TableCell>
                           <TableCell>
                             {format(new Date(rig.connectedAt), "HH:mm:ss")}

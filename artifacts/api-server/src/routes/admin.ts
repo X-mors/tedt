@@ -894,7 +894,8 @@ router.get("/admin/proxy", (req, res) => {
       upstreamDisconnects: r.upstreamDisconnects,
     })),
     activeRoutes: status.activeRoutes,
-    totalSharesPerSec: status.totalSharesPerSec,
+    totalSharesThisSession: status.totalSharesThisSession,
+    currentSharesPerSec: status.currentSharesPerSec,
   });
 });
 

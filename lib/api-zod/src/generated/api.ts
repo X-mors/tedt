@@ -1262,10 +1262,30 @@ export const GetAdminProxyResponse = zod.object({
       sharesRejected: zod.number(),
       lastShareAt: zod.coerce.date().nullable(),
       upstreamConnected: zod.boolean(),
+      submitsDropped: zod
+        .number()
+        .describe(
+          "Shares rejected because upstream was unavailable or buffer was full",
+        ),
+      upstreamErrors: zod
+        .number()
+        .describe("Number of upstream TCP errors observed during this session"),
+      upstreamDisconnects: zod
+        .number()
+        .describe(
+          "Number of times the upstream pool disconnected during this session",
+        ),
     }),
   ),
   activeRoutes: zod.number(),
-  totalSharesPerSec: zod.number(),
+  totalSharesThisSession: zod
+    .number()
+    .describe(
+      "Cumulative accepted + rejected shares across all currently connected rigs",
+    ),
+  currentSharesPerSec: zod
+    .number()
+    .describe("Estimated shares\/s derived from active rental share windows"),
 });
 
 /**

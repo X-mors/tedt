@@ -8,14 +8,9 @@ import { proxyState } from "./state";
 import { UpstreamClient } from "./upstream";
 import type { JsonRpcMessage } from "./types";
 
-const SUBMIT_BUFFER_MAX = 32; // Maximum buffered shares during upstream outage
 
 function makeExtranonce1(): string {
   return randomBytes(4).toString("hex");
-}
-
-interface BufferedSubmit {
-  msg: JsonRpcMessage;
 }
 
 export class DownstreamSession extends EventEmitter {
@@ -31,8 +26,8 @@ export class DownstreamSession extends EventEmitter {
   private authorized = false;
   private currentDifficulty = 1;
   private lastJobId: string | null = null;
-  /** Buffered mining.submit messages received while upstream is unavailable. */
-  private submitBuffer: BufferedSubmit[] = [];
+  /** Count of shares rejected because upstream was temporarily unavailable. */
+  private submitsRejectedNoUpstream = 0;
 
   constructor(private readonly socket: net.Socket) {
     super();
@@ -225,7 +220,6 @@ export class DownstreamSession extends EventEmitter {
       this.upstream.destroy();
       this.upstream = null;
     }
-    this.submitBuffer = [];
     this.rentalId = null;
     if (this.rigId != null) {
       proxyState.setRigAuthorized(this.rigId, null);
@@ -259,9 +253,8 @@ export class DownstreamSession extends EventEmitter {
       );
       this.upstream = parked;
       this._wireUpstreamEvents(rental.id);
-      // Upstream is already connected — mark it and flush any buffered shares.
+      // Upstream is already connected — mark it ready.
       if (this.rigId != null) proxyState.setUpstreamConnected(this.rigId, true);
-      await this._flushSubmitBuffer();
       return;
     }
 
@@ -308,8 +301,6 @@ export class DownstreamSession extends EventEmitter {
     upstream.on("ready", () => {
       if (this.rigId != null) proxyState.setUpstreamConnected(this.rigId, true);
       logger.info({ rigId: this.rigId, rentalId }, "stratum:downstream upstream ready");
-      // Replay any shares that were buffered while upstream was unavailable.
-      void this._flushSubmitBuffer();
     });
 
     upstream.on("disconnected", () => {
@@ -322,19 +313,6 @@ export class DownstreamSession extends EventEmitter {
     upstream.on("error", () => {
       if (this.rigId != null) proxyState.incrementUpstreamError(this.rigId);
     });
-  }
-
-  /** Replay buffered mining.submit messages now that upstream is available. */
-  private async _flushSubmitBuffer(): Promise<void> {
-    if (this.submitBuffer.length === 0) return;
-    const buffered = this.submitBuffer.splice(0);
-    logger.info(
-      { rigId: this.rigId, count: buffered.length },
-      "stratum:downstream replaying buffered shares",
-    );
-    for (const { msg } of buffered) {
-      await this._handleSubmit(msg);
-    }
   }
 
   private async _handleSubmit(msg: JsonRpcMessage): Promise<void> {
@@ -350,23 +328,19 @@ export class DownstreamSession extends EventEmitter {
     const nonce = params[4] ?? "";
 
     if (!this.upstream) {
-      // Buffer the share rather than immediately rejecting it.
-      if (this.rentalId != null) {
-        if (this.submitBuffer.length < SUBMIT_BUFFER_MAX) {
-          this.submitBuffer.push({ msg });
-          logger.debug(
-            { rigId: this.rigId, bufferLen: this.submitBuffer.length },
-            "stratum:downstream share buffered (upstream unavailable)",
-          );
-        } else {
-          logger.warn({ rigId: this.rigId }, "stratum:downstream submit buffer full, share dropped");
-          if (this.rigId != null) proxyState.incrementDropped(this.rigId);
-        }
-        // Respond accepted optimistically so the miner does not stall.
-        this._reply(msg.id, true, null);
-      } else {
-        this._reply(msg.id, false, [21, "No active rental"]);
-      }
+      // Upstream is temporarily unavailable — reject the share with a clear
+      // protocol error. Do NOT acknowledge as accepted: doing so would inflate
+      // delivered-work accounting and violate the delivery-ratio payout model.
+      const errMsg = this.rentalId != null
+        ? "Pool temporarily unavailable, please retry"
+        : "No active rental";
+      this._reply(msg.id, false, [21, errMsg]);
+      this.submitsRejectedNoUpstream++;
+      if (this.rigId != null) proxyState.incrementDropped(this.rigId);
+      logger.debug(
+        { rigId: this.rigId, rentalId: this.rentalId, total: this.submitsRejectedNoUpstream },
+        "stratum:downstream share rejected — upstream unavailable",
+      );
       return;
     }
 

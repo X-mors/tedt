@@ -1751,6 +1751,15 @@ components:
           format: date-time
         upstreamConnected:
           type: boolean
+        submitsDropped:
+          type: integer
+          description: Shares rejected because upstream was unavailable or buffer was full
+        upstreamErrors:
+          type: integer
+          description: Number of upstream TCP errors observed during this session
+        upstreamDisconnects:
+          type: integer
+          description: Number of times the upstream pool disconnected during this session
       required:
         - rigId
         - rigName
@@ -1761,6 +1770,9 @@ components:
         - sharesRejected
         - lastShareAt
         - upstreamConnected
+        - submitsDropped
+        - upstreamErrors
+        - upstreamDisconnects
 
     ProxyStatus:
       type: object
@@ -1771,12 +1783,17 @@ components:
             $ref: "#/components/schemas/ProxyConnectedRig"
         activeRoutes:
           type: integer
-        totalSharesPerSec:
+        totalSharesThisSession:
           type: number
+          description: Cumulative accepted + rejected shares across all currently connected rigs
+        currentSharesPerSec:
+          type: number
+          description: Estimated shares/s derived from active rental share windows
       required:
         - connectedRigs
         - activeRoutes
-        - totalSharesPerSec
+        - totalSharesThisSession
+        - currentSharesPerSec
 
     RentalStats:
       type: object

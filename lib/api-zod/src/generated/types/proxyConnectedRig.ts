@@ -18,4 +18,10 @@ export interface ProxyConnectedRig {
   /** @nullable */
   lastShareAt: Date | null;
   upstreamConnected: boolean;
+  /** Shares rejected because upstream was unavailable or buffer was full */
+  submitsDropped: number;
+  /** Number of upstream TCP errors observed during this session */
+  upstreamErrors: number;
+  /** Number of times the upstream pool disconnected during this session */
+  upstreamDisconnects: number;
 }

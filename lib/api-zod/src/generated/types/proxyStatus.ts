@@ -10,5 +10,8 @@ import type { ProxyConnectedRig } from "./proxyConnectedRig";
 export interface ProxyStatus {
   connectedRigs: ProxyConnectedRig[];
   activeRoutes: number;
-  totalSharesPerSec: number;
+  /** Cumulative accepted + rejected shares across all currently connected rigs */
+  totalSharesThisSession: number;
+  /** Estimated shares/s derived from active rental share windows */
+  currentSharesPerSec: number;
 }

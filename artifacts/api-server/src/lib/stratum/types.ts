@@ -42,5 +42,8 @@ export interface ProxyRigEntry {
 export interface ProxyAdminStatus {
   connectedRigs: ProxyRigEntry[];
   activeRoutes: number;
-  totalSharesPerSec: number;
+  /** Cumulative accepted+rejected share count across all connected rig sessions */
+  totalSharesThisSession: number;
+  /** Estimated shares/sec computed from the 60-s rolling share windows */
+  currentSharesPerSec: number;
 }

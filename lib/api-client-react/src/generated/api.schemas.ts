@@ -337,12 +337,21 @@ export interface ProxyConnectedRig {
   /** @nullable */
   lastShareAt: string | null;
   upstreamConnected: boolean;
+  /** Shares rejected because upstream was unavailable or buffer was full */
+  submitsDropped: number;
+  /** Number of upstream TCP errors observed during this session */
+  upstreamErrors: number;
+  /** Number of times the upstream pool disconnected during this session */
+  upstreamDisconnects: number;
 }
 
 export interface ProxyStatus {
   connectedRigs: ProxyConnectedRig[];
   activeRoutes: number;
-  totalSharesPerSec: number;
+  /** Cumulative accepted + rejected shares across all currently connected rigs */
+  totalSharesThisSession: number;
+  /** Estimated shares/s derived from active rental share windows */
+  currentSharesPerSec: number;
 }
 
 export interface RentalStats {

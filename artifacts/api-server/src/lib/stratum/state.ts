@@ -219,15 +219,26 @@ class ProxyState {
     );
     const activeRoutes = entries.filter((e) => e.upstreamConnected).length;
 
-    const totalShares = entries.reduce(
+    const totalSharesThisSession = entries.reduce(
       (sum, e) => sum + e.sharesAccepted + e.sharesRejected,
+      0,
+    );
+
+    // Compute a true shares/sec rate from the active rolling share windows.
+    const nowMs = Date.now();
+    const currentSharesPerSec = Array.from(this.shareWindows.values()).reduce(
+      (sum, w) => {
+        const elapsedSec = Math.max(1, (nowMs - w.startedAt) / 1000);
+        return sum + w.sharesAccepted / elapsedSec;
+      },
       0,
     );
 
     return {
       connectedRigs: entries,
       activeRoutes,
-      totalSharesPerSec: totalShares,
+      totalSharesThisSession,
+      currentSharesPerSec,
     };
   }
 
