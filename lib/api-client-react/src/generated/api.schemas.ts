@@ -377,6 +377,8 @@ export interface RentalLive {
   upstreamConnected: boolean;
   /** Effective hashrate in H/s computed from shares in the current flush window */
   currentHashrateH: number;
+  /** currentHashrateH converted to algorithm units (TH/s, MH/s etc.) — use this for display */
+  currentHashrate: number;
   sharesAccepted: number;
   sharesRejected: number;
   currentDifficulty: number;

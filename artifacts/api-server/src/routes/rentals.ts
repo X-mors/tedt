@@ -112,6 +112,25 @@ router.post("/rentals/quote", async (req, res) => {
 router.post("/rentals", async (req, res) => {
   const body = CreateRentalBody.parse(req.body);
 
+  // SSRF guard — only allow stratum schemes to prevent proxy from being used
+  // as a vector to reach internal services.
+  try {
+    const u = new URL(body.poolUrl);
+    const allowedSchemes = ["stratum+tcp:", "stratum+ssl:", "stratum+tls:"];
+    if (!allowedSchemes.includes(u.protocol)) {
+      res.status(400).json({ error: "poolUrl must use stratum+tcp://, stratum+ssl://, or stratum+tls://" });
+      return;
+    }
+    const port = u.port ? parseInt(u.port, 10) : null;
+    if (!port || port < 1 || port > 65535) {
+      res.status(400).json({ error: "poolUrl must include an explicit port (1–65535)" });
+      return;
+    }
+  } catch {
+    res.status(400).json({ error: "poolUrl is not a valid URL" });
+    return;
+  }
+
   // Settle anything expired so a freshly-finished rig is back to "available"
   // and an attempted rebooking succeeds.
   await settleExpiredRentals();
@@ -452,8 +471,8 @@ router.get("/rentals/:id/stats", async (req, res) => {
 
   const data = GetRentalStatsResponse.parse({
     rentalId: rental.id,
-    currentHashrate: live.effectiveHashrateH,
-    averageHashrate: avgDeliveredH,
+    currentHashrate: live.effectiveHashrateH / algMultiplier,
+    averageHashrate: avgDeliveredH / algMultiplier,
     deliveryRatio,
     sharesAccepted: live.sharesAccepted,
     sharesRejected: live.sharesRejected,
@@ -514,6 +533,7 @@ router.get("/rentals/:id/live", async (req, res) => {
     minerConnected: live.minerConnected,
     upstreamConnected: live.upstreamConnected,
     currentHashrateH: live.effectiveHashrateH,
+    currentHashrate: live.effectiveHashrateH / algMultiplier,
     sharesAccepted: live.sharesAccepted,
     sharesRejected: live.sharesRejected,
     currentDifficulty: live.currentDifficulty,

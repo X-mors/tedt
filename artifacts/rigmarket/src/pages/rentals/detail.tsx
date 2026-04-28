@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useParams } from "wouter";
-import { useGetRental, useGetRentalStats, getGetRentalStatsQueryKey, useCancelRental, useCreateRentalReview, getGetRentalQueryKey } from "@workspace/api-client-react";
+import { useGetRental, useGetRentalStats, useGetRentalLive, getGetRentalLiveQueryKey, getGetRentalStatsQueryKey, useCancelRental, useCreateRentalReview, getGetRentalQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatHashrate, formatSeconds } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -37,11 +37,21 @@ export default function RentalCockpit() {
 
   // orval defaults `enabled: !!id`, so we can omit the query option for the rental fetch.
   const { data: rental, isLoading: rentalLoading } = useGetRental(rentalId);
-  const { data: stats } = useGetRentalStats(rentalId, {
+
+  // Real-time proxy snapshot — polled every 5s while the rental is active.
+  const { data: live } = useGetRentalLive(rentalId, {
     query: {
       enabled: !!rentalId && rental?.status === 'active',
       refetchInterval: 5000,
-      // Supply the queryKey explicitly so UseQueryOptions<T> is fully satisfied.
+      queryKey: getGetRentalLiveQueryKey(rentalId),
+    },
+  });
+
+  // Historical stats (sparkline + averageHashrate) — still polled for the chart.
+  const { data: stats } = useGetRentalStats(rentalId, {
+    query: {
+      enabled: !!rentalId && rental?.status === 'active',
+      refetchInterval: 30000,
       queryKey: getGetRentalStatsQueryKey(rentalId),
     },
   });
@@ -92,7 +102,7 @@ export default function RentalCockpit() {
   if (!rental) return <div className="p-8 text-center font-mono text-destructive">RENTAL_NOT_FOUND</div>;
 
   const totalSeconds = rental.hours * 3600;
-  const elapsedPercent = stats ? ((totalSeconds - stats.secondsRemaining) / totalSeconds) * 100 : 0;
+  const elapsedPercent = live ? ((totalSeconds - live.secondsRemaining) / totalSeconds) * 100 : 0;
 
   return (
     <div className="container py-8 px-4 max-w-5xl mx-auto space-y-6">
@@ -168,52 +178,52 @@ export default function RentalCockpit() {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Activity className="w-4 h-4 text-primary" /> Live Telemetry
-                {rental.status === 'active' && stats && (
+                {rental.status === 'active' && live && (
                   <div className="flex items-center gap-2 ml-auto">
-                    <ConnectionBadge connected={stats.minerConnected} label="MINER" />
+                    <ConnectionBadge connected={live.minerConnected} label="MINER" />
                     <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                    <ConnectionBadge connected={stats.upstreamConnected} label="POOL" />
+                    <ConnectionBadge connected={live.upstreamConnected} label="POOL" />
                   </div>
                 )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {rental.status === 'active' && stats?.message && !stats.minerConnected ? (
+              {rental.status === 'active' && live && !live.minerConnected ? (
                  <div className="text-center py-12 flex flex-col items-center justify-center border border-dashed border-border/50 rounded-lg bg-muted/10">
                     <Activity className="w-8 h-8 text-primary animate-pulse mb-4" />
-                    <p className="font-mono text-sm text-primary uppercase">{stats.message}</p>
-                    <p className="text-xs text-muted-foreground mt-2">Point your rig at the proxy URL shown on the right. Polling every 5s.</p>
+                    <p className="font-mono text-sm text-primary uppercase">AWAITING_MINER — point your rig at the proxy URL shown on the right.</p>
+                    <p className="text-xs text-muted-foreground mt-2">Polling every 5s.</p>
                  </div>
-              ) : rental.status === 'active' && stats && stats.minerConnected && !stats.upstreamConnected ? (
+              ) : rental.status === 'active' && live && live.minerConnected && !live.upstreamConnected ? (
                 <div className="text-center py-12 flex flex-col items-center justify-center border border-dashed border-border/50 rounded-lg bg-muted/10">
                   <Wifi className="w-8 h-8 text-yellow-500 animate-pulse mb-4" />
                   <p className="font-mono text-sm text-yellow-500 uppercase">MINER_CONNECTED — ESTABLISHING POOL LINK</p>
                   <p className="text-xs text-muted-foreground mt-2">Proxy is connecting to your destination pool. Hash will start flowing shortly.</p>
                 </div>
-              ) : rental.status === 'active' && stats ? (
+              ) : rental.status === 'active' && live ? (
                 <div className="space-y-6">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">Current Hashrate</span>
-                      <span className="font-mono text-lg font-bold text-primary">{formatHashrate(stats.currentHashrate, rental.algorithmUnit)}</span>
+                      <span className="font-mono text-lg font-bold text-primary">{formatHashrate(live.currentHashrate, rental.algorithmUnit)}</span>
                     </div>
                     <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">Avg Hashrate</span>
-                      <span className="font-mono text-lg font-bold">{formatHashrate(stats.averageHashrate, rental.algorithmUnit)}</span>
+                      <span className="font-mono text-lg font-bold">{stats ? formatHashrate(stats.averageHashrate, rental.algorithmUnit) : '—'}</span>
                     </div>
                     <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">Delivery Ratio</span>
-                      <span className={`font-mono text-lg font-bold ${stats.deliveryRatio >= 0.95 ? 'text-green-500' : stats.deliveryRatio >= 0.8 ? 'text-yellow-500' : 'text-destructive'}`}>
-                        {(stats.deliveryRatio * 100).toFixed(1)}%
+                      <span className={`font-mono text-lg font-bold ${live.deliveryRatio >= 0.95 ? 'text-green-500' : live.deliveryRatio >= 0.8 ? 'text-yellow-500' : 'text-destructive'}`}>
+                        {(live.deliveryRatio * 100).toFixed(1)}%
                       </span>
                     </div>
                     <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">Shares (A/R)</span>
-                      <span className="font-mono text-lg font-bold"><span className="text-green-500">{stats.sharesAccepted}</span> / <span className="text-destructive">{stats.sharesRejected}</span></span>
+                      <span className="font-mono text-lg font-bold"><span className="text-green-500">{live.sharesAccepted}</span> / <span className="text-destructive">{live.sharesRejected}</span></span>
                     </div>
                   </div>
 
-                  {stats.samples.length > 1 && (
+                  {stats && stats.samples.length > 1 && (
                     <div className="flex items-end gap-0.5 h-16 bg-background/30 rounded-md border border-border/30 px-3 py-2">
                       {stats.samples.map((s, i) => {
                         const max = Math.max(...stats.samples.map((x) => x.hashrate), 1);
@@ -233,7 +243,7 @@ export default function RentalCockpit() {
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs font-mono text-muted-foreground">
                       <span>TIME_ELAPSED</span>
-                      <span>REMAINING: {formatSeconds(stats.secondsRemaining)}</span>
+                      <span>REMAINING: {formatSeconds(live?.secondsRemaining ?? 0)}</span>
                     </div>
                     <Progress value={Math.min(100, Math.max(0, elapsedPercent))} className="h-2" />
                   </div>

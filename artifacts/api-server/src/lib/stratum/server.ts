@@ -94,21 +94,21 @@ export class StratumServer {
           effectiveHashrateH: String(effectiveHashrateH),
         });
 
-        if (snapshot.sharesAccepted > 0) {
-          const algUnit = await this._getAlgUnit(snapshot.rentalId);
-          const multiplier = unitMultiplier(algUnit);
-          await db
-            .update(rentalsTable)
-            .set({
-              deliveredHashrateAvg: sql`(
-                SELECT AVG(effective_hashrate_h) / ${multiplier}
-                FROM rental_hash_samples
-                WHERE rental_id = ${snapshot.rentalId}
-                  AND sampled_at > NOW() - INTERVAL '3 hours'
-              )`,
-            })
-            .where(eq(rentalsTable.id, snapshot.rentalId));
-        }
+        // Always update deliveredHashrateAvg — including zero-share windows
+        // so stale highs from a previous active period are corrected downward.
+        const algUnit = await this._getAlgUnit(snapshot.rentalId);
+        const multiplier = unitMultiplier(algUnit);
+        await db
+          .update(rentalsTable)
+          .set({
+            deliveredHashrateAvg: sql`(
+              SELECT AVG(effective_hashrate_h) / ${multiplier}
+              FROM rental_hash_samples
+              WHERE rental_id = ${snapshot.rentalId}
+                AND sampled_at > NOW() - INTERVAL '3 hours'
+            )`,
+          })
+          .where(eq(rentalsTable.id, snapshot.rentalId));
 
         await this._checkLowDelivery(snapshot.rentalId);
       } catch (err) {

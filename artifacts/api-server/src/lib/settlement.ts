@@ -7,6 +7,7 @@ import {
   walletTransactionsTable,
 } from "@workspace/db";
 import { round6, toNum, toUsdString } from "./money";
+import { proxyState } from "./stratum/state";
 
 /**
  * Settle any active rentals whose `endsAt` has passed.
@@ -24,7 +25,7 @@ export async function settleExpiredRentals(): Promise<number> {
   const now = new Date();
 
   const expired = await db
-    .select({ id: rentalsTable.id })
+    .select({ id: rentalsTable.id, rigId: rentalsTable.rigId })
     .from(rentalsTable)
     .where(
       and(
@@ -37,7 +38,7 @@ export async function settleExpiredRentals(): Promise<number> {
 
   let settled = 0;
 
-  for (const { id } of expired) {
+  for (const { id, rigId } of expired) {
     const ok = await db.transaction(async (tx) => {
       // Re-check inside the transaction — only the first concurrent caller wins.
       const [claimed] = await tx
@@ -124,6 +125,9 @@ export async function settleExpiredRentals(): Promise<number> {
     });
 
     if (ok) settled++;
+
+    // Tear down any live proxy routing now that the rental is done.
+    proxyState.getRigSession(rigId)?.deactivateRental();
   }
 
   return settled;

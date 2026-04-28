@@ -678,6 +678,11 @@ export const GetRentalLiveResponse = zod
       .describe(
         "Effective hashrate in H\/s computed from shares in the current flush window",
       ),
+    currentHashrate: zod
+      .number()
+      .describe(
+        "currentHashrateH converted to algorithm units (TH\/s, MH\/s etc.) — use this for display",
+      ),
     sharesAccepted: zod.number(),
     sharesRejected: zod.number(),
     currentDifficulty: zod.number(),
