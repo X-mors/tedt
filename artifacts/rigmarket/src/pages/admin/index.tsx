@@ -7,6 +7,7 @@ import {
   useListAdminWithdrawals,
   useApproveWithdrawal,
   useRejectWithdrawal,
+  useMarkWithdrawalSent,
   useUpdateCommissionConfig,
   useAdminCreditWallet,
   useListAdminRigs,
@@ -20,6 +21,7 @@ import {
   useDeleteAlgorithm,
   useGetAdminProxy,
   useAdminProxyDisconnectRig,
+  useListUnmatchedDeposits,
   getGetAdminStatsQueryKey,
   getListAdminWithdrawalsQueryKey,
   getListAdminUsersQueryKey,
@@ -40,7 +42,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { Shield, Check, X, Trash2 } from "lucide-react";
+import { Shield, Check, X, Trash2, Send } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format } from "date-fns";
 
 export default function AdminDashboard() {
@@ -94,6 +97,8 @@ export default function AdminDashboard() {
 
   const approveWithdrawal = useApproveWithdrawal();
   const rejectWithdrawal = useRejectWithdrawal();
+  const markWithdrawalSent = useMarkWithdrawalSent();
+  const { data: unmatchedDeposits, isLoading: unmatchedLoading } = useListUnmatchedDeposits();
   const updateConfig = useUpdateCommissionConfig();
   const creditWallet = useAdminCreditWallet();
   const approveRig = useApproveRig();
@@ -116,6 +121,23 @@ export default function AdminDashboard() {
 
   const [editAlgoId, setEditAlgoId] = useState<number | null>(null);
   const [editAlgoPrice, setEditAlgoPrice] = useState("");
+
+  const [markSentId, setMarkSentId] = useState<number | null>(null);
+  const [markSentTxid, setMarkSentTxid] = useState("");
+
+  const handleMarkSent = () => {
+    if (!markSentId || markSentTxid.trim().length < 4) return;
+    markWithdrawalSent.mutate({ id: markSentId, data: { onChainTxid: markSentTxid.trim() } }, {
+      onSuccess: () => {
+        toast({ title: "Withdrawal Marked Sent", description: `Txid recorded: ${markSentTxid.slice(0, 16)}…` });
+        setMarkSentId(null);
+        setMarkSentTxid("");
+        queryClient.invalidateQueries({ queryKey: getListAdminWithdrawalsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetAdminStatsQueryKey() });
+      },
+      onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    });
+  };
 
   const handleUpdateConfig = () => {
     updateConfig.mutate({
@@ -367,6 +389,9 @@ export default function AdminDashboard() {
             Pending Rigs {pendingRigs && pendingRigs.length > 0 && <span className="ml-2 bg-yellow-500/20 text-yellow-500 px-1.5 rounded">{pendingRigs.length}</span>}
           </TabsTrigger>
           <TabsTrigger value="withdrawals" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">Withdrawals</TabsTrigger>
+          <TabsTrigger value="unmatched" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">
+            Unmatched Deposits {unmatchedDeposits && unmatchedDeposits.length > 0 && <span className="ml-2 bg-destructive/20 text-destructive px-1.5 rounded">{unmatchedDeposits.length}</span>}
+          </TabsTrigger>
           <TabsTrigger value="rentals" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">All Rentals</TabsTrigger>
           <TabsTrigger value="ledger" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">Ledger</TabsTrigger>
           <TabsTrigger value="users" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">Users</TabsTrigger>
@@ -421,6 +446,33 @@ export default function AdminDashboard() {
         </TabsContent>
 
         <TabsContent value="withdrawals" className="pt-6">
+          <Dialog open={markSentId !== null} onOpenChange={(open) => { if (!open) { setMarkSentId(null); setMarkSentTxid(""); } }}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Mark Withdrawal as Sent</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <p className="text-sm text-muted-foreground">Enter the on-chain transaction ID after sending the crypto to the user.</p>
+                <div className="space-y-2">
+                  <Label>On-Chain Txid</Label>
+                  <Input
+                    className="font-mono text-xs"
+                    placeholder="Paste transaction ID here..."
+                    value={markSentTxid}
+                    onChange={(e) => setMarkSentTxid(e.target.value)}
+                  />
+                </div>
+                <Button
+                  onClick={handleMarkSent}
+                  disabled={markWithdrawalSent.isPending || markSentTxid.trim().length < 4}
+                  className="w-full font-mono"
+                >
+                  {markWithdrawalSent.isPending ? "SAVING..." : "CONFIRM_SENT"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <Card className="bg-card/50 border-border/50">
             <CardContent className="p-0">
               <Table>
@@ -443,27 +495,66 @@ export default function AdminDashboard() {
                     <TableRow key={wr.id}>
                       <TableCell className="font-mono text-xs text-muted-foreground">{format(new Date(wr.createdAt), "MMM d HH:mm")}</TableCell>
                       <TableCell className="text-sm font-medium">{wr.userDisplayName}</TableCell>
-                      <TableCell className="font-mono text-xs">
+                      <TableCell className="font-mono text-xs max-w-[160px] truncate" title={wr.destinationAddress}>
                         <span className="text-primary mr-2">{wr.asset}</span>
                         {wr.destinationAddress}
                       </TableCell>
                       <TableCell className="text-right font-mono font-bold">{formatMoney(wr.amountUsd)}</TableCell>
                       <TableCell className="text-right">
                          <Badge variant="outline" className={`font-mono text-[10px] uppercase
-                          ${wr.status === 'approved' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                          ${wr.status === 'sent' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                            wr.status === 'approved' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
                             wr.status === 'rejected' ? 'bg-destructive/10 text-destructive border-destructive/20' :
                             'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'}`}>
                           {wr.status}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        {wr.status === 'pending' && (
+                        {(wr.status === 'pending' || wr.status === 'approved') && (
                           <div className="flex justify-end gap-2">
-                            <Button size="icon" variant="outline" className="h-7 w-7 text-green-500 hover:text-green-600 hover:bg-green-500/10" onClick={() => handleApprove(wr.id)} disabled={approveWithdrawal.isPending}><Check className="w-4 h-4" /></Button>
+                            <Button size="icon" variant="outline" className="h-7 w-7 text-green-500 hover:text-green-600 hover:bg-green-500/10" title="Mark Sent" onClick={() => setMarkSentId(wr.id)} disabled={markWithdrawalSent.isPending}><Send className="w-3.5 h-3.5" /></Button>
                             <Button size="icon" variant="outline" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleReject(wr.id)} disabled={rejectWithdrawal.isPending}><X className="w-4 h-4" /></Button>
                           </div>
                         )}
                       </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="unmatched" className="pt-6">
+          <div className="mb-4 p-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10">
+            <p className="text-sm text-yellow-500 font-mono">These deposits arrived on-chain but could not be matched to a user. Review manually and credit via the wallet credit tool if needed.</p>
+          </div>
+          <Card className="bg-card/50 border-border/50">
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow>
+                    <TableHead className="font-mono text-xs">DETECTED</TableHead>
+                    <TableHead className="font-mono text-xs">CURRENCY</TableHead>
+                    <TableHead className="font-mono text-xs">AMOUNT</TableHead>
+                    <TableHead className="font-mono text-xs">USD_VALUE</TableHead>
+                    <TableHead className="font-mono text-xs">PAYMENT_ID</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {unmatchedLoading ? (
+                    <TableRow><TableCell colSpan={5} className="text-center py-8">LOADING...</TableCell></TableRow>
+                  ) : !unmatchedDeposits || unmatchedDeposits.length === 0 ? (
+                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No unmatched deposits.</TableCell></TableRow>
+                  ) : unmatchedDeposits.map(d => (
+                    <TableRow key={d.id}>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{format(new Date(d.detectedAt), "MMM d HH:mm")}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-mono text-[10px] uppercase">{d.currency}</Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">{Number(d.amountCrypto).toFixed(8)}</TableCell>
+                      <TableCell className="font-mono">{d.amountUsd != null ? formatMoney(d.amountUsd) : "—"}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground max-w-[200px] truncate" title={d.processorPaymentId ?? ""}>{d.processorPaymentId ?? "—"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

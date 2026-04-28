@@ -555,32 +555,70 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /me/wallet/deposit-addresses:
+    get:
+      operationId: getDepositAddresses
+      tags: [wallet]
+      summary: Get or provision per-currency deposit addresses for the current user
+      responses:
+        "200":
+          description: Deposit addresses for BTC and USDT-TRC20
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DepositAddressesResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /me/wallet/deposits:
+    get:
+      operationId: listMyDeposits
+      tags: [wallet]
+      summary: List the current user's on-chain crypto deposits
+      responses:
+        "200":
+          description: Crypto deposits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CryptoDepositItem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
     post:
       operationId: createDeposit
       tags: [wallet]
-      summary: "Placeholder — crypto deposit rails not yet active (Task #3)"
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateDepositBody"
+      summary: "Deprecated — use GET /me/wallet/deposit-addresses instead"
       responses:
-        "503":
-          description: Deposits not yet active — placeholder endpoint
+        "410":
+          description: Endpoint replaced
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /wallet/webhook/nowpayments:
+    post:
+      operationId: nowpaymentsWebhook
+      tags: [wallet]
+      summary: NOWPayments IPN webhook — receives payment status updates
+      description: Public endpoint (no auth). Verifies HMAC-SHA512 signature from x-nowpayments-sig header.
+      responses:
+        "200":
+          description: Accepted
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  error:
-                    type: string
-                  message:
-                    type: string
-                required: [error, message]
-        "401":
-          $ref: "#/components/responses/Unauthorized"
+                  ok:
+                    type: boolean
+                required: [ok]
+        "400":
+          $ref: "#/components/responses/BadRequest"
 
   /me/wallet/withdrawals:
     get:
@@ -1090,6 +1128,52 @@ paths:
                 $ref: "#/components/schemas/WithdrawalRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/withdrawals/{id}/mark-sent:
+    post:
+      operationId: markWithdrawalSent
+      tags: [admin]
+      summary: Record the on-chain txid for a processed withdrawal and transition it to sent
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarkWithdrawalSentBody"
+      responses:
+        "200":
+          description: Withdrawal marked sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WithdrawalRequest"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/deposits/unmatched:
+    get:
+      operationId: listUnmatchedDeposits
+      tags: [admin]
+      summary: List on-chain deposits that arrived with no matching user
+      responses:
+        "200":
+          description: Unmatched deposits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UnmatchedDepositItem"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -2033,7 +2117,7 @@ components:
 
     WithdrawalStatus:
       type: string
-      enum: [pending, approved, rejected]
+      enum: [pending, approved, sent, rejected]
 
     WithdrawalRequest:
       type: object
@@ -2052,10 +2136,15 @@ components:
           $ref: "#/components/schemas/WithdrawalStatus"
         adminNote:
           type: ["string", "null"]
+        onChainTxid:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
         decidedAt:
+          type: ["string", "null"]
+          format: date-time
+        sentAt:
           type: ["string", "null"]
           format: date-time
       required:
@@ -2066,8 +2155,138 @@ components:
         - amountUsd
         - status
         - adminNote
+        - onChainTxid
         - createdAt
         - decidedAt
+        - sentAt
+
+    MarkWithdrawalSentBody:
+      type: object
+      properties:
+        onChainTxid:
+          type: string
+          minLength: 4
+      required: [onChainTxid]
+
+    DepositAddressItem:
+      type: object
+      properties:
+        currency:
+          type: string
+          enum: [btc, usdt_trc20]
+        address:
+          type: string
+        processorPaymentId:
+          type: ["string", "null"]
+        expiresAt:
+          type: ["string", "null"]
+          format: date-time
+        minDepositUsd:
+          type: number
+        requiredConfirmations:
+          type: integer
+        network:
+          type: string
+        ready:
+          type: boolean
+      required:
+        - currency
+        - address
+        - processorPaymentId
+        - expiresAt
+        - minDepositUsd
+        - requiredConfirmations
+        - network
+        - ready
+
+    DepositAddressesResponse:
+      type: object
+      properties:
+        addresses:
+          type: array
+          items:
+            $ref: "#/components/schemas/DepositAddressItem"
+        processorConfigured:
+          type: boolean
+      required: [addresses, processorConfigured]
+
+    CryptoDepositStatus:
+      type: string
+      enum: [pending, confirming, credited, failed, unmatched]
+
+    CryptoDepositItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        currency:
+          type: string
+          enum: [btc, usdt_trc20]
+        amountCrypto:
+          type: string
+        amountUsd:
+          type: ["number", "null"]
+        exchangeRate:
+          type: ["number", "null"]
+        txid:
+          type: ["string", "null"]
+        status:
+          $ref: "#/components/schemas/CryptoDepositStatus"
+        confirmations:
+          type: integer
+        requiredConfirmations:
+          type: integer
+        detectedAt:
+          type: string
+          format: date-time
+        creditedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - id
+        - currency
+        - amountCrypto
+        - amountUsd
+        - exchangeRate
+        - txid
+        - status
+        - confirmations
+        - requiredConfirmations
+        - detectedAt
+        - creditedAt
+
+    UnmatchedDepositItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        currency:
+          type: string
+        amountCrypto:
+          type: string
+        amountUsd:
+          type: ["number", "null"]
+        txid:
+          type: ["string", "null"]
+        processorPaymentId:
+          type: ["string", "null"]
+        status:
+          type: string
+        detectedAt:
+          type: string
+          format: date-time
+        processorData:
+          type: ["string", "null"]
+      required:
+        - id
+        - currency
+        - amountCrypto
+        - amountUsd
+        - txid
+        - processorPaymentId
+        - status
+        - detectedAt
+        - processorData
 
     CreateWithdrawalBody:
       type: object

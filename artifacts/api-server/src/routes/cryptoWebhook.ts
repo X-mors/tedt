@@ -98,11 +98,6 @@ router.post(
 
     if (npStatus === "finished" && actuallyPaid > 0 && userId) {
       if (existingDeposit) {
-        if (existingDeposit.status === "credited") {
-          res.json({ ok: true });
-          return;
-        }
-
         const amountUsd = await cryptoToUsd(actuallyPaid, currency);
         const rate = actuallyPaid > 0 ? amountUsd / actuallyPaid : 0;
         const amountUsdStr = toUsdString(amountUsd);

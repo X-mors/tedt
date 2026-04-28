@@ -9,6 +9,7 @@ import {
   walletTransactionsTable,
   withdrawalsTable,
   commissionConfigTable,
+  cryptoDepositsTable,
 } from "@workspace/db";
 import { proxyState } from "../lib/stratum/state";
 import {
@@ -874,6 +875,73 @@ router.post("/admin/withdrawals/:id/reject", async (req, res) => {
     decidedAt: result.decidedAt ? result.decidedAt.toISOString() : null,
   });
   res.json(data);
+});
+
+router.get("/admin/deposits/unmatched", async (_req, res) => {
+  const rows = await db
+    .select()
+    .from(cryptoDepositsTable)
+    .where(eq(cryptoDepositsTable.status, "unmatched"))
+    .orderBy(desc(cryptoDepositsTable.detectedAt));
+
+  res.json(
+    rows.map((d) => ({
+      id: d.id,
+      currency: d.currency,
+      amountCrypto: d.amountCrypto,
+      amountUsd: d.amountUsd ? toNum(d.amountUsd) : null,
+      txid: d.txid,
+      processorPaymentId: d.processorPaymentId,
+      status: d.status,
+      detectedAt: d.detectedAt.toISOString(),
+      processorData: d.processorData,
+    })),
+  );
+});
+
+router.post("/admin/withdrawals/:id/mark-sent", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const { onChainTxid } = (req.body ?? {}) as { onChainTxid?: string };
+  if (!onChainTxid || typeof onChainTxid !== "string" || onChainTxid.trim().length < 4) {
+    res.status(400).json({ error: "onChainTxid is required (min 4 characters)" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(withdrawalsTable)
+    .set({
+      status: "sent",
+      onChainTxid: onChainTxid.trim(),
+      sentAt: new Date(),
+      decidedAt: new Date(),
+    })
+    .where(
+      sql`${withdrawalsTable.id} = ${id} AND ${withdrawalsTable.status} IN ('pending', 'approved')`,
+    )
+    .returning();
+
+  if (!updated) {
+    res.status(400).json({ error: "Withdrawal not found or already sent/rejected" });
+    return;
+  }
+
+  res.json({
+    id: updated.id,
+    userId: updated.userId,
+    asset: updated.asset,
+    destinationAddress: updated.destinationAddress,
+    amountUsd: toNum(updated.amountUsd),
+    status: updated.status,
+    adminNote: updated.adminNote,
+    onChainTxid: updated.onChainTxid,
+    createdAt: updated.createdAt.toISOString(),
+    decidedAt: updated.decidedAt ? updated.decidedAt.toISOString() : null,
+    sentAt: updated.sentAt ? updated.sentAt.toISOString() : null,
+  });
 });
 
 router.get("/admin/proxy", (req, res) => {

@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { seedDatabase } from "./lib/seed";
 import { StratumServer } from "./lib/stratum/server";
 import { backfillRigTokens } from "./lib/backfill";
+import { startDepositWorker } from "./lib/depositWorker";
 
 const rawPort = process.env["PORT"];
 
@@ -25,6 +26,7 @@ seedDatabase()
   .then(() => backfillRigTokens())
   .then(() => {
     stratumServer.start();
+    startDepositWorker();
 
     app.listen(port, (err) => {
       if (err) {

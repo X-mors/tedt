@@ -8,6 +8,7 @@ import rentalsRouter from "./rentals";
 import walletRouter from "./wallet";
 import adminRouter from "./admin";
 import dashboardRouter from "./dashboard";
+import cryptoWebhookRouter from "./cryptoWebhook";
 
 const router: IRouter = Router();
 
@@ -20,6 +21,7 @@ router.use(rentalsRouter);
 router.use(walletRouter);
 router.use(adminRouter);
 router.use(dashboardRouter);
+router.use(cryptoWebhookRouter);
 
 // Translate Zod validation errors into 400s and other thrown errors into 500s.
 router.use((err: unknown, req: import("express").Request, res: import("express").Response, _next: import("express").NextFunction) => {

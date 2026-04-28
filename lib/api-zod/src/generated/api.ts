@@ -813,16 +813,54 @@ export const GetMyWalletResponse = zod.object({
 });
 
 /**
- * @summary Placeholder — crypto deposit rails not yet active (Task #3)
+ * @summary Get or provision per-currency deposit addresses for the current user
  */
-export const createDepositBodyAmountUsdExclusiveMin = 0;
+export const GetDepositAddressesResponse = zod.object({
+  addresses: zod.array(
+    zod.object({
+      currency: zod.enum(["btc", "usdt_trc20"]),
+      address: zod.string(),
+      processorPaymentId: zod.string().nullable(),
+      expiresAt: zod.coerce.date().nullable(),
+      minDepositUsd: zod.number(),
+      requiredConfirmations: zod.number(),
+      network: zod.string(),
+      ready: zod.boolean(),
+    }),
+  ),
+  processorConfigured: zod.boolean(),
+});
 
-export const CreateDepositBody = zod.object({
-  asset: zod.enum(["BTC", "USDT"]),
-  amountUsd: zod
-    .number()
-    .gt(createDepositBodyAmountUsdExclusiveMin)
-    .describe("Approximate USD value the user intends to deposit"),
+/**
+ * @summary List the current user's on-chain crypto deposits
+ */
+export const ListMyDepositsResponseItem = zod.object({
+  id: zod.number(),
+  currency: zod.enum(["btc", "usdt_trc20"]),
+  amountCrypto: zod.string(),
+  amountUsd: zod.number().nullable(),
+  exchangeRate: zod.number().nullable(),
+  txid: zod.string().nullable(),
+  status: zod.enum([
+    "pending",
+    "confirming",
+    "credited",
+    "failed",
+    "unmatched",
+  ]),
+  confirmations: zod.number(),
+  requiredConfirmations: zod.number(),
+  detectedAt: zod.coerce.date(),
+  creditedAt: zod.coerce.date().nullable(),
+});
+export const ListMyDepositsResponse = zod.array(ListMyDepositsResponseItem);
+
+/**
+ * Public endpoint (no auth). Verifies HMAC-SHA512 signature from x-nowpayments-sig header.
+ * @summary NOWPayments IPN webhook — receives payment status updates
+ */
+export const NowpaymentsWebhookResponse = zod.object({
+  ok: zod.boolean(),
 });
 
 /**
@@ -834,10 +872,12 @@ export const ListMyWithdrawalsResponseItem = zod.object({
   asset: zod.enum(["BTC", "USDT"]),
   destinationAddress: zod.string(),
   amountUsd: zod.number(),
-  status: zod.enum(["pending", "approved", "rejected"]),
+  status: zod.enum(["pending", "approved", "sent", "rejected"]),
   adminNote: zod.string().nullable(),
+  onChainTxid: zod.string().nullable(),
   createdAt: zod.coerce.date(),
   decidedAt: zod.coerce.date().nullable(),
+  sentAt: zod.coerce.date().nullable(),
 });
 export const ListMyWithdrawalsResponse = zod.array(
   ListMyWithdrawalsResponseItem,
@@ -1348,7 +1388,7 @@ export const ListAdminWithdrawalsResponseItem = zod.object({
   asset: zod.enum(["BTC", "USDT"]),
   destinationAddress: zod.string(),
   amountUsd: zod.number(),
-  status: zod.enum(["pending", "approved", "rejected"]),
+  status: zod.enum(["pending", "approved", "sent", "rejected"]),
   createdAt: zod.coerce.date(),
 });
 export const ListAdminWithdrawalsResponse = zod.array(
@@ -1372,10 +1412,12 @@ export const ApproveWithdrawalResponse = zod.object({
   asset: zod.enum(["BTC", "USDT"]),
   destinationAddress: zod.string(),
   amountUsd: zod.number(),
-  status: zod.enum(["pending", "approved", "rejected"]),
+  status: zod.enum(["pending", "approved", "sent", "rejected"]),
   adminNote: zod.string().nullable(),
+  onChainTxid: zod.string().nullable(),
   createdAt: zod.coerce.date(),
   decidedAt: zod.coerce.date().nullable(),
+  sentAt: zod.coerce.date().nullable(),
 });
 
 /**
@@ -1395,8 +1437,55 @@ export const RejectWithdrawalResponse = zod.object({
   asset: zod.enum(["BTC", "USDT"]),
   destinationAddress: zod.string(),
   amountUsd: zod.number(),
-  status: zod.enum(["pending", "approved", "rejected"]),
+  status: zod.enum(["pending", "approved", "sent", "rejected"]),
   adminNote: zod.string().nullable(),
+  onChainTxid: zod.string().nullable(),
   createdAt: zod.coerce.date(),
   decidedAt: zod.coerce.date().nullable(),
+  sentAt: zod.coerce.date().nullable(),
 });
+
+/**
+ * @summary Record the on-chain txid for a processed withdrawal and transition it to sent
+ */
+export const MarkWithdrawalSentParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const markWithdrawalSentBodyOnChainTxidMin = 4;
+
+export const MarkWithdrawalSentBody = zod.object({
+  onChainTxid: zod.string().min(markWithdrawalSentBodyOnChainTxidMin),
+});
+
+export const MarkWithdrawalSentResponse = zod.object({
+  id: zod.number(),
+  userId: zod.number(),
+  asset: zod.enum(["BTC", "USDT"]),
+  destinationAddress: zod.string(),
+  amountUsd: zod.number(),
+  status: zod.enum(["pending", "approved", "sent", "rejected"]),
+  adminNote: zod.string().nullable(),
+  onChainTxid: zod.string().nullable(),
+  createdAt: zod.coerce.date(),
+  decidedAt: zod.coerce.date().nullable(),
+  sentAt: zod.coerce.date().nullable(),
+});
+
+/**
+ * @summary List on-chain deposits that arrived with no matching user
+ */
+export const ListUnmatchedDepositsResponseItem = zod.object({
+  id: zod.number(),
+  currency: zod.string(),
+  amountCrypto: zod.string(),
+  amountUsd: zod.number().nullable(),
+  txid: zod.string().nullable(),
+  processorPaymentId: zod.string().nullable(),
+  status: zod.string(),
+  detectedAt: zod.coerce.date(),
+  processorData: zod.string().nullable(),
+});
+export const ListUnmatchedDepositsResponse = zod.array(
+  ListUnmatchedDepositsResponseItem,
+);

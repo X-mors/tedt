@@ -12,5 +12,6 @@ export type WithdrawalStatus =
 export const WithdrawalStatus = {
   pending: "pending",
   approved: "approved",
+  sent: "sent",
   rejected: "rejected",
 } as const;

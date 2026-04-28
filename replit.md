@@ -46,8 +46,13 @@ commissions (renter + owner) on every rental.
   (`deposit | withdrawal | rental_charge | rental_refund | rental_payout |
   admin_credit | admin_debit`)
 - **withdrawals** — user-requested payout (BTC / USDT) requiring admin
-  approval
-- **reviews** — renter feedback on a completed/cancelled rental
+  approval; extended with `onChainTxid`, `processorPaymentId`, `sentAt`;
+  statuses: `pending | approved | rejected | sent`
+- **depositAddresses** — one BTC + one USDT-TRC20 address per user,
+  generated via NOWPayments and cached forever (table has unique per userId+currency)
+- **cryptoDeposits** — per-payment deposit row tracked by the deposit worker
+  and IPN webhook; statuses: `pending | confirming | credited | failed | unmatched`
+- **reviews** — renter feedback on a completed/completed rental
 
 ## Pricing math
 
@@ -100,11 +105,15 @@ dashboard → "Stratum Proxy" tab.
 - `GET /api/me/rentals`, `GET /api/me/rentals/lessor`
 - `GET /api/me/wallet`, `POST /api/me/wallet/deposits`,
   `GET|POST /api/me/wallet/withdrawals`
+- Wallet crypto: `GET /api/me/wallet/deposit-addresses`,
+  `GET /api/me/wallet/deposits`
+- IPN webhook: `POST /api/webhooks/crypto` (NOWPayments IPN, HMAC-verified)
 - Admin: `GET /api/admin/stats`, `GET /api/admin/users`,
   `POST /api/admin/wallet/credit`, `GET|PATCH /api/admin/commission`,
   `POST|PATCH|DELETE /api/admin/algorithms`, withdrawals queue with
-  `approve` / `reject`, `GET /api/admin/proxy`,
-  `POST /api/admin/proxy/rigs/:rigId/disconnect`
+  `mark-sent` / `reject`, `GET /api/admin/deposits/unmatched`,
+  `POST /api/admin/withdrawals/:id/mark-sent`,
+  `GET /api/admin/proxy`, `POST /api/admin/proxy/rigs/:rigId/disconnect`
 - `GET /api/me`, `PATCH /api/me`, `POST /api/me/sync`
 
 ## Environment variables
@@ -117,6 +126,10 @@ dashboard → "Stratum Proxy" tab.
 - `STRATUM_PORT` (optional, default 3333) — TCP port for the Stratum proxy
 - `STRATUM_PROXY_HOST` (optional, default `proxy.rigmarket.dev`) — shown to
   rig owners as the proxy URL
+- `NOWPAYMENTS_API_KEY` (secret, required for crypto deposits) — NOWPayments
+  v1 API key; get from <https://account.nowpayments.io/api-keys>
+- `NOWPAYMENTS_IPN_SECRET` (secret, required for IPN verification) — the
+  IPN secret configured in your NOWPayments account settings
 
 ## Seeding
 
@@ -125,13 +138,6 @@ dashboard → "Stratum Proxy" tab.
 Seeds 5 algorithms (SHA-256, Scrypt, Ethash, RandomX, kHeavyHash), the
 default 3% / 5% commission row, and 5 demo rigs across two seed owners
 (only when those tables are empty).
-
-## Outstanding work (next tasks)
-
-- **Crypto deposit watcher**: `POST /api/me/wallet/deposits` returns a
-  generated address; production needs an on-chain watcher (BTC
-  full-node/Electrum + USDT TRC-20 RPC) that credits the user's wallet
-  on confirmed transfers.
 
 ## Key Commands
 

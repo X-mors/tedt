@@ -17,7 +17,11 @@ export interface WithdrawalRequest {
   status: WithdrawalStatus;
   /** @nullable */
   adminNote: string | null;
+  /** @nullable */
+  onChainTxid: string | null;
   createdAt: Date;
   /** @nullable */
   decidedAt: Date | null;
+  /** @nullable */
+  sentAt: Date | null;
 }

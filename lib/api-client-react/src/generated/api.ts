@@ -33,12 +33,12 @@ import type {
   BadRequestResponse,
   CommissionConfig,
   CreateAlgorithmBody,
-  CreateDeposit503,
-  CreateDepositBody,
   CreateRentalBody,
   CreateReviewBody,
   CreateRigBody,
   CreateWithdrawalBody,
+  CryptoDepositItem,
+  DepositAddressesResponse,
   ErrorResponse,
   ForbiddenResponse,
   GetMarketplaceFeaturedParams,
@@ -46,9 +46,11 @@ import type {
   ListAdminRigsParams,
   ListAdminWalletTransactionsParams,
   ListRigsParams,
+  MarkWithdrawalSentBody,
   MarketplaceSummary,
   MeProfile,
   NotFoundResponse,
+  NowpaymentsWebhook200,
   OwnerDashboardSummary,
   ProxyStatus,
   RejectWithdrawalBody,
@@ -63,6 +65,7 @@ import type {
   RigDetail,
   RigSummary,
   UnauthorizedResponse,
+  UnmatchedDepositItem,
   UpdateAlgorithmBody,
   UpdateCommissionBody,
   UpdateMeBody,
@@ -2313,39 +2316,186 @@ export function useGetMyWallet<
 }
 
 /**
- * @summary Placeholder — crypto deposit rails not yet active (Task #3)
+ * @summary Get or provision per-currency deposit addresses for the current user
+ */
+export const getGetDepositAddressesUrl = () => {
+  return `/api/me/wallet/deposit-addresses`;
+};
+
+export const getDepositAddresses = async (
+  options?: RequestInit,
+): Promise<DepositAddressesResponse> => {
+  return customFetch<DepositAddressesResponse>(getGetDepositAddressesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetDepositAddressesQueryKey = () => {
+  return [`/api/me/wallet/deposit-addresses`] as const;
+};
+
+export const getGetDepositAddressesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDepositAddresses>>,
+  TError = ErrorType<UnauthorizedResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDepositAddresses>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetDepositAddressesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getDepositAddresses>>
+  > = ({ signal }) => getDepositAddresses({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDepositAddresses>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDepositAddressesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDepositAddresses>>
+>;
+export type GetDepositAddressesQueryError = ErrorType<UnauthorizedResponse>;
+
+/**
+ * @summary Get or provision per-currency deposit addresses for the current user
+ */
+
+export function useGetDepositAddresses<
+  TData = Awaited<ReturnType<typeof getDepositAddresses>>,
+  TError = ErrorType<UnauthorizedResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDepositAddresses>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDepositAddressesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List the current user's on-chain crypto deposits
+ */
+export const getListMyDepositsUrl = () => {
+  return `/api/me/wallet/deposits`;
+};
+
+export const listMyDeposits = async (
+  options?: RequestInit,
+): Promise<CryptoDepositItem[]> => {
+  return customFetch<CryptoDepositItem[]>(getListMyDepositsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListMyDepositsQueryKey = () => {
+  return [`/api/me/wallet/deposits`] as const;
+};
+
+export const getListMyDepositsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyDeposits>>,
+  TError = ErrorType<UnauthorizedResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMyDeposits>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMyDepositsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyDeposits>>> = ({
+    signal,
+  }) => listMyDeposits({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyDeposits>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListMyDepositsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyDeposits>>
+>;
+export type ListMyDepositsQueryError = ErrorType<UnauthorizedResponse>;
+
+/**
+ * @summary List the current user's on-chain crypto deposits
+ */
+
+export function useListMyDeposits<
+  TData = Awaited<ReturnType<typeof listMyDeposits>>,
+  TError = ErrorType<UnauthorizedResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMyDeposits>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListMyDepositsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Deprecated — use GET /me/wallet/deposit-addresses instead
  */
 export const getCreateDepositUrl = () => {
   return `/api/me/wallet/deposits`;
 };
 
 export const createDeposit = async (
-  createDepositBody?: CreateDepositBody,
   options?: RequestInit,
 ): Promise<unknown> => {
   return customFetch<unknown>(getCreateDepositUrl(), {
     ...options,
     method: "POST",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(createDepositBody),
   });
 };
 
 export const getCreateDepositMutationOptions = <
-  TError = ErrorType<UnauthorizedResponse | CreateDeposit503>,
+  TError = ErrorType<UnauthorizedResponse | ErrorResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createDeposit>>,
     TError,
-    { data: BodyType<CreateDepositBody> },
+    void,
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof createDeposit>>,
   TError,
-  { data: BodyType<CreateDepositBody> },
+  void,
   TContext
 > => {
   const mutationKey = ["createDeposit"];
@@ -2359,11 +2509,9 @@ export const getCreateDepositMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof createDeposit>>,
-    { data: BodyType<CreateDepositBody> }
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return createDeposit(data, requestOptions);
+    void
+  > = () => {
+    return createDeposit(requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2372,32 +2520,114 @@ export const getCreateDepositMutationOptions = <
 export type CreateDepositMutationResult = NonNullable<
   Awaited<ReturnType<typeof createDeposit>>
 >;
-export type CreateDepositMutationBody = BodyType<CreateDepositBody>;
+
 export type CreateDepositMutationError = ErrorType<
-  UnauthorizedResponse | CreateDeposit503
+  UnauthorizedResponse | ErrorResponse
 >;
 
 /**
- * @summary Placeholder — crypto deposit rails not yet active (Task #3)
+ * @summary Deprecated — use GET /me/wallet/deposit-addresses instead
  */
 export const useCreateDeposit = <
-  TError = ErrorType<UnauthorizedResponse | CreateDeposit503>,
+  TError = ErrorType<UnauthorizedResponse | ErrorResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createDeposit>>,
     TError,
-    { data: BodyType<CreateDepositBody> },
+    void,
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof createDeposit>>,
   TError,
-  { data: BodyType<CreateDepositBody> },
+  void,
   TContext
 > => {
   return useMutation(getCreateDepositMutationOptions(options));
+};
+
+/**
+ * Public endpoint (no auth). Verifies HMAC-SHA512 signature from x-nowpayments-sig header.
+ * @summary NOWPayments IPN webhook — receives payment status updates
+ */
+export const getNowpaymentsWebhookUrl = () => {
+  return `/api/wallet/webhook/nowpayments`;
+};
+
+export const nowpaymentsWebhook = async (
+  options?: RequestInit,
+): Promise<NowpaymentsWebhook200> => {
+  return customFetch<NowpaymentsWebhook200>(getNowpaymentsWebhookUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getNowpaymentsWebhookMutationOptions = <
+  TError = ErrorType<BadRequestResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof nowpaymentsWebhook>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof nowpaymentsWebhook>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["nowpaymentsWebhook"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof nowpaymentsWebhook>>,
+    void
+  > = () => {
+    return nowpaymentsWebhook(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type NowpaymentsWebhookMutationResult = NonNullable<
+  Awaited<ReturnType<typeof nowpaymentsWebhook>>
+>;
+
+export type NowpaymentsWebhookMutationError = ErrorType<BadRequestResponse>;
+
+/**
+ * @summary NOWPayments IPN webhook — receives payment status updates
+ */
+export const useNowpaymentsWebhook = <
+  TError = ErrorType<BadRequestResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof nowpaymentsWebhook>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof nowpaymentsWebhook>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getNowpaymentsWebhookMutationOptions(options));
 };
 
 /**
@@ -4392,3 +4622,173 @@ export const useRejectWithdrawal = <
 > => {
   return useMutation(getRejectWithdrawalMutationOptions(options));
 };
+
+/**
+ * @summary Record the on-chain txid for a processed withdrawal and transition it to sent
+ */
+export const getMarkWithdrawalSentUrl = (id: number) => {
+  return `/api/admin/withdrawals/${id}/mark-sent`;
+};
+
+export const markWithdrawalSent = async (
+  id: number,
+  markWithdrawalSentBody: MarkWithdrawalSentBody,
+  options?: RequestInit,
+): Promise<WithdrawalRequest> => {
+  return customFetch<WithdrawalRequest>(getMarkWithdrawalSentUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(markWithdrawalSentBody),
+  });
+};
+
+export const getMarkWithdrawalSentMutationOptions = <
+  TError = ErrorType<
+    BadRequestResponse | UnauthorizedResponse | ForbiddenResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markWithdrawalSent>>,
+    TError,
+    { id: number; data: BodyType<MarkWithdrawalSentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof markWithdrawalSent>>,
+  TError,
+  { id: number; data: BodyType<MarkWithdrawalSentBody> },
+  TContext
+> => {
+  const mutationKey = ["markWithdrawalSent"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof markWithdrawalSent>>,
+    { id: number; data: BodyType<MarkWithdrawalSentBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return markWithdrawalSent(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MarkWithdrawalSentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof markWithdrawalSent>>
+>;
+export type MarkWithdrawalSentMutationBody = BodyType<MarkWithdrawalSentBody>;
+export type MarkWithdrawalSentMutationError = ErrorType<
+  BadRequestResponse | UnauthorizedResponse | ForbiddenResponse
+>;
+
+/**
+ * @summary Record the on-chain txid for a processed withdrawal and transition it to sent
+ */
+export const useMarkWithdrawalSent = <
+  TError = ErrorType<
+    BadRequestResponse | UnauthorizedResponse | ForbiddenResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markWithdrawalSent>>,
+    TError,
+    { id: number; data: BodyType<MarkWithdrawalSentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof markWithdrawalSent>>,
+  TError,
+  { id: number; data: BodyType<MarkWithdrawalSentBody> },
+  TContext
+> => {
+  return useMutation(getMarkWithdrawalSentMutationOptions(options));
+};
+
+/**
+ * @summary List on-chain deposits that arrived with no matching user
+ */
+export const getListUnmatchedDepositsUrl = () => {
+  return `/api/admin/deposits/unmatched`;
+};
+
+export const listUnmatchedDeposits = async (
+  options?: RequestInit,
+): Promise<UnmatchedDepositItem[]> => {
+  return customFetch<UnmatchedDepositItem[]>(getListUnmatchedDepositsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListUnmatchedDepositsQueryKey = () => {
+  return [`/api/admin/deposits/unmatched`] as const;
+};
+
+export const getListUnmatchedDepositsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listUnmatchedDeposits>>,
+  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listUnmatchedDeposits>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListUnmatchedDepositsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listUnmatchedDeposits>>
+  > = ({ signal }) => listUnmatchedDeposits({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listUnmatchedDeposits>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListUnmatchedDepositsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listUnmatchedDeposits>>
+>;
+export type ListUnmatchedDepositsQueryError = ErrorType<
+  UnauthorizedResponse | ForbiddenResponse
+>;
+
+/**
+ * @summary List on-chain deposits that arrived with no matching user
+ */
+
+export function useListUnmatchedDeposits<
+  TData = Awaited<ReturnType<typeof listUnmatchedDeposits>>,
+  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listUnmatchedDeposits>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListUnmatchedDepositsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

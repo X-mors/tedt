@@ -491,6 +491,7 @@ export type WithdrawalStatus =
 export const WithdrawalStatus = {
   pending: "pending",
   approved: "approved",
+  sent: "sent",
   rejected: "rejected",
 } as const;
 
@@ -503,9 +504,97 @@ export interface WithdrawalRequest {
   status: WithdrawalStatus;
   /** @nullable */
   adminNote: string | null;
+  /** @nullable */
+  onChainTxid: string | null;
   createdAt: string;
   /** @nullable */
   decidedAt: string | null;
+  /** @nullable */
+  sentAt: string | null;
+}
+
+export interface MarkWithdrawalSentBody {
+  /** @minLength 4 */
+  onChainTxid: string;
+}
+
+export type DepositAddressItemCurrency =
+  (typeof DepositAddressItemCurrency)[keyof typeof DepositAddressItemCurrency];
+
+export const DepositAddressItemCurrency = {
+  btc: "btc",
+  usdt_trc20: "usdt_trc20",
+} as const;
+
+export interface DepositAddressItem {
+  currency: DepositAddressItemCurrency;
+  address: string;
+  /** @nullable */
+  processorPaymentId: string | null;
+  /** @nullable */
+  expiresAt: string | null;
+  minDepositUsd: number;
+  requiredConfirmations: number;
+  network: string;
+  ready: boolean;
+}
+
+export interface DepositAddressesResponse {
+  addresses: DepositAddressItem[];
+  processorConfigured: boolean;
+}
+
+export type CryptoDepositStatus =
+  (typeof CryptoDepositStatus)[keyof typeof CryptoDepositStatus];
+
+export const CryptoDepositStatus = {
+  pending: "pending",
+  confirming: "confirming",
+  credited: "credited",
+  failed: "failed",
+  unmatched: "unmatched",
+} as const;
+
+export type CryptoDepositItemCurrency =
+  (typeof CryptoDepositItemCurrency)[keyof typeof CryptoDepositItemCurrency];
+
+export const CryptoDepositItemCurrency = {
+  btc: "btc",
+  usdt_trc20: "usdt_trc20",
+} as const;
+
+export interface CryptoDepositItem {
+  id: number;
+  currency: CryptoDepositItemCurrency;
+  amountCrypto: string;
+  /** @nullable */
+  amountUsd: number | null;
+  /** @nullable */
+  exchangeRate: number | null;
+  /** @nullable */
+  txid: string | null;
+  status: CryptoDepositStatus;
+  confirmations: number;
+  requiredConfirmations: number;
+  detectedAt: string;
+  /** @nullable */
+  creditedAt: string | null;
+}
+
+export interface UnmatchedDepositItem {
+  id: number;
+  currency: string;
+  amountCrypto: string;
+  /** @nullable */
+  amountUsd: number | null;
+  /** @nullable */
+  txid: string | null;
+  /** @nullable */
+  processorPaymentId: string | null;
+  status: string;
+  detectedAt: string;
+  /** @nullable */
+  processorData: string | null;
 }
 
 export interface CreateWithdrawalBody {
@@ -807,9 +896,8 @@ export const ListRigsSort = {
   rating_desc: "rating_desc",
 } as const;
 
-export type CreateDeposit503 = {
-  error: string;
-  message: string;
+export type NowpaymentsWebhook200 = {
+  ok: boolean;
 };
 
 export type ListAdminRigsParams = {

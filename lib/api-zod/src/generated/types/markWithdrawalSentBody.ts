@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type CreateDeposit503 = {
-  error: string;
-  message: string;
-};
+export interface MarkWithdrawalSentBody {
+  /** @minLength 4 */
+  onChainTxid: string;
+}

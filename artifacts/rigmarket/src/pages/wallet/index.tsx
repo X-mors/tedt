@@ -1,6 +1,17 @@
 import { useState } from "react";
-import { useGetMyWallet, useCreateDeposit, useCreateWithdrawal, useListMyWithdrawals, getGetMyWalletQueryKey, getListMyWithdrawalsQueryKey } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { QRCodeSVG } from "qrcode.react";
+import {
+  useGetMyWallet,
+  useCreateWithdrawal,
+  useListMyWithdrawals,
+  useGetDepositAddresses,
+  useListMyDeposits,
+  getGetMyWalletQueryKey,
+  getListMyWithdrawalsQueryKey,
+  getGetDepositAddressesQueryKey,
+  getListMyDepositsQueryKey,
+} from "@workspace/api-client-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,9 +22,219 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { Wallet as WalletIcon, ArrowDownToLine, ArrowUpFromLine, Activity, History, Copy } from "lucide-react";
+import { Wallet as WalletIcon, ArrowUpFromLine, ArrowDownToLine, Copy, RefreshCw, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+
+type Asset = "BTC" | "USDT";
+
+function statusColor(status: string) {
+  switch (status) {
+    case "credited": return "bg-green-500/10 text-green-500 border-green-500/20";
+    case "confirming": return "bg-blue-500/10 text-blue-500 border-blue-500/20";
+    case "pending": return "bg-yellow-500/10 text-yellow-500 border-yellow-500/20";
+    case "failed":
+    case "unmatched": return "bg-destructive/10 text-destructive border-destructive/20";
+    default: return "bg-muted/50 text-muted-foreground";
+  }
+}
+
+function DepositSection() {
+  const { data, isLoading, refetch, isRefetching } = useGetDepositAddresses();
+  const { data: deposits, isLoading: depositsLoading } = useListMyDeposits();
+  const { toast } = useToast();
+  const [selectedCurrency, setSelectedCurrency] = useState<"btc" | "usdt_trc20">("usdt_trc20");
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copied", description: `${label} copied to clipboard.` });
+  };
+
+  const addresses = data?.addresses ?? [];
+  const processorConfigured = data?.processorConfigured ?? false;
+  const activeAddress = addresses.find((a) => a.currency === selectedCurrency);
+
+  return (
+    <div className="space-y-6">
+      {!processorConfigured && (
+        <div className="flex items-start gap-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4">
+          <AlertTriangle className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-yellow-500 font-mono text-sm">PROCESSOR_NOT_CONFIGURED</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              The crypto payment processor is not yet configured. Contact the site admin to enable deposits.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {processorConfigured && (
+        <Card className="bg-card/50 border-border/50">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <ArrowDownToLine className="w-4 h-4 text-primary" />
+                Deposit Address
+              </CardTitle>
+              <div className="flex gap-2">
+                <div className="flex rounded-md border border-border overflow-hidden">
+                  <button
+                    onClick={() => setSelectedCurrency("usdt_trc20")}
+                    className={`px-3 py-1.5 text-xs font-mono transition-colors ${
+                      selectedCurrency === "usdt_trc20"
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted/50"
+                    }`}
+                  >
+                    USDT-TRC20
+                  </button>
+                  <button
+                    onClick={() => setSelectedCurrency("btc")}
+                    className={`px-3 py-1.5 text-xs font-mono transition-colors border-l border-border ${
+                      selectedCurrency === "btc"
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted/50"
+                    }`}
+                  >
+                    BTC
+                  </button>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => refetch()}
+                  disabled={isRefetching}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="text-center py-8 text-muted-foreground font-mono text-sm">LOADING_ADDRESS...</div>
+            ) : !activeAddress?.ready ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-yellow-500" />
+                <p className="font-mono text-sm">Address provisioning failed. Try refreshing.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col md:flex-row gap-6 items-start">
+                <div className="shrink-0 rounded-lg border border-border p-3 bg-white">
+                  <QRCodeSVG
+                    value={activeAddress.address}
+                    size={160}
+                    level="M"
+                  />
+                </div>
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase font-semibold font-mono mb-1">
+                      {activeAddress.network} Address
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 font-mono text-xs bg-muted/50 border border-border rounded px-3 py-2 break-all">
+                        {activeAddress.address}
+                      </code>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9 shrink-0"
+                        onClick={() => copyToClipboard(activeAddress.address, "Address")}
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-md bg-muted/30 border border-border/50 p-3">
+                      <p className="text-xs text-muted-foreground font-mono uppercase mb-1">Minimum Deposit</p>
+                      <p className="font-mono font-semibold">${activeAddress.minDepositUsd}</p>
+                    </div>
+                    <div className="rounded-md bg-muted/30 border border-border/50 p-3">
+                      <p className="text-xs text-muted-foreground font-mono uppercase mb-1">Confirmations Required</p>
+                      <p className="font-mono font-semibold">{activeAddress.requiredConfirmations}</p>
+                    </div>
+                  </div>
+                  <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-3">
+                    <p className="text-xs text-blue-400 font-mono">
+                      Send only {activeAddress.currency === "btc" ? "BTC" : "USDT (TRC-20)"} to this address.
+                      Your balance will be credited in USD at the spot rate after {activeAddress.requiredConfirmations} confirmation{activeAddress.requiredConfirmations !== 1 ? "s" : ""}.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-mono text-sm uppercase tracking-wider text-muted-foreground">
+            Recent Deposits
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader className="bg-muted/50">
+              <TableRow>
+                <TableHead className="font-mono text-xs">TIME</TableHead>
+                <TableHead className="font-mono text-xs">CURRENCY</TableHead>
+                <TableHead className="font-mono text-xs">AMOUNT</TableHead>
+                <TableHead className="font-mono text-xs">STATUS</TableHead>
+                <TableHead className="font-mono text-xs text-right">USD_VALUE</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {depositsLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground font-mono text-sm">
+                    LOADING_DEPOSITS...
+                  </TableCell>
+                </TableRow>
+              ) : !deposits || deposits.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    No deposits yet.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                deposits.map((d) => (
+                  <TableRow key={d.id}>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {format(new Date(d.detectedAt), "MMM d HH:mm")}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="font-mono text-[10px] uppercase">
+                        {d.currency === "btc" ? "BTC" : "USDT-TRC20"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {Number(d.amountCrypto).toFixed(d.currency === "btc" ? 8 : 2)}
+                      <span className="text-muted-foreground ml-1">{d.currency === "btc" ? "BTC" : "USDT"}</span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={`font-mono text-[10px] uppercase ${statusColor(d.status)}`}>
+                        {d.status === "confirming"
+                          ? `confirming ${d.confirmations}/${d.requiredConfirmations}`
+                          : d.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {d.amountUsd != null ? formatMoney(d.amountUsd) : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 export default function Wallet() {
   const { data: wallet, isLoading: walletLoading } = useGetMyWallet();
@@ -21,24 +242,9 @@ export default function Wallet() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const createDeposit = useCreateDeposit();
   const createWithdrawal = useCreateWithdrawal();
 
-  type DepositAsset = "BTC" | "USDT";
-  type DepositInstructions = {
-    asset: DepositAsset;
-    depositAddress: string;
-    memo: string;
-    amountUsd: number;
-    note: string;
-  };
-
-  const [depositAsset, setDepositAsset] = useState<DepositAsset>("USDT");
-  const [depositAmount, setDepositAmount] = useState("");
-  const [depositInstructions, setDepositInstructions] =
-    useState<DepositInstructions | null>(null);
-
-  const [withdrawAsset, setWithdrawAsset] = useState<DepositAsset>("USDT");
+  const [withdrawAsset, setWithdrawAsset] = useState<Asset>("USDT");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawAddress, setWithdrawAddress] = useState("");
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -46,22 +252,6 @@ export default function Wallet() {
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: "Copied to clipboard", description: `${label} copied.` });
-  };
-
-  const handleDepositRequest = () => {
-    const amt = parseFloat(depositAmount);
-    if (!amt || amt <= 0) {
-      toast({ title: "Invalid amount", variant: "destructive" });
-      return;
-    }
-    createDeposit.mutate({ data: { asset: depositAsset, amountUsd: amt } }, {
-      onSuccess: (data) => {
-        setDepositInstructions(data as DepositInstructions);
-      },
-      onError: (err) => {
-        toast({ title: "Failed to generate address", description: err.message, variant: "destructive" });
-      }
-    });
   };
 
   const handleWithdrawRequest = () => {
@@ -135,21 +325,21 @@ export default function Wallet() {
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label>Asset</Label>
-                    <Select value={withdrawAsset} onValueChange={(v) => setWithdrawAsset(v as DepositAsset)}>
+                    <Select value={withdrawAsset} onValueChange={(v) => setWithdrawAsset(v as Asset)}>
                       <SelectTrigger className="font-mono">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="USDT">USDT (ERC20)</SelectItem>
+                        <SelectItem value="USDT">USDT (TRC-20)</SelectItem>
                         <SelectItem value="BTC">Bitcoin (BTC)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>Amount (USD Value)</Label>
-                    <Input 
-                      type="number" 
-                      className="font-mono" 
+                    <Input
+                      type="number"
+                      className="font-mono"
                       placeholder="e.g. 100.00"
                       value={withdrawAmount}
                       onChange={(e) => setWithdrawAmount(e.target.value)}
@@ -158,8 +348,8 @@ export default function Wallet() {
                   </div>
                   <div className="space-y-2">
                     <Label>Destination Address</Label>
-                    <Input 
-                      className="font-mono text-xs" 
+                    <Input
+                      className="font-mono text-xs"
                       placeholder="Enter destination address..."
                       value={withdrawAddress}
                       onChange={(e) => setWithdrawAddress(e.target.value)}
@@ -172,32 +362,6 @@ export default function Wallet() {
               </DialogContent>
             </Dialog>
 
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button className="w-full font-mono flex items-center justify-center gap-2 h-12 bg-primary text-primary-foreground hover:bg-primary/90">
-                  <ArrowDownToLine className="w-4 h-4" /> DEPOSIT_FUNDS
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Deposit Funds</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="bg-muted/40 border border-border rounded-lg p-4 space-y-3">
-                    <p className="text-sm font-semibold font-mono">COMING_SOON</p>
-                    <p className="text-sm text-muted-foreground">
-                      On-chain BTC and USDT deposits are not yet active. Crypto deposit rails
-                      will be enabled in an upcoming release. Once live, you will be able to
-                      send BTC or USDT to a unique deposit address and your USD balance will
-                      be credited automatically at the spot rate.
-                    </p>
-                    <p className="text-xs text-muted-foreground font-mono">
-                      In the meantime, contact support to have your balance credited manually.
-                    </p>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
             {wallet?.pendingWithdrawalsUsd ? (
               <div className="text-center text-sm font-mono text-muted-foreground pt-2">
                 Pending withdrawals: {formatMoney(wallet.pendingWithdrawalsUsd)}
@@ -207,12 +371,17 @@ export default function Wallet() {
         </Card>
       </div>
 
-      <Tabs defaultValue="transactions" className="w-full">
+      <Tabs defaultValue="deposit" className="w-full">
         <TabsList className="bg-muted/50 w-full justify-start border-b rounded-none px-0 h-auto">
+          <TabsTrigger value="deposit" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">Deposit</TabsTrigger>
           <TabsTrigger value="transactions" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">Ledger</TabsTrigger>
           <TabsTrigger value="withdrawals" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">Withdrawal Requests</TabsTrigger>
         </TabsList>
-        
+
+        <TabsContent value="deposit" className="pt-6">
+          <DepositSection />
+        </TabsContent>
+
         <TabsContent value="transactions" className="pt-6">
           <Card className="bg-card/50 border-border/50">
             <CardContent className="p-0">
@@ -271,17 +440,18 @@ export default function Wallet() {
                     <TableHead className="font-mono text-xs">TIME</TableHead>
                     <TableHead className="font-mono text-xs">STATUS</TableHead>
                     <TableHead className="font-mono text-xs">DESTINATION</TableHead>
+                    <TableHead className="font-mono text-xs">TXID</TableHead>
                     <TableHead className="font-mono text-xs text-right">AMOUNT</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {withdrawalsLoading ? (
                      <TableRow>
-                      <TableCell colSpan={4} className="text-center py-10 text-muted-foreground font-mono text-sm">LOADING_REQUESTS...</TableCell>
+                      <TableCell colSpan={5} className="text-center py-10 text-muted-foreground font-mono text-sm">LOADING_REQUESTS...</TableCell>
                     </TableRow>
                   ) : withdrawals?.length === 0 ? (
                      <TableRow>
-                      <TableCell colSpan={4} className="text-center py-10 text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
                         No withdrawal requests found.
                       </TableCell>
                     </TableRow>
@@ -290,15 +460,29 @@ export default function Wallet() {
                       <TableCell className="font-mono text-xs text-muted-foreground">{format(new Date(wr.createdAt), "MMM d HH:mm:ss")}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={`font-mono text-[10px] uppercase
-                          ${wr.status === 'approved' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 
-                            wr.status === 'rejected' ? 'bg-destructive/10 text-destructive border-destructive/20' : 
+                          ${wr.status === 'sent' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                            wr.status === 'approved' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                            wr.status === 'rejected' ? 'bg-destructive/10 text-destructive border-destructive/20' :
                             'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'}`}>
                           {wr.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="font-mono text-xs max-w-[200px] truncate" title={wr.destinationAddress}>
+                      <TableCell className="font-mono text-xs max-w-[160px] truncate" title={wr.destinationAddress}>
                         <span className="text-primary mr-2">{wr.asset}</span>
                         {wr.destinationAddress}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {wr.onChainTxid ? (
+                          <button
+                            onClick={() => copyToClipboard(wr.onChainTxid!, "Transaction ID")}
+                            className="text-primary hover:underline font-mono text-xs max-w-[120px] truncate inline-block"
+                            title={wr.onChainTxid}
+                          >
+                            {wr.onChainTxid.slice(0, 10)}…
+                          </button>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right font-mono font-medium">{formatMoney(wr.amountUsd)}</TableCell>
                     </TableRow>
