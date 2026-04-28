@@ -6,19 +6,16 @@ import {
   depositAddressesTable,
   usersTable,
   walletTransactionsTable,
+  withdrawalsTable,
 } from "@workspace/db";
 import { verifyIpnSignature, type NpWebhookPayload } from "../lib/nowpayments";
 import { cryptoToUsd } from "../lib/cryptoRates";
 import { toUsdString, round6 } from "../lib/money";
 import { logger } from "../lib/logger";
 import { sql } from "drizzle-orm";
+import { getWalletSettings } from "../lib/platformSettings";
 
 const router: IRouter = Router();
-
-const REQUIRED_CONFIRMATIONS: Record<string, number> = {
-  btc: 2,
-  usdt_trc20: 20,
-};
 
 function toCurrency(payCurrency: string): "btc" | "usdt_trc20" | null {
   const s = payCurrency.toLowerCase();
@@ -94,7 +91,11 @@ router.post(
 
     const actuallyPaid = payload.actually_paid ?? 0;
     const npStatus = payload.payment_status;
-    const requiredConf = REQUIRED_CONFIRMATIONS[currency] ?? 1;
+    const walletSettings = await getWalletSettings();
+    const requiredConf =
+      currency === "btc"
+        ? walletSettings.btcRequiredConfirmations
+        : walletSettings.usdtTrc20RequiredConfirmations;
 
     if (npStatus === "finished" && actuallyPaid > 0 && userId) {
       if (existingDeposit) {
@@ -153,7 +154,11 @@ router.post(
         const amountUsdStr = toUsdString(amountUsd);
 
         await db.transaction(async (tx) => {
-          await tx
+          // INSERT ... RETURNING id — returns the new row only if this
+          // transaction won the race; returns empty if another path already
+          // inserted (ON CONFLICT DO NOTHING). This is the only correct way
+          // to detect whether *this* transaction performed the insert.
+          const inserted = await tx
             .insert(cryptoDepositsTable)
             .values({
               userId: userId!,
@@ -169,17 +174,12 @@ router.post(
               creditedAt: new Date(),
               lastCheckedAt: new Date(),
             })
-            .onConflictDoNothing({ target: cryptoDepositsTable.processorPaymentId });
+            .onConflictDoNothing({ target: cryptoDepositsTable.processorPaymentId })
+            .returning({ id: cryptoDepositsTable.id });
 
-          // Only credit user if the insert succeeded (not a duplicate)
-          const check = await tx
-            .select({ status: cryptoDepositsTable.status })
-            .from(cryptoDepositsTable)
-            .where(eq(cryptoDepositsTable.processorPaymentId, paymentId))
-            .then((r) => r[0] ?? null);
-
-          if (!check || check.status !== "credited") {
-            logger.info({ paymentId }, "IPN insert skipped (already credited by worker)");
+          if (inserted.length === 0) {
+            // Another path already inserted+credited this payment — skip.
+            logger.info({ paymentId }, "IPN insert conflict — already handled");
             return;
           }
 
@@ -264,6 +264,66 @@ router.post(
           processorData: rawBody.slice(0, 4000),
         })
         .onConflictDoNothing({ target: cryptoDepositsTable.processorPaymentId });
+    }
+
+    res.json({ ok: true });
+  },
+);
+
+// Payout (withdrawal) IPN — NOWPayments calls this when a payout status changes.
+// extra_id is set to "withdrawal-{id}" when creating the payout.
+router.post(
+  "/wallet/webhook/nowpayments/payout",
+  async (req: Request, res: Response) => {
+    const rawBody: string =
+      typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+
+    const sig = (req.headers["x-nowpayments-sig"] as string) ?? "";
+    if (!verifyIpnSignature(rawBody, sig)) {
+      logger.warn("NOWPayments payout IPN signature mismatch");
+      res.status(401).json({ error: "Invalid signature" });
+      return;
+    }
+
+    const body = (
+      typeof req.body === "string" ? JSON.parse(req.body) : req.body
+    ) as {
+      id?: string;
+      status?: string;
+      extra_id?: string;
+      hash?: string;
+    };
+
+    const payoutId = body.id ? String(body.id) : null;
+    const status = body.status ?? "";
+    const extraId = body.extra_id ?? "";
+    const txid = body.hash ?? null;
+
+    logger.info({ payoutId, status, extraId }, "NOWPayments payout IPN received");
+
+    // extra_id format: "withdrawal-{id}"
+    const withdrawalId = extraId.startsWith("withdrawal-")
+      ? parseInt(extraId.replace("withdrawal-", ""), 10)
+      : NaN;
+
+    if (!isNaN(withdrawalId) && status === "FINISHED") {
+      const [updated] = await db
+        .update(withdrawalsTable)
+        .set({
+          status: "confirmed",
+          onChainTxid: txid ?? undefined,
+          decidedAt: new Date(),
+        })
+        .where(
+          sql`${withdrawalsTable.id} = ${withdrawalId} AND ${withdrawalsTable.status} = 'sent'`,
+        )
+        .returning();
+
+      if (updated) {
+        logger.info({ withdrawalId, txid }, "Withdrawal confirmed via payout IPN");
+      } else {
+        logger.warn({ withdrawalId, status }, "Payout IPN: no matching sent withdrawal found");
+      }
     }
 
     res.json({ ok: true });

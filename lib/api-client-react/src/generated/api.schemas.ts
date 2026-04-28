@@ -492,6 +492,7 @@ export const WithdrawalStatus = {
   pending: "pending",
   approved: "approved",
   sent: "sent",
+  confirmed: "confirmed",
   rejected: "rejected",
 } as const;
 
@@ -515,7 +516,9 @@ export interface WithdrawalRequest {
 
 export interface MarkWithdrawalSentBody {
   /** @minLength 4 */
-  onChainTxid: string;
+  onChainTxid?: string;
+  /** When true, send via NOWPayments payout API (onChainTxid not required) */
+  sendViaNowpayments?: boolean;
 }
 
 export type DepositAddressItemCurrency =

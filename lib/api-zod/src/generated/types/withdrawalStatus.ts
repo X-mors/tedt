@@ -13,5 +13,6 @@ export const WithdrawalStatus = {
   pending: "pending",
   approved: "approved",
   sent: "sent",
+  confirmed: "confirmed",
   rejected: "rejected",
 } as const;

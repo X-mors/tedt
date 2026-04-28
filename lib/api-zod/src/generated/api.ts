@@ -872,7 +872,7 @@ export const ListMyWithdrawalsResponseItem = zod.object({
   asset: zod.enum(["BTC", "USDT"]),
   destinationAddress: zod.string(),
   amountUsd: zod.number(),
-  status: zod.enum(["pending", "approved", "sent", "rejected"]),
+  status: zod.enum(["pending", "approved", "sent", "confirmed", "rejected"]),
   adminNote: zod.string().nullable(),
   onChainTxid: zod.string().nullable(),
   createdAt: zod.coerce.date(),
@@ -1388,7 +1388,7 @@ export const ListAdminWithdrawalsResponseItem = zod.object({
   asset: zod.enum(["BTC", "USDT"]),
   destinationAddress: zod.string(),
   amountUsd: zod.number(),
-  status: zod.enum(["pending", "approved", "sent", "rejected"]),
+  status: zod.enum(["pending", "approved", "sent", "confirmed", "rejected"]),
   createdAt: zod.coerce.date(),
 });
 export const ListAdminWithdrawalsResponse = zod.array(
@@ -1412,7 +1412,7 @@ export const ApproveWithdrawalResponse = zod.object({
   asset: zod.enum(["BTC", "USDT"]),
   destinationAddress: zod.string(),
   amountUsd: zod.number(),
-  status: zod.enum(["pending", "approved", "sent", "rejected"]),
+  status: zod.enum(["pending", "approved", "sent", "confirmed", "rejected"]),
   adminNote: zod.string().nullable(),
   onChainTxid: zod.string().nullable(),
   createdAt: zod.coerce.date(),
@@ -1437,7 +1437,7 @@ export const RejectWithdrawalResponse = zod.object({
   asset: zod.enum(["BTC", "USDT"]),
   destinationAddress: zod.string(),
   amountUsd: zod.number(),
-  status: zod.enum(["pending", "approved", "sent", "rejected"]),
+  status: zod.enum(["pending", "approved", "sent", "confirmed", "rejected"]),
   adminNote: zod.string().nullable(),
   onChainTxid: zod.string().nullable(),
   createdAt: zod.coerce.date(),
@@ -1455,7 +1455,16 @@ export const MarkWithdrawalSentParams = zod.object({
 export const markWithdrawalSentBodyOnChainTxidMin = 4;
 
 export const MarkWithdrawalSentBody = zod.object({
-  onChainTxid: zod.string().min(markWithdrawalSentBodyOnChainTxidMin),
+  onChainTxid: zod
+    .string()
+    .min(markWithdrawalSentBodyOnChainTxidMin)
+    .optional(),
+  sendViaNowpayments: zod
+    .boolean()
+    .optional()
+    .describe(
+      "When true, send via NOWPayments payout API (onChainTxid not required)",
+    ),
 });
 
 export const MarkWithdrawalSentResponse = zod.object({
@@ -1464,7 +1473,7 @@ export const MarkWithdrawalSentResponse = zod.object({
   asset: zod.enum(["BTC", "USDT"]),
   destinationAddress: zod.string(),
   amountUsd: zod.number(),
-  status: zod.enum(["pending", "approved", "sent", "rejected"]),
+  status: zod.enum(["pending", "approved", "sent", "confirmed", "rejected"]),
   adminNote: zod.string().nullable(),
   onChainTxid: zod.string().nullable(),
   createdAt: zod.coerce.date(),

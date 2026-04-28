@@ -2157,7 +2157,7 @@ components:
 
     WithdrawalStatus:
       type: string
-      enum: [pending, approved, sent, rejected]
+      enum: [pending, approved, sent, confirmed, rejected]
 
     WithdrawalRequest:
       type: object
@@ -2206,7 +2206,9 @@ components:
         onChainTxid:
           type: string
           minLength: 4
-      required: [onChainTxid]
+        sendViaNowpayments:
+          type: boolean
+          description: When true, send via NOWPayments payout API (onChainTxid not required)
 
     DepositAddressItem:
       type: object

@@ -167,7 +167,7 @@ export default function AdminDashboard() {
   const handleMarkSent = () => {
     if (!markSentId) return;
     if (!markSentAutoSend && markSentTxid.trim().length < 4) return;
-    markWithdrawalSent.mutate({ id: markSentId, data: { onChainTxid: markSentAutoSend ? undefined : markSentTxid.trim(), sendViaNowpayments: markSentAutoSend } as Parameters<typeof markWithdrawalSent.mutate>[0]["data"] }, {
+    markWithdrawalSent.mutate({ id: markSentId, data: { onChainTxid: markSentAutoSend ? undefined : markSentTxid.trim(), sendViaNowpayments: markSentAutoSend } }, {
       onSuccess: () => {
         toast({ title: "Withdrawal Marked Sent", description: `Txid recorded: ${markSentTxid.slice(0, 16)}…` });
         setMarkSentId(null);

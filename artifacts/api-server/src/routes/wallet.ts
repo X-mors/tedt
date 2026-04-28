@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -20,6 +20,7 @@ import {
   nowpaymentsConfigured,
 } from "../lib/nowpayments";
 import { logger } from "../lib/logger";
+import { getWalletSettings } from "../lib/platformSettings";
 
 const router: IRouter = Router();
 
@@ -70,7 +71,11 @@ router.get(
   "/me/wallet/deposit-addresses",
   async (req, res) => {
     const userId = req.currentUser!.id;
-    const currencies: Array<"btc" | "usdt_trc20"> = ["btc", "usdt_trc20"];
+    const walletSettings = await getWalletSettings();
+    const allCurrencies: Array<"btc" | "usdt_trc20"> = ["btc", "usdt_trc20"];
+    const currencies = allCurrencies.filter((c) =>
+      walletSettings.enabledCurrencies.includes(c),
+    );
 
     const result: Record<
       string,
@@ -88,6 +93,13 @@ router.get(
 
     for (const currency of currencies) {
       const now = new Date();
+      const minDepositUsd = walletSettings.minDepositUsd;
+      const requiredConfirmations =
+        currency === "btc"
+          ? walletSettings.btcRequiredConfirmations
+          : walletSettings.usdtTrc20RequiredConfirmations;
+      const network = currency === "btc" ? "Bitcoin" : "TRON (TRC-20)";
+
       const existing = await db
         .select()
         .from(depositAddressesTable)
@@ -109,9 +121,9 @@ router.get(
           expiresAt: existing.expiresAt
             ? existing.expiresAt.toISOString()
             : null,
-          minDepositUsd: currency === "btc" ? 10 : 5,
-          requiredConfirmations: currency === "btc" ? 2 : 20,
-          network: currency === "btc" ? "Bitcoin" : "TRON (TRC-20)",
+          minDepositUsd,
+          requiredConfirmations,
+          network,
           ready: true,
         };
         continue;
@@ -123,9 +135,9 @@ router.get(
           address: "",
           processorPaymentId: null,
           expiresAt: null,
-          minDepositUsd: currency === "btc" ? 10 : 5,
-          requiredConfirmations: currency === "btc" ? 2 : 20,
-          network: currency === "btc" ? "Bitcoin" : "TRON (TRC-20)",
+          minDepositUsd,
+          requiredConfirmations,
+          network,
           ready: false,
         };
         continue;
@@ -152,9 +164,9 @@ router.get(
           address: row!.address,
           processorPaymentId: row!.processorPaymentId,
           expiresAt: row!.expiresAt ? row!.expiresAt.toISOString() : null,
-          minDepositUsd: currency === "btc" ? 10 : 5,
-          requiredConfirmations: currency === "btc" ? 2 : 20,
-          network: currency === "btc" ? "Bitcoin" : "TRON (TRC-20)",
+          minDepositUsd,
+          requiredConfirmations,
+          network,
           ready: true,
         };
       } catch (err) {
@@ -164,9 +176,9 @@ router.get(
           address: "",
           processorPaymentId: null,
           expiresAt: null,
-          minDepositUsd: currency === "btc" ? 10 : 5,
-          requiredConfirmations: currency === "btc" ? 2 : 20,
-          network: currency === "btc" ? "Bitcoin" : "TRON (TRC-20)",
+          minDepositUsd,
+          requiredConfirmations,
+          network,
           ready: false,
         };
       }
@@ -238,6 +250,29 @@ router.get("/me/wallet/withdrawals", async (req, res) => {
 router.post("/me/wallet/withdrawals", async (req, res) => {
   const body = CreateWithdrawalBody.parse(req.body);
   const amountStr = toUsdString(body.amountUsd);
+
+  // Enforce daily withdrawal cap
+  const walletSettings = await getWalletSettings();
+  if (walletSettings.dailyWithdrawalCapUsd > 0) {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const [capRow] = await db
+      .select({ total: sql<string>`COALESCE(SUM(${withdrawalsTable.amountUsd}), 0)` })
+      .from(withdrawalsTable)
+      .where(
+        and(
+          eq(withdrawalsTable.userId, req.currentUser!.id),
+          gte(withdrawalsTable.createdAt, since),
+          inArray(withdrawalsTable.status, ["pending", "approved", "sent", "confirmed"]),
+        ),
+      );
+    const totalToday = toNum(capRow?.total);
+    if (totalToday + body.amountUsd > walletSettings.dailyWithdrawalCapUsd) {
+      res.status(429).json({
+        error: `Daily withdrawal cap of $${walletSettings.dailyWithdrawalCapUsd} exceeded. You have $${(walletSettings.dailyWithdrawalCapUsd - totalToday).toFixed(2)} remaining today.`,
+      });
+      return;
+    }
+  }
 
   class TxError extends Error {
     constructor(public readonly code: "insufficient" | "insert") {

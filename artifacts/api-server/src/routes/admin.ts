@@ -991,6 +991,37 @@ router.post("/admin/withdrawals/:id/mark-sent", async (req, res) => {
   });
 });
 
+router.post("/admin/withdrawals/:id/confirm", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const body = (req.body ?? {}) as { onChainTxid?: string };
+
+  const [updated] = await db
+    .update(withdrawalsTable)
+    .set({
+      status: "confirmed",
+      onChainTxid: body.onChainTxid?.trim() ?? undefined,
+      decidedAt: new Date(),
+    })
+    .where(sql`${withdrawalsTable.id} = ${id} AND ${withdrawalsTable.status} = 'sent'`)
+    .returning();
+
+  if (!updated) {
+    res.status(400).json({ error: "Withdrawal not found or not in 'sent' state" });
+    return;
+  }
+
+  res.json({
+    id: updated.id,
+    status: updated.status,
+    onChainTxid: updated.onChainTxid,
+    decidedAt: updated.decidedAt?.toISOString() ?? null,
+  });
+});
+
 router.get("/admin/proxy", (req, res) => {
   const status = proxyState.getAdminStatus();
   res.json({

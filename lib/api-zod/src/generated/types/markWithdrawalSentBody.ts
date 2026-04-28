@@ -8,5 +8,7 @@
 
 export interface MarkWithdrawalSentBody {
   /** @minLength 4 */
-  onChainTxid: string;
+  onChainTxid?: string;
+  /** When true, send via NOWPayments payout API (onChainTxid not required) */
+  sendViaNowpayments?: boolean;
 }
