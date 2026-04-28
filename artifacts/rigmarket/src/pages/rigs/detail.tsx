@@ -1,5 +1,5 @@
 import { useParams, Link } from "wouter";
-import { useGetRig, useListRigReviews, useGetMe } from "@workspace/api-client-react";
+import { useGetRig, useGetMyRig, getGetMyRigQueryKey, useListRigReviews, useGetMe } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatHashrate, formatMoney } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -12,16 +12,23 @@ export default function RigDetail() {
   const { id } = useParams<{ id: string }>();
   const rigId = parseInt(id || "0");
   
-  // orval defaults `enabled: !!id`, so we can omit it.
   const { data: rig, isLoading } = useGetRig(rigId);
   const { data: reviews } = useListRigReviews(rigId);
   const { data: me } = useGetMe();
+
+  const isOwner = !!(me && rig && me.id === rig.ownerId);
+  // When the viewer is the owner, also fetch from the owner-specific endpoint
+  // so hasFallbackPool reflects the actual fallback pool configuration.
+  const { data: myRig } = useGetMyRig(rigId, { query: { enabled: isOwner, queryKey: getGetMyRigQueryKey(rigId) } });
 
   if (isLoading) {
     return <div className="p-8 text-center font-mono text-muted-foreground">LOADING_RIG_DATA...</div>;
   }
 
   if (!rig) return <div className="p-8 text-center font-mono text-destructive">RIG_NOT_FOUND</div>;
+
+  const ownerIsOnline = myRig?.isOnline ?? rig.isOnline;
+  const hasFallbackPool = myRig?.hasFallbackPool ?? false;
 
   return (
     <div className="container py-8 px-4 max-w-5xl mx-auto space-y-6">
@@ -33,17 +40,17 @@ export default function RigDetail() {
                    className={`font-mono text-xs uppercase ${rig.status === 'available' ? 'bg-primary/20 text-primary border-primary/30' : ''}`}>
               {rig.status}
             </Badge>
-            {rig.isOnline && rig.status !== 'rented' && rig.hasFallbackPool && (
+            {ownerIsOnline && rig.status !== 'rented' && hasFallbackPool && (
               <Badge variant="outline" className="font-mono text-xs uppercase bg-yellow-500/10 text-yellow-500 border-yellow-500/30">
                 MINING FALLBACK
               </Badge>
             )}
-            {rig.isOnline && rig.status !== 'rented' && !rig.hasFallbackPool && (
+            {ownerIsOnline && rig.status !== 'rented' && !hasFallbackPool && (
               <Badge variant="outline" className="font-mono text-xs uppercase bg-green-500/10 text-green-500 border-green-500/30">
                 ONLINE · IDLE
               </Badge>
             )}
-            {rig.isOnline && rig.status === 'rented' && (
+            {ownerIsOnline && rig.status === 'rented' && (
               <Badge variant="outline" className="font-mono text-xs uppercase bg-green-500/10 text-green-500 border-green-500/30">
                 CONNECTED
               </Badge>
