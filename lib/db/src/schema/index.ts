@@ -9,3 +9,5 @@ export * from "./withdrawals";
 export * from "./reviews";
 export * from "./platformSettings";
 export * from "./proxyAuthFailures";
+export * from "./depositAddresses";
+export * from "./cryptoDeposits";
