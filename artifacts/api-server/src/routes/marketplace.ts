@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { sql, and, eq, desc } from "drizzle-orm";
+import { sql, and, eq, desc, gte } from "drizzle-orm";
 // `and` is used below to combine status + approval filters on the rigs join.
 import {
   db,
@@ -11,6 +11,8 @@ import {
 } from "@workspace/db";
 import {
   GetMarketplaceSummaryResponse,
+  GetMarketplaceFeaturedResponse,
+  GetMarketplaceAlgorithmStatsResponse,
   ListAlgorithmsResponse,
 } from "@workspace/api-zod";
 import { getCommission } from "../lib/commission";
@@ -54,6 +56,108 @@ router.get("/algorithms", async (_req, res) => {
       totalHashrate: toNum(row.totalHashrate),
       averagePricePerUnitPerHour:
         toNum(row.basePricePerUnitPerHour) * renterMultiplier,
+    })),
+  );
+
+  res.json(data);
+});
+
+router.get("/marketplace/featured", async (req, res) => {
+  const commission = await getCommission();
+  const renterMultiplier = 1 + commission.renterFeePct / 100;
+  const limit = Math.min(Number(req.query["limit"] ?? 12), 50);
+
+  const rows = await db
+    .select({
+      id: rigsTable.id,
+      name: rigsTable.name,
+      ownerId: rigsTable.ownerId,
+      ownerDisplayName: usersTable.displayName,
+      algorithmId: algorithmsTable.id,
+      algorithmName: algorithmsTable.name,
+      algorithmUnit: algorithmsTable.unit,
+      hashrate: rigsTable.hashrate,
+      basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
+      minRentalHours: rigsTable.minRentalHours,
+      maxRentalHours: rigsTable.maxRentalHours,
+      status: rigsTable.status,
+      createdAt: rigsTable.createdAt,
+      averageRating: sql<string | null>`AVG(${reviewsTable.rating})`,
+      reviewCount: sql<string>`COUNT(${reviewsTable.id})`,
+    })
+    .from(rigsTable)
+    .innerJoin(usersTable, eq(usersTable.id, rigsTable.ownerId))
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
+    .leftJoin(reviewsTable, eq(reviewsTable.rigId, rigsTable.id))
+    .where(
+      and(
+        eq(rigsTable.status, "available"),
+        eq(rigsTable.approvalStatus, "approved"),
+      ),
+    )
+    .groupBy(rigsTable.id, usersTable.id, algorithmsTable.id)
+    .orderBy(desc(sql`AVG(${reviewsTable.rating})`), desc(rigsTable.hashrate))
+    .limit(limit);
+
+  const data = GetMarketplaceFeaturedResponse.parse(
+    rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      ownerId: r.ownerId,
+      ownerDisplayName: r.ownerDisplayName,
+      algorithmId: r.algorithmId,
+      algorithmName: r.algorithmName,
+      algorithmUnit: r.algorithmUnit,
+      hashrate: toNum(r.hashrate),
+      pricePerUnitPerHour: toNum(r.basePricePerUnitPerHour) * renterMultiplier,
+      minRentalHours: r.minRentalHours,
+      maxRentalHours: r.maxRentalHours,
+      status: r.status,
+      approvalStatus: "approved" as const,
+      averageRating: r.averageRating == null ? null : Number(toNum(r.averageRating).toFixed(2)),
+      reviewCount: Number(r.reviewCount),
+      createdAt: r.createdAt.toISOString(),
+    })),
+  );
+
+  res.json(data);
+});
+
+router.get("/marketplace/algorithm-stats", async (_req, res) => {
+  const commission = await getCommission();
+  const renterMultiplier = 1 + commission.renterFeePct / 100;
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const rows = await db
+    .select({
+      algorithmId: algorithmsTable.id,
+      algorithmName: algorithmsTable.name,
+      unit: algorithmsTable.unit,
+      basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
+      availableRigCount: sql<string>`COUNT(${rigsTable.id}) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved')`,
+      totalAvailableHashrate: sql<string>`COALESCE(SUM(${rigsTable.hashrate}) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved'), 0)`,
+      rentalCount30d: sql<string>`COUNT(${rentalsTable.id}) FILTER (WHERE ${rentalsTable.createdAt} >= ${thirtyDaysAgo.toISOString()})`,
+      volumeUsd30d: sql<string>`COALESCE(SUM(${rentalsTable.renterTotalUsd}) FILTER (WHERE ${rentalsTable.createdAt} >= ${thirtyDaysAgo.toISOString()}), 0)`,
+    })
+    .from(algorithmsTable)
+    .leftJoin(rigsTable, eq(rigsTable.algorithmId, algorithmsTable.id))
+    .leftJoin(
+      rentalsTable,
+      and(eq(rentalsTable.rigId, rigsTable.id), gte(rentalsTable.createdAt, thirtyDaysAgo)),
+    )
+    .groupBy(algorithmsTable.id)
+    .orderBy(desc(sql`COUNT(${rigsTable.id}) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved')`));
+
+  const data = GetMarketplaceAlgorithmStatsResponse.parse(
+    rows.map((r) => ({
+      algorithmId: r.algorithmId,
+      algorithmName: r.algorithmName,
+      unit: r.unit,
+      availableRigCount: Number(r.availableRigCount),
+      totalAvailableHashrate: toNum(r.totalAvailableHashrate),
+      averagePricePerUnitPerHour: toNum(r.basePricePerUnitPerHour) * renterMultiplier,
+      rentalCount30d: Number(r.rentalCount30d),
+      volumeUsd30d: toNum(r.volumeUsd30d),
     })),
   );
 

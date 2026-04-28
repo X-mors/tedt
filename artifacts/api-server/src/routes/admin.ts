@@ -19,6 +19,7 @@ import {
   ApproveWithdrawalResponse,
   CreateAlgorithmBody,
   GetAdminStatsResponse,
+  GetAdminSummaryResponse,
   GetCommissionConfigResponse,
   ListAdminRentalsResponse,
   ListAdminRigsQueryParams,
@@ -44,6 +45,46 @@ import { settleExpiredRentals } from "../lib/settlement";
 const router: IRouter = Router();
 
 router.use(requireAdmin);
+
+router.get("/admin/summary", async (_req, res) => {
+  const today = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const [users] = await db.select({ c: sql<string>`COUNT(*)` }).from(usersTable);
+  const [activeRentals] = await db
+    .select({ c: sql<string>`COUNT(*) FILTER (WHERE ${rentalsTable.status} = 'active')` })
+    .from(rentalsTable);
+  const [pendingRigApprovals] = await db
+    .select({ c: sql<string>`COUNT(*) FILTER (WHERE ${rigsTable.approvalStatus} = 'pending')` })
+    .from(rigsTable);
+  const [pendingWithdrawals] = await db
+    .select({ c: sql<string>`COUNT(*) FILTER (WHERE ${withdrawalsTable.status} = 'pending')` })
+    .from(withdrawalsTable);
+
+  const [revenue] = await db
+    .select({
+      revenueTodayUsd: sql<string>`COALESCE(SUM(${rentalsTable.renterTotalUsd}) FILTER (WHERE ${rentalsTable.createdAt} >= ${today.toISOString()}), 0)`,
+      commissionTodayUsd: sql<string>`COALESCE(SUM(${rentalsTable.platformFeeUsd}) FILTER (WHERE ${rentalsTable.createdAt} >= ${today.toISOString()}), 0)`,
+    })
+    .from(rentalsTable);
+
+  const [hashrate] = await db
+    .select({
+      currentlyRentedHashrate: sql<string>`COALESCE(SUM(${rigsTable.hashrate}) FILTER (WHERE ${rigsTable.status} = 'rented' AND ${rigsTable.approvalStatus} = 'approved'), 0)`,
+    })
+    .from(rigsTable);
+
+  const data = GetAdminSummaryResponse.parse({
+    totalUsers: Number(users?.c ?? 0),
+    activeRentals: Number(activeRentals?.c ?? 0),
+    pendingRigApprovals: Number(pendingRigApprovals?.c ?? 0),
+    pendingWithdrawals: Number(pendingWithdrawals?.c ?? 0),
+    revenueTodayUsd: toNum(revenue?.revenueTodayUsd ?? "0"),
+    commissionTodayUsd: toNum(revenue?.commissionTodayUsd ?? "0"),
+    currentlyRentedHashrate: toNum(hashrate?.currentlyRentedHashrate ?? "0"),
+  });
+
+  res.json(data);
+});
 
 router.get("/admin/stats", async (_req, res) => {
   await settleExpiredRentals();

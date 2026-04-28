@@ -22,10 +22,12 @@ import type {
   AdminRigDecisionBody,
   AdminRigRow,
   AdminStats,
+  AdminSummary,
   AdminUserRow,
   AdminWalletTransactionRow,
   AdminWithdrawalRow,
   Algorithm,
+  AlgorithmMarketStat,
   ApproveWithdrawalBody,
   BadRequestResponse,
   CommissionConfig,
@@ -38,6 +40,7 @@ import type {
   DepositInstructions,
   ErrorResponse,
   ForbiddenResponse,
+  GetMarketplaceFeaturedParams,
   HealthStatus,
   ListAdminRigsParams,
   ListAdminWalletTransactionsParams,
@@ -45,12 +48,14 @@ import type {
   MarketplaceSummary,
   MeProfile,
   NotFoundResponse,
+  OwnerDashboardSummary,
   RejectWithdrawalBody,
   RentalDetail,
   RentalQuote,
   RentalQuoteBody,
   RentalStats,
   RentalSummary,
+  RenterDashboardSummary,
   Review,
   RigDetail,
   RigSummary,
@@ -374,6 +379,186 @@ export const useSyncMe = <
 > => {
   return useMutation(getSyncMeMutationOptions(options));
 };
+
+/**
+ * @summary Featured rigs — highest-rated, currently available rigs across top algorithms
+ */
+export const getGetMarketplaceFeaturedUrl = (
+  params?: GetMarketplaceFeaturedParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/marketplace/featured?${stringifiedParams}`
+    : `/api/marketplace/featured`;
+};
+
+export const getMarketplaceFeatured = async (
+  params?: GetMarketplaceFeaturedParams,
+  options?: RequestInit,
+): Promise<RigSummary[]> => {
+  return customFetch<RigSummary[]>(getGetMarketplaceFeaturedUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMarketplaceFeaturedQueryKey = (
+  params?: GetMarketplaceFeaturedParams,
+) => {
+  return [`/api/marketplace/featured`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetMarketplaceFeaturedQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMarketplaceFeatured>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetMarketplaceFeaturedParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMarketplaceFeatured>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetMarketplaceFeaturedQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMarketplaceFeatured>>
+  > = ({ signal }) =>
+    getMarketplaceFeatured(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMarketplaceFeatured>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMarketplaceFeaturedQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMarketplaceFeatured>>
+>;
+export type GetMarketplaceFeaturedQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Featured rigs — highest-rated, currently available rigs across top algorithms
+ */
+
+export function useGetMarketplaceFeatured<
+  TData = Awaited<ReturnType<typeof getMarketplaceFeatured>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetMarketplaceFeaturedParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMarketplaceFeatured>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMarketplaceFeaturedQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Per-algorithm marketplace stats — hashrate available, rig count, avg price, rental volume
+ */
+export const getGetMarketplaceAlgorithmStatsUrl = () => {
+  return `/api/marketplace/algorithm-stats`;
+};
+
+export const getMarketplaceAlgorithmStats = async (
+  options?: RequestInit,
+): Promise<AlgorithmMarketStat[]> => {
+  return customFetch<AlgorithmMarketStat[]>(
+    getGetMarketplaceAlgorithmStatsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetMarketplaceAlgorithmStatsQueryKey = () => {
+  return [`/api/marketplace/algorithm-stats`] as const;
+};
+
+export const getGetMarketplaceAlgorithmStatsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMarketplaceAlgorithmStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMarketplaceAlgorithmStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetMarketplaceAlgorithmStatsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMarketplaceAlgorithmStats>>
+  > = ({ signal }) =>
+    getMarketplaceAlgorithmStats({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMarketplaceAlgorithmStats>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMarketplaceAlgorithmStatsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMarketplaceAlgorithmStats>>
+>;
+export type GetMarketplaceAlgorithmStatsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Per-algorithm marketplace stats — hashrate available, rig count, avg price, rental volume
+ */
+
+export function useGetMarketplaceAlgorithmStats<
+  TData = Awaited<ReturnType<typeof getMarketplaceAlgorithmStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMarketplaceAlgorithmStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMarketplaceAlgorithmStatsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Top-line marketplace statistics (rig counts, total hashrate, average prices)
@@ -2202,6 +2387,240 @@ export const useCreateWithdrawal = <
 > => {
   return useMutation(getCreateWithdrawalMutationOptions(options));
 };
+
+/**
+ * @summary Owner dashboard — rig counts, total earnings, active rentals, pending payouts
+ */
+export const getGetDashboardOwnerSummaryUrl = () => {
+  return `/api/dashboard/owner-summary`;
+};
+
+export const getDashboardOwnerSummary = async (
+  options?: RequestInit,
+): Promise<OwnerDashboardSummary> => {
+  return customFetch<OwnerDashboardSummary>(getGetDashboardOwnerSummaryUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetDashboardOwnerSummaryQueryKey = () => {
+  return [`/api/dashboard/owner-summary`] as const;
+};
+
+export const getGetDashboardOwnerSummaryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDashboardOwnerSummary>>,
+  TError = ErrorType<UnauthorizedResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDashboardOwnerSummary>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetDashboardOwnerSummaryQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getDashboardOwnerSummary>>
+  > = ({ signal }) => getDashboardOwnerSummary({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDashboardOwnerSummary>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDashboardOwnerSummaryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDashboardOwnerSummary>>
+>;
+export type GetDashboardOwnerSummaryQueryError =
+  ErrorType<UnauthorizedResponse>;
+
+/**
+ * @summary Owner dashboard — rig counts, total earnings, active rentals, pending payouts
+ */
+
+export function useGetDashboardOwnerSummary<
+  TData = Awaited<ReturnType<typeof getDashboardOwnerSummary>>,
+  TError = ErrorType<UnauthorizedResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDashboardOwnerSummary>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDashboardOwnerSummaryQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Renter dashboard — active rental count, total spend, favourite algorithm, spending this month
+ */
+export const getGetDashboardRenterSummaryUrl = () => {
+  return `/api/dashboard/renter-summary`;
+};
+
+export const getDashboardRenterSummary = async (
+  options?: RequestInit,
+): Promise<RenterDashboardSummary> => {
+  return customFetch<RenterDashboardSummary>(
+    getGetDashboardRenterSummaryUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetDashboardRenterSummaryQueryKey = () => {
+  return [`/api/dashboard/renter-summary`] as const;
+};
+
+export const getGetDashboardRenterSummaryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDashboardRenterSummary>>,
+  TError = ErrorType<UnauthorizedResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDashboardRenterSummary>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetDashboardRenterSummaryQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getDashboardRenterSummary>>
+  > = ({ signal }) => getDashboardRenterSummary({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDashboardRenterSummary>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDashboardRenterSummaryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDashboardRenterSummary>>
+>;
+export type GetDashboardRenterSummaryQueryError =
+  ErrorType<UnauthorizedResponse>;
+
+/**
+ * @summary Renter dashboard — active rental count, total spend, favourite algorithm, spending this month
+ */
+
+export function useGetDashboardRenterSummary<
+  TData = Awaited<ReturnType<typeof getDashboardRenterSummary>>,
+  TError = ErrorType<UnauthorizedResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDashboardRenterSummary>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDashboardRenterSummaryQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Condensed admin overview — key headline numbers for the admin nav bar / quick-glance widget
+ */
+export const getGetAdminSummaryUrl = () => {
+  return `/api/admin/summary`;
+};
+
+export const getAdminSummary = async (
+  options?: RequestInit,
+): Promise<AdminSummary> => {
+  return customFetch<AdminSummary>(getGetAdminSummaryUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAdminSummaryQueryKey = () => {
+  return [`/api/admin/summary`] as const;
+};
+
+export const getGetAdminSummaryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAdminSummary>>,
+  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminSummary>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAdminSummaryQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminSummary>>> = ({
+    signal,
+  }) => getAdminSummary({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminSummary>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAdminSummaryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAdminSummary>>
+>;
+export type GetAdminSummaryQueryError = ErrorType<
+  UnauthorizedResponse | ForbiddenResponse
+>;
+
+/**
+ * @summary Condensed admin overview — key headline numbers for the admin nav bar / quick-glance widget
+ */
+
+export function useGetAdminSummary<
+  TData = Awaited<ReturnType<typeof getAdminSummary>>,
+  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminSummary>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAdminSummaryQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Platform-wide aggregates for the admin dashboard

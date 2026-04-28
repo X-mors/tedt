@@ -191,6 +191,7 @@ function ClerkProviderWithRoutes() {
               <Route path="/rigs/:id" component={RigDetail} />
               <Route path="/rentals/new/:rigId" component={NewRental} />
               <Route path="/rentals" component={MyRentals} />
+              <Route path="/dashboard/rentals" component={MyRentals} />
               <Route path="/rentals/:id" component={RentalCockpit} />
               <Route path="/lessor" component={LessorDashboard} />
               <Route path="/lessor/rigs/new" component={RigForm} />

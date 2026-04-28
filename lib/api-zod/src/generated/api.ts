@@ -93,6 +93,58 @@ export const SyncMeResponse = zod.object({
 });
 
 /**
+ * @summary Featured rigs — highest-rated, currently available rigs across top algorithms
+ */
+export const getMarketplaceFeaturedQueryLimitDefault = 12;
+
+export const GetMarketplaceFeaturedQueryParams = zod.object({
+  limit: zod.coerce.number().default(getMarketplaceFeaturedQueryLimitDefault),
+});
+
+export const GetMarketplaceFeaturedResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  ownerId: zod.number(),
+  ownerDisplayName: zod.string(),
+  algorithmId: zod.number(),
+  algorithmName: zod.string(),
+  algorithmUnit: zod.string(),
+  hashrate: zod
+    .number()
+    .describe("Advertised hashrate in the algorithm's unit"),
+  pricePerUnitPerHour: zod
+    .number()
+    .describe("Renter-facing price (already includes the renter commission)"),
+  minRentalHours: zod.number(),
+  maxRentalHours: zod.number(),
+  status: zod.enum(["available", "rented", "offline"]),
+  approvalStatus: zod.enum(["pending", "approved", "rejected"]),
+  averageRating: zod.number().nullable(),
+  reviewCount: zod.number(),
+  createdAt: zod.coerce.date(),
+});
+export const GetMarketplaceFeaturedResponse = zod.array(
+  GetMarketplaceFeaturedResponseItem,
+);
+
+/**
+ * @summary Per-algorithm marketplace stats — hashrate available, rig count, avg price, rental volume
+ */
+export const GetMarketplaceAlgorithmStatsResponseItem = zod.object({
+  algorithmId: zod.number(),
+  algorithmName: zod.string(),
+  unit: zod.string(),
+  availableRigCount: zod.number(),
+  totalAvailableHashrate: zod.number(),
+  averagePricePerUnitPerHour: zod.number(),
+  rentalCount30d: zod.number(),
+  volumeUsd30d: zod.number(),
+});
+export const GetMarketplaceAlgorithmStatsResponse = zod.array(
+  GetMarketplaceAlgorithmStatsResponseItem,
+);
+
+/**
  * @summary Top-line marketplace statistics (rig counts, total hashrate, average prices)
  */
 export const GetMarketplaceSummaryResponse = zod.object({
@@ -697,6 +749,52 @@ export const CreateWithdrawalBody = zod.object({
     .min(createWithdrawalBodyDestinationAddressMin),
   amountUsd: zod.number().gt(createWithdrawalBodyAmountUsdExclusiveMin),
 });
+
+/**
+ * @summary Owner dashboard — rig counts, total earnings, active rentals, pending payouts
+ */
+export const GetDashboardOwnerSummaryResponse = zod.object({
+  totalRigs: zod.number(),
+  activeRigs: zod.number(),
+  pausedRigs: zod.number(),
+  pendingApprovalRigs: zod.number(),
+  activeRentals: zod.number(),
+  earningsTodayUsd: zod.number(),
+  earningsWeekUsd: zod.number(),
+  earningsMonthUsd: zod.number(),
+  earningsTotalUsd: zod.number(),
+  pendingWithdrawalsUsd: zod.number(),
+  averageRigRating: zod.number().nullish(),
+});
+
+/**
+ * @summary Renter dashboard — active rental count, total spend, favourite algorithm, spending this month
+ */
+export const GetDashboardRenterSummaryResponse = zod.object({
+  activeRentals: zod.number(),
+  completedRentals: zod.number(),
+  spendTodayUsd: zod.number(),
+  spendWeekUsd: zod.number(),
+  spendMonthUsd: zod.number(),
+  spendTotalUsd: zod.number(),
+  favouriteAlgorithm: zod.string().nullish(),
+  currentBalanceUsd: zod.number(),
+});
+
+/**
+ * @summary Condensed admin overview — key headline numbers for the admin nav bar / quick-glance widget
+ */
+export const GetAdminSummaryResponse = zod
+  .object({
+    totalUsers: zod.number(),
+    activeRentals: zod.number(),
+    pendingRigApprovals: zod.number(),
+    pendingWithdrawals: zod.number(),
+    revenueTodayUsd: zod.number(),
+    commissionTodayUsd: zod.number(),
+    currentlyRentedHashrate: zod.number(),
+  })
+  .describe("Condensed headline numbers for quick-glance admin widgets");
 
 /**
  * @summary Platform-wide aggregates for the admin dashboard

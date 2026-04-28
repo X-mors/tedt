@@ -96,6 +96,42 @@ paths:
   # ========================================================================
   # Marketplace browsing
   # ========================================================================
+  /marketplace/featured:
+    get:
+      operationId: getMarketplaceFeatured
+      tags: [marketplace]
+      summary: Featured rigs — highest-rated, currently available rigs across top algorithms
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 12
+      responses:
+        "200":
+          description: Featured rigs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RigSummary"
+
+  /marketplace/algorithm-stats:
+    get:
+      operationId: getMarketplaceAlgorithmStats
+      tags: [marketplace]
+      summary: Per-algorithm marketplace stats — hashrate available, rig count, avg price, rental volume
+      responses:
+        "200":
+          description: Algorithm marketplace statistics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AlgorithmMarketStat"
+
   /marketplace/summary:
     get:
       operationId: getMarketplaceSummary
@@ -545,8 +581,64 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
   # ========================================================================
+  # Dashboard summaries (authenticated)
+  # ========================================================================
+  /dashboard/owner-summary:
+    get:
+      operationId: getDashboardOwnerSummary
+      tags: [dashboard]
+      summary: Owner dashboard — rig counts, total earnings, active rentals, pending payouts
+      security:
+        - clerk: []
+      responses:
+        "200":
+          description: Owner dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerDashboardSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /dashboard/renter-summary:
+    get:
+      operationId: getDashboardRenterSummary
+      tags: [dashboard]
+      summary: Renter dashboard — active rental count, total spend, favourite algorithm, spending this month
+      security:
+        - clerk: []
+      responses:
+        "200":
+          description: Renter dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RenterDashboardSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ========================================================================
   # Admin (site owner only)
   # ========================================================================
+  /admin/summary:
+    get:
+      operationId: getAdminSummary
+      tags: [admin]
+      summary: Condensed admin overview — key headline numbers for the admin nav bar / quick-glance widget
+      security:
+        - clerk: []
+      responses:
+        "200":
+          description: Admin summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /admin/stats:
     get:
       operationId: getAdminStats
@@ -2145,6 +2237,129 @@ components:
         - commissionWeekUsd
         - commissionMonthUsd
         - topAlgorithmsByDemand
+
+    AlgorithmMarketStat:
+      type: object
+      properties:
+        algorithmId:
+          type: integer
+        algorithmName:
+          type: string
+        unit:
+          type: string
+        availableRigCount:
+          type: integer
+        totalAvailableHashrate:
+          type: number
+        averagePricePerUnitPerHour:
+          type: number
+        rentalCount30d:
+          type: integer
+        volumeUsd30d:
+          type: number
+      required:
+        - algorithmId
+        - algorithmName
+        - unit
+        - availableRigCount
+        - totalAvailableHashrate
+        - averagePricePerUnitPerHour
+        - rentalCount30d
+        - volumeUsd30d
+
+    OwnerDashboardSummary:
+      type: object
+      properties:
+        totalRigs:
+          type: integer
+        activeRigs:
+          type: integer
+        pausedRigs:
+          type: integer
+        pendingApprovalRigs:
+          type: integer
+        activeRentals:
+          type: integer
+        earningsTodayUsd:
+          type: number
+        earningsWeekUsd:
+          type: number
+        earningsMonthUsd:
+          type: number
+        earningsTotalUsd:
+          type: number
+        pendingWithdrawalsUsd:
+          type: number
+        averageRigRating:
+          type: number
+          nullable: true
+      required:
+        - totalRigs
+        - activeRigs
+        - pausedRigs
+        - pendingApprovalRigs
+        - activeRentals
+        - earningsTodayUsd
+        - earningsWeekUsd
+        - earningsMonthUsd
+        - earningsTotalUsd
+        - pendingWithdrawalsUsd
+
+    RenterDashboardSummary:
+      type: object
+      properties:
+        activeRentals:
+          type: integer
+        completedRentals:
+          type: integer
+        spendTodayUsd:
+          type: number
+        spendWeekUsd:
+          type: number
+        spendMonthUsd:
+          type: number
+        spendTotalUsd:
+          type: number
+        favouriteAlgorithm:
+          type: string
+          nullable: true
+        currentBalanceUsd:
+          type: number
+      required:
+        - activeRentals
+        - completedRentals
+        - spendTodayUsd
+        - spendWeekUsd
+        - spendMonthUsd
+        - spendTotalUsd
+        - currentBalanceUsd
+
+    AdminSummary:
+      type: object
+      description: Condensed headline numbers for quick-glance admin widgets
+      properties:
+        totalUsers:
+          type: integer
+        activeRentals:
+          type: integer
+        pendingRigApprovals:
+          type: integer
+        pendingWithdrawals:
+          type: integer
+        revenueTodayUsd:
+          type: number
+        commissionTodayUsd:
+          type: number
+        currentlyRentedHashrate:
+          type: number
+      required:
+        - totalUsers
+        - activeRentals
+        - pendingRigApprovals
+        - pendingWithdrawals
+        - revenueTodayUsd
+        - commissionTodayUsd
+        - currentlyRentedHashrate
 
     AlgorithmHashrateBreakdown:
       type: object

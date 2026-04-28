@@ -617,6 +617,55 @@ export interface AdminStats {
   topAlgorithmsByDemand: AdminStatsTopAlgorithmsByDemandItem[];
 }
 
+export interface AlgorithmMarketStat {
+  algorithmId: number;
+  algorithmName: string;
+  unit: string;
+  availableRigCount: number;
+  totalAvailableHashrate: number;
+  averagePricePerUnitPerHour: number;
+  rentalCount30d: number;
+  volumeUsd30d: number;
+}
+
+export interface OwnerDashboardSummary {
+  totalRigs: number;
+  activeRigs: number;
+  pausedRigs: number;
+  pendingApprovalRigs: number;
+  activeRentals: number;
+  earningsTodayUsd: number;
+  earningsWeekUsd: number;
+  earningsMonthUsd: number;
+  earningsTotalUsd: number;
+  pendingWithdrawalsUsd: number;
+  averageRigRating?: number | null;
+}
+
+export interface RenterDashboardSummary {
+  activeRentals: number;
+  completedRentals: number;
+  spendTodayUsd: number;
+  spendWeekUsd: number;
+  spendMonthUsd: number;
+  spendTotalUsd: number;
+  favouriteAlgorithm?: string | null;
+  currentBalanceUsd: number;
+}
+
+/**
+ * Condensed headline numbers for quick-glance admin widgets
+ */
+export interface AdminSummary {
+  totalUsers: number;
+  activeRentals: number;
+  pendingRigApprovals: number;
+  pendingWithdrawals: number;
+  revenueTodayUsd: number;
+  commissionTodayUsd: number;
+  currentlyRentedHashrate: number;
+}
+
 export interface AlgorithmHashrateBreakdown {
   algorithmId: number;
   algorithmName: string;
@@ -655,6 +704,10 @@ export type ForbiddenResponse = ErrorResponse;
  * Not found
  */
 export type NotFoundResponse = ErrorResponse;
+
+export type GetMarketplaceFeaturedParams = {
+  limit?: number;
+};
 
 export type ListRigsParams = {
   algorithmId?: number;
