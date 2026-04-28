@@ -10,11 +10,15 @@ export interface ShareWindow {
   rentalId: number;
   rigId: number;
   startedAt: number;
+  // Current 60-s flush window — reset on each flush
   sharesAccepted: number;
   sharesRejected: number;
   difficultySum: number;
   currentDifficulty: number;
   lastShareAt: Date | null;
+  // Cumulative totals for the whole rental lifetime — never reset
+  sharesAcceptedLifetime: number;
+  sharesRejectedLifetime: number;
 }
 
 export interface ProxyRigEntry {

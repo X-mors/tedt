@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { seedDatabase } from "./lib/seed";
 import { StratumServer } from "./lib/stratum/server";
+import { backfillRigTokens } from "./lib/backfill";
 
 const rawPort = process.env["PORT"];
 
@@ -21,6 +22,7 @@ const stratumPort = Number(process.env["STRATUM_PORT"] ?? "3333");
 const stratumServer = new StratumServer(stratumPort);
 
 seedDatabase()
+  .then(() => backfillRigTokens())
   .then(() => {
     stratumServer.start();
 

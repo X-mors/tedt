@@ -57,10 +57,13 @@ export async function settleExpiredRentals(): Promise<number> {
       const advertisedHashrate = toNum(claimed.hashrate);
       const deliveredHashrate = toNum(claimed.deliveredHashrateAvg);
 
+      // If no hashrate was recorded (null/0), the owner did not demonstrably
+      // deliver any work — refund the renter fully rather than defaulting to
+      // full payout. This incentivizes owners to keep rigs online.
       const deliveryRatio =
         deliveredHashrate > 0 && advertisedHashrate > 0
           ? Math.min(1.05, deliveredHashrate / advertisedHashrate)
-          : 1.0;
+          : 0.0;
 
       const ownerPayout = round6(toNum(claimed.ownerEarningsUsd) * deliveryRatio);
       const renterRefund = round6(toNum(claimed.renterTotalUsd) * (1 - deliveryRatio));

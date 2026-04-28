@@ -1,14 +1,24 @@
 import type { ShareWindow, ProxyRigEntry, ProxyAdminStatus } from "./types";
 import type { DownstreamSession } from "./downstream";
+import type { UpstreamClient } from "./upstream";
 
 interface RigConnection {
   session: DownstreamSession;
   entry: ProxyRigEntry;
 }
 
+interface ParkedUpstream {
+  upstream: UpstreamClient;
+  timer: NodeJS.Timeout;
+}
+
+const RECONNECT_GRACE_MS = 60_000;
+
 class ProxyState {
   private rigConnections = new Map<number, RigConnection>();
   private shareWindows = new Map<number, ShareWindow>();
+  /** Upstream pool connections kept alive during brief miner disconnects. */
+  private parkedUpstreams = new Map<number, ParkedUpstream>();
 
   addRig(rigId: number, session: DownstreamSession, rigName: string): void {
     this.rigConnections.set(rigId, {
@@ -72,15 +82,19 @@ class ProxyState {
         difficultySum: 0,
         currentDifficulty: difficulty,
         lastShareAt: null,
+        sharesAcceptedLifetime: 0,
+        sharesRejectedLifetime: 0,
       };
       this.shareWindows.set(rentalId, window);
     }
     if (accepted) {
       window.sharesAccepted++;
+      window.sharesAcceptedLifetime++;
       window.difficultySum += difficulty;
       window.lastShareAt = new Date();
     } else {
       window.sharesRejected++;
+      window.sharesRejectedLifetime++;
     }
     window.currentDifficulty = difficulty;
   }
@@ -101,6 +115,8 @@ class ProxyState {
         difficultySum: 0,
         currentDifficulty: 1,
         lastShareAt: null,
+        sharesAcceptedLifetime: 0,
+        sharesRejectedLifetime: 0,
       });
     }
   }
@@ -109,6 +125,7 @@ class ProxyState {
     const window = this.shareWindows.get(rentalId);
     if (!window) return null;
     const snapshot = { ...window };
+    // Reset only current-window counters; lifetime totals carry forward.
     this.shareWindows.set(rentalId, {
       ...window,
       startedAt: Date.now(),
@@ -150,8 +167,9 @@ class ProxyState {
     return {
       minerConnected: conn != null,
       upstreamConnected: conn?.entry.upstreamConnected ?? false,
-      sharesAccepted: window.sharesAccepted,
-      sharesRejected: window.sharesRejected,
+      // Return cumulative lifetime totals for stable rental-level accounting.
+      sharesAccepted: window.sharesAcceptedLifetime,
+      sharesRejected: window.sharesRejectedLifetime,
       lastShareAt: window.lastShareAt,
       currentDifficulty: window.currentDifficulty,
       effectiveHashrateH,
@@ -185,6 +203,38 @@ class ProxyState {
     if (!conn) return false;
     conn.session.disconnect("Admin forced disconnect");
     return true;
+  }
+
+  /**
+   * Park an upstream pool connection for `rentalId` during a miner reconnect
+   * grace period. The upstream is automatically destroyed after RECONNECT_GRACE_MS
+   * if the miner does not reconnect.
+   */
+  parkUpstream(rentalId: number, upstream: UpstreamClient): void {
+    const existing = this.parkedUpstreams.get(rentalId);
+    if (existing) {
+      clearTimeout(existing.timer);
+      existing.upstream.destroy();
+    }
+    const timer = setTimeout(() => {
+      this.parkedUpstreams.get(rentalId)?.upstream.destroy();
+      this.parkedUpstreams.delete(rentalId);
+    }, RECONNECT_GRACE_MS);
+    // Unref so the timer does not prevent process exit.
+    timer.unref();
+    this.parkedUpstreams.set(rentalId, { upstream, timer });
+  }
+
+  /**
+   * Claim a parked upstream for reuse when the miner reconnects within the
+   * grace window. Returns null if no parked upstream exists.
+   */
+  claimParkedUpstream(rentalId: number): UpstreamClient | null {
+    const parked = this.parkedUpstreams.get(rentalId);
+    if (!parked) return null;
+    clearTimeout(parked.timer);
+    this.parkedUpstreams.delete(rentalId);
+    return parked.upstream;
   }
 }
 
