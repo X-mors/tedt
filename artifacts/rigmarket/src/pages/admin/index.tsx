@@ -132,21 +132,29 @@ export default function AdminDashboard() {
   const [markSentTxid, setMarkSentTxid] = useState("");
   const [markSentAutoSend, setMarkSentAutoSend] = useState(true);
 
-  const [walletMinDeposit, setWalletMinDeposit] = useState("");
+  const [walletBtcMinDeposit, setWalletBtcMinDeposit] = useState("");
+  const [walletUsdtMinDeposit, setWalletUsdtMinDeposit] = useState("");
   const [walletBtcConf, setWalletBtcConf] = useState("");
   const [walletUsdtConf, setWalletUsdtConf] = useState("");
-  const [walletWithdrawalFee, setWalletWithdrawalFee] = useState("");
+  const [walletBtcFee, setWalletBtcFee] = useState("");
+  const [walletUsdtFee, setWalletUsdtFee] = useState("");
   const [walletDailyCap, setWalletDailyCap] = useState("");
   const [walletRateSource, setWalletRateSource] = useState<"coingecko" | "fixed">("coingecko");
   const [walletFixedBtc, setWalletFixedBtc] = useState("");
   const [walletFixedUsdt, setWalletFixedUsdt] = useState("");
+  const [walletEnabledBtc, setWalletEnabledBtc] = useState(true);
+  const [walletEnabledUsdt, setWalletEnabledUsdt] = useState(true);
 
   const handleUpdateWalletSettings = () => {
     const body: Record<string, string | number> = {};
-    if (walletMinDeposit !== "") body["wallet_btc_min_deposit_usd"] = parseFloat(walletMinDeposit);
+    const enabledCurrencies = [walletEnabledBtc ? "btc" : null, walletEnabledUsdt ? "usdt_trc20" : null].filter(Boolean).join(",");
+    if (enabledCurrencies) body["wallet_enabled_currencies"] = enabledCurrencies;
+    if (walletBtcMinDeposit !== "") body["wallet_btc_min_deposit_usd"] = parseFloat(walletBtcMinDeposit);
+    if (walletUsdtMinDeposit !== "") body["wallet_usdt_trc20_min_deposit_usd"] = parseFloat(walletUsdtMinDeposit);
     if (walletBtcConf !== "") body["wallet_btc_required_confirmations"] = parseInt(walletBtcConf);
     if (walletUsdtConf !== "") body["wallet_usdt_trc20_required_confirmations"] = parseInt(walletUsdtConf);
-    if (walletWithdrawalFee !== "") body["wallet_usdt_trc20_min_deposit_usd"] = parseFloat(walletWithdrawalFee);
+    if (walletBtcFee !== "") body["wallet_btc_withdrawal_fee_usd"] = parseFloat(walletBtcFee);
+    if (walletUsdtFee !== "") body["wallet_usdt_trc20_withdrawal_fee_usd"] = parseFloat(walletUsdtFee);
     if (walletDailyCap !== "") body["wallet_daily_withdrawal_cap_usd"] = parseFloat(walletDailyCap);
     body["wallet_rate_source"] = walletRateSource;
     if (walletFixedBtc !== "") body["wallet_fixed_btc_usd"] = parseFloat(walletFixedBtc);
@@ -157,8 +165,10 @@ export default function AdminDashboard() {
         toast({ title: "Wallet Settings Saved" });
         void refetchWalletSettings();
         queryClient.invalidateQueries({ queryKey: getGetWalletSettingsQueryKey() });
-        setWalletMinDeposit(""); setWalletBtcConf(""); setWalletUsdtConf("");
-        setWalletWithdrawalFee(""); setWalletDailyCap(""); setWalletFixedBtc(""); setWalletFixedUsdt("");
+        setWalletBtcMinDeposit(""); setWalletUsdtMinDeposit("");
+        setWalletBtcConf(""); setWalletUsdtConf("");
+        setWalletBtcFee(""); setWalletUsdtFee("");
+        setWalletDailyCap(""); setWalletFixedBtc(""); setWalletFixedUsdt("");
       },
       onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
     });
@@ -935,14 +945,27 @@ export default function AdminDashboard() {
                 <CardTitle className="font-mono text-sm">UPDATE_SETTINGS</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="font-mono text-xs">Enabled Currencies</Label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={walletEnabledBtc} onChange={(e) => setWalletEnabledBtc(e.target.checked)} className="w-4 h-4" />
+                      <span className="font-mono text-xs">BTC</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={walletEnabledUsdt} onChange={(e) => setWalletEnabledUsdt(e.target.checked)} className="w-4 h-4" />
+                      <span className="font-mono text-xs">USDT TRC-20</span>
+                    </label>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="font-mono text-xs">BTC Min Deposit USD</Label>
-                    <Input placeholder={String(walletSettingsData?.settings.btcMinDepositUsd ?? 10)} value={walletMinDeposit} onChange={(e) => setWalletMinDeposit(e.target.value)} className="font-mono text-xs" />
+                    <Input placeholder={String(walletSettingsData?.settings.btcMinDepositUsd ?? 10)} value={walletBtcMinDeposit} onChange={(e) => setWalletBtcMinDeposit(e.target.value)} className="font-mono text-xs" />
                   </div>
                   <div className="space-y-1">
                     <Label className="font-mono text-xs">USDT Min Deposit USD</Label>
-                    <Input placeholder={String(walletSettingsData?.settings.usdtTrc20MinDepositUsd ?? 1)} value={walletWithdrawalFee} onChange={(e) => setWalletWithdrawalFee(e.target.value)} className="font-mono text-xs" />
+                    <Input placeholder={String(walletSettingsData?.settings.usdtTrc20MinDepositUsd ?? 1)} value={walletUsdtMinDeposit} onChange={(e) => setWalletUsdtMinDeposit(e.target.value)} className="font-mono text-xs" />
                   </div>
                   <div className="space-y-1">
                     <Label className="font-mono text-xs">BTC Confirmations</Label>
@@ -951,6 +974,14 @@ export default function AdminDashboard() {
                   <div className="space-y-1">
                     <Label className="font-mono text-xs">USDT Confirmations</Label>
                     <Input placeholder={String(walletSettingsData?.settings.usdtTrc20RequiredConfirmations ?? 20)} value={walletUsdtConf} onChange={(e) => setWalletUsdtConf(e.target.value)} className="font-mono text-xs" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="font-mono text-xs">BTC Withdrawal Fee USD</Label>
+                    <Input placeholder={String(walletSettingsData?.settings.btcWithdrawalFeeUsd ?? 0)} value={walletBtcFee} onChange={(e) => setWalletBtcFee(e.target.value)} className="font-mono text-xs" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="font-mono text-xs">USDT Withdrawal Fee USD</Label>
+                    <Input placeholder={String(walletSettingsData?.settings.usdtTrc20WithdrawalFeeUsd ?? 0)} value={walletUsdtFee} onChange={(e) => setWalletUsdtFee(e.target.value)} className="font-mono text-xs" />
                   </div>
                   <div className="space-y-1 col-span-2">
                     <Label className="font-mono text-xs">Daily Withdrawal Cap USD (0 = unlimited)</Label>

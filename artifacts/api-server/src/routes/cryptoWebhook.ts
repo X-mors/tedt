@@ -164,7 +164,21 @@ router.post(
         const amountUsd = await cryptoToUsd(actuallyPaid, currency);
 
         if (minDepositUsd > 0 && amountUsd < minDepositUsd) {
-          logger.warn({ paymentId, amountUsd, minDepositUsd, currency }, "IPN new deposit below minimum — not crediting");
+          logger.warn({ paymentId, amountUsd, minDepositUsd, currency }, "IPN new deposit below minimum — recording as failed");
+          await db
+            .insert(cryptoDepositsTable)
+            .values({
+              userId,
+              depositAddressId: depositAddress?.id ?? null,
+              currency,
+              amountCrypto: String(actuallyPaid),
+              processorPaymentId: paymentId,
+              status: "failed",
+              confirmations: requiredConf,
+              requiredConfirmations: requiredConf,
+              lastCheckedAt: new Date(),
+            })
+            .onConflictDoNothing({ target: cryptoDepositsTable.processorPaymentId });
           res.json({ ok: true });
           return;
         }
@@ -228,35 +242,45 @@ router.post(
       userId
     ) {
       if (existingDeposit) {
-        await db
-          .update(cryptoDepositsTable)
-          .set({ status: "confirming", lastCheckedAt: new Date() })
-          .where(eq(cryptoDepositsTable.id, existingDeposit.id));
+        if ((existingDeposit.status as string) !== "credited") {
+          await db
+            .update(cryptoDepositsTable)
+            .set({ status: "confirming", lastCheckedAt: new Date() })
+            .where(eq(cryptoDepositsTable.id, existingDeposit.id));
+        }
       } else {
-        await db.insert(cryptoDepositsTable).values({
-          userId: userId,
-          depositAddressId: depositAddress?.id ?? null,
-          currency,
-          amountCrypto: String(actuallyPaid),
-          processorPaymentId: paymentId,
-          status: "confirming",
-          confirmations: 0,
-          requiredConfirmations: requiredConf,
-          lastCheckedAt: new Date(),
-        });
+        await db
+          .insert(cryptoDepositsTable)
+          .values({
+            userId,
+            depositAddressId: depositAddress?.id ?? null,
+            currency,
+            amountCrypto: String(actuallyPaid),
+            processorPaymentId: paymentId,
+            status: "confirming",
+            confirmations: 0,
+            requiredConfirmations: requiredConf,
+            lastCheckedAt: new Date(),
+          })
+          .onConflictDoNothing({ target: cryptoDepositsTable.processorPaymentId });
       }
-    } else if (npStatus === "waiting" && userId && !existingDeposit) {
-      await db.insert(cryptoDepositsTable).values({
-        userId: userId,
-        depositAddressId: depositAddress?.id ?? null,
-        currency,
-        amountCrypto: String(payload.pay_amount ?? 0),
-        processorPaymentId: paymentId,
-        status: "pending",
-        confirmations: 0,
-        requiredConfirmations: requiredConf,
-        lastCheckedAt: new Date(),
-      });
+    } else if (npStatus === "waiting" && userId) {
+      if (!existingDeposit) {
+        await db
+          .insert(cryptoDepositsTable)
+          .values({
+            userId,
+            depositAddressId: depositAddress?.id ?? null,
+            currency,
+            amountCrypto: String(payload.pay_amount ?? 0),
+            processorPaymentId: paymentId,
+            status: "pending",
+            confirmations: 0,
+            requiredConfirmations: requiredConf,
+            lastCheckedAt: new Date(),
+          })
+          .onConflictDoNothing({ target: cryptoDepositsTable.processorPaymentId });
+      }
     } else if (
       !userId &&
       actuallyPaid > 0 &&

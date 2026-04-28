@@ -842,7 +842,7 @@ router.post("/admin/withdrawals/:id/reject", async (req, res) => {
         decidedAt: new Date(),
       })
       .where(
-        sql`${withdrawalsTable.id} = ${id} AND ${withdrawalsTable.status} = 'pending'`,
+        sql`${withdrawalsTable.id} = ${id} AND ${withdrawalsTable.status} IN ('pending', 'approved')`,
       )
       .returning();
     if (!updated) return null;
