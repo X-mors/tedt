@@ -42,6 +42,7 @@ export interface NpPayment {
   outcome_amount: number;
   outcome_currency: string;
   expiration_estimate_date: string | null;
+  valid_until?: string | null;
   created_at: string;
   updated_at: string;
   payin_extra_id?: string;

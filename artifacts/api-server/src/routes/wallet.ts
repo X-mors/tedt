@@ -78,7 +78,8 @@ router.get("/me/wallet", async (req, res) => {
   res.json(data);
 });
 
-const ADDRESS_VALIDITY_MS = 365 * 24 * 60 * 60 * 1000;
+const ADDRESS_EXPIRY_BUFFER_MS = 24 * 60 * 60 * 1000;
+const ADDRESS_FALLBACK_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 router.get(
   "/me/wallet/deposit-addresses",
@@ -106,6 +107,7 @@ router.get(
 
     for (const currency of currencies) {
       const now = new Date();
+      const expiryThreshold = new Date(now.getTime() + ADDRESS_EXPIRY_BUFFER_MS);
       const minDepositUsd =
         currency === "btc"
           ? walletSettings.btcMinDepositUsd
@@ -129,7 +131,7 @@ router.get(
         .limit(1)
         .then((rows) => rows[0] ?? null);
 
-      if (existing && (!existing.expiresAt || existing.expiresAt > now)) {
+      if (existing && existing.expiresAt && existing.expiresAt > expiryThreshold) {
         result[currency] = {
           currency,
           address: existing.address,
@@ -161,8 +163,13 @@ router.get(
 
       try {
         const orderId = `user-${userId}-${currency}-${Date.now()}`;
-        const payment = await createDepositPayment(currency, orderId);
-        const expiresAt = new Date(Date.now() + ADDRESS_VALIDITY_MS);
+        const payment = await createDepositPayment(currency, orderId, requiredConfirmations);
+        const processorExpiry = payment.valid_until ?? payment.expiration_estimate_date;
+        const parsedExpiry = processorExpiry ? new Date(processorExpiry) : null;
+        const expiresAt =
+          parsedExpiry && !isNaN(parsedExpiry.getTime())
+            ? parsedExpiry
+            : new Date(Date.now() + ADDRESS_FALLBACK_TTL_MS);
 
         const [row] = await db
           .insert(depositAddressesTable)

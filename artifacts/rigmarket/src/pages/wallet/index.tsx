@@ -172,6 +172,14 @@ function DepositSection() {
                       <p className="font-mono font-semibold">{activeAddress.requiredConfirmations}</p>
                     </div>
                   </div>
+                  {activeAddress.expiresAt && (
+                    <div className="rounded-md bg-muted/30 border border-border/50 p-3">
+                      <p className="text-xs text-muted-foreground font-mono uppercase mb-1">Address Valid Until</p>
+                      <p className="font-mono font-semibold text-sm">
+                        {format(new Date(activeAddress.expiresAt), "MMM d, yyyy HH:mm z")}
+                      </p>
+                    </div>
+                  )}
                   <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-3">
                     <p className="text-xs text-blue-400 font-mono">
                       Send only {activeAddress.currency === "btc" ? "BTC" : "USDT (TRC-20)"} to this address.
