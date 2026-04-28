@@ -2912,13 +2912,17 @@ components:
           type: array
           items:
             type: string
-        minDepositUsd:
+        btcMinDepositUsd:
+          type: number
+        usdtTrc20MinDepositUsd:
           type: number
         btcRequiredConfirmations:
           type: integer
         usdtTrc20RequiredConfirmations:
           type: integer
-        withdrawalFeeUsd:
+        btcWithdrawalFeeUsd:
+          type: number
+        usdtTrc20WithdrawalFeeUsd:
           type: number
         dailyWithdrawalCapUsd:
           type: number
@@ -2931,10 +2935,12 @@ components:
           type: number
       required:
         - enabledCurrencies
-        - minDepositUsd
+        - btcMinDepositUsd
+        - usdtTrc20MinDepositUsd
         - btcRequiredConfirmations
         - usdtTrc20RequiredConfirmations
-        - withdrawalFeeUsd
+        - btcWithdrawalFeeUsd
+        - usdtTrc20WithdrawalFeeUsd
         - dailyWithdrawalCapUsd
         - rateSource
         - fixedBtcUsd
@@ -2955,7 +2961,10 @@ components:
         wallet_enabled_currencies:
           type: string
           description: "Comma-separated list, e.g. 'btc,usdt_trc20'"
-        wallet_min_deposit_usd:
+        wallet_btc_min_deposit_usd:
+          type: number
+          minimum: 0
+        wallet_usdt_trc20_min_deposit_usd:
           type: number
           minimum: 0
         wallet_btc_required_confirmations:
@@ -2966,7 +2975,10 @@ components:
           type: integer
           minimum: 1
           maximum: 100
-        wallet_withdrawal_fee_usd:
+        wallet_btc_withdrawal_fee_usd:
+          type: number
+          minimum: 0
+        wallet_usdt_trc20_withdrawal_fee_usd:
           type: number
           minimum: 0
         wallet_daily_withdrawal_cap_usd:

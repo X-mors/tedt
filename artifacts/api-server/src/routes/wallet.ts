@@ -93,7 +93,10 @@ router.get(
 
     for (const currency of currencies) {
       const now = new Date();
-      const minDepositUsd = walletSettings.minDepositUsd;
+      const minDepositUsd =
+        currency === "btc"
+          ? walletSettings.btcMinDepositUsd
+          : walletSettings.usdtTrc20MinDepositUsd;
       const requiredConfirmations =
         currency === "btc"
           ? walletSettings.btcRequiredConfirmations

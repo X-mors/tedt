@@ -9,10 +9,12 @@ import type { WalletCryptoSettingsRateSource } from "./walletCryptoSettingsRateS
 
 export interface WalletCryptoSettings {
   enabledCurrencies: string[];
-  minDepositUsd: number;
+  btcMinDepositUsd: number;
+  usdtTrc20MinDepositUsd: number;
   btcRequiredConfirmations: number;
   usdtTrc20RequiredConfirmations: number;
-  withdrawalFeeUsd: number;
+  btcWithdrawalFeeUsd: number;
+  usdtTrc20WithdrawalFeeUsd: number;
   dailyWithdrawalCapUsd: number;
   rateSource: WalletCryptoSettingsRateSource;
   fixedBtcUsd: number;

@@ -17,16 +17,19 @@ const PROXY_DEFAULTS: ProxySettings = {
 };
 
 export interface WalletCryptoSettings {
-  /** Enabled currencies as comma-separated string, e.g. "btc,usdt_trc20" */
   enabledCurrencies: string[];
-  /** Minimum deposit value in USD before crediting */
-  minDepositUsd: number;
+  /** Minimum deposit in USD before crediting (BTC) */
+  btcMinDepositUsd: number;
+  /** Minimum deposit in USD before crediting (USDT TRC-20) */
+  usdtTrc20MinDepositUsd: number;
   /** Required on-chain confirmations for BTC */
   btcRequiredConfirmations: number;
   /** Required on-chain confirmations for USDT TRC-20 */
   usdtTrc20RequiredConfirmations: number;
-  /** Flat withdrawal fee in USD deducted from payout */
-  withdrawalFeeUsd: number;
+  /** Flat withdrawal fee in USD deducted from BTC payouts */
+  btcWithdrawalFeeUsd: number;
+  /** Flat withdrawal fee in USD deducted from USDT TRC-20 payouts */
+  usdtTrc20WithdrawalFeeUsd: number;
   /** Maximum total withdrawal USD per user per 24h (0 = unlimited) */
   dailyWithdrawalCapUsd: number;
   /** Rate source: "coingecko" (default) or "fixed" */
@@ -39,10 +42,12 @@ export interface WalletCryptoSettings {
 
 const WALLET_DEFAULTS: WalletCryptoSettings = {
   enabledCurrencies: ["btc", "usdt_trc20"],
-  minDepositUsd: 1,
+  btcMinDepositUsd: 10,
+  usdtTrc20MinDepositUsd: 1,
   btcRequiredConfirmations: 2,
   usdtTrc20RequiredConfirmations: 20,
-  withdrawalFeeUsd: 0,
+  btcWithdrawalFeeUsd: 0,
+  usdtTrc20WithdrawalFeeUsd: 0,
   dailyWithdrawalCapUsd: 0,
   rateSource: "coingecko",
   fixedBtcUsd: 0,
@@ -98,10 +103,12 @@ export async function getWalletSettings(): Promise<WalletCryptoSettings> {
 
   walletCached = {
     enabledCurrencies,
-    minDepositUsd: parseNumber(map, "wallet_min_deposit_usd", WALLET_DEFAULTS.minDepositUsd),
+    btcMinDepositUsd: parseNumber(map, "wallet_btc_min_deposit_usd", WALLET_DEFAULTS.btcMinDepositUsd),
+    usdtTrc20MinDepositUsd: parseNumber(map, "wallet_usdt_trc20_min_deposit_usd", WALLET_DEFAULTS.usdtTrc20MinDepositUsd),
     btcRequiredConfirmations: parseNumber(map, "wallet_btc_required_confirmations", WALLET_DEFAULTS.btcRequiredConfirmations),
     usdtTrc20RequiredConfirmations: parseNumber(map, "wallet_usdt_trc20_required_confirmations", WALLET_DEFAULTS.usdtTrc20RequiredConfirmations),
-    withdrawalFeeUsd: parseNumber(map, "wallet_withdrawal_fee_usd", WALLET_DEFAULTS.withdrawalFeeUsd),
+    btcWithdrawalFeeUsd: parseNumber(map, "wallet_btc_withdrawal_fee_usd", WALLET_DEFAULTS.btcWithdrawalFeeUsd),
+    usdtTrc20WithdrawalFeeUsd: parseNumber(map, "wallet_usdt_trc20_withdrawal_fee_usd", WALLET_DEFAULTS.usdtTrc20WithdrawalFeeUsd),
     dailyWithdrawalCapUsd: parseNumber(map, "wallet_daily_withdrawal_cap_usd", WALLET_DEFAULTS.dailyWithdrawalCapUsd),
     rateSource,
     fixedBtcUsd: parseNumber(map, "wallet_fixed_btc_usd", WALLET_DEFAULTS.fixedBtcUsd),

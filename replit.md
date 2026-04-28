@@ -107,12 +107,16 @@ dashboard → "Stratum Proxy" tab.
   `GET|POST /api/me/wallet/withdrawals`
 - Wallet crypto: `GET /api/me/wallet/deposit-addresses`,
   `GET /api/me/wallet/deposits`
-- IPN webhook: `POST /api/webhooks/crypto` (NOWPayments IPN, HMAC-verified)
+- IPN webhooks: `POST /api/wallet/webhook/nowpayments` (deposit IPN, HMAC-verified),
+  `POST /api/wallet/webhook/nowpayments/payout` (payout/withdrawal confirmation IPN)
 - Admin: `GET /api/admin/stats`, `GET /api/admin/users`,
   `POST /api/admin/wallet/credit`, `GET|PATCH /api/admin/commission`,
   `POST|PATCH|DELETE /api/admin/algorithms`, withdrawals queue with
-  `mark-sent` / `reject`, `GET /api/admin/deposits/unmatched`,
+  `approve` / `mark-sent` / `confirm` / `reject`,
+  `GET /api/admin/deposits/unmatched`,
   `POST /api/admin/withdrawals/:id/mark-sent`,
+  `POST /api/admin/withdrawals/:id/confirm`,
+  `GET|PUT /api/admin/wallet/settings`,
   `GET /api/admin/proxy`, `POST /api/admin/proxy/rigs/:rigId/disconnect`
 - `GET /api/me`, `PATCH /api/me`, `POST /api/me/sync`
 

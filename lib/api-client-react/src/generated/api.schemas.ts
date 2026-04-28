@@ -858,10 +858,12 @@ export const WalletCryptoSettingsRateSource = {
 
 export interface WalletCryptoSettings {
   enabledCurrencies: string[];
-  minDepositUsd: number;
+  btcMinDepositUsd: number;
+  usdtTrc20MinDepositUsd: number;
   btcRequiredConfirmations: number;
   usdtTrc20RequiredConfirmations: number;
-  withdrawalFeeUsd: number;
+  btcWithdrawalFeeUsd: number;
+  usdtTrc20WithdrawalFeeUsd: number;
   dailyWithdrawalCapUsd: number;
   rateSource: WalletCryptoSettingsRateSource;
   fixedBtcUsd: number;
@@ -885,7 +887,9 @@ export interface UpdateWalletSettingsBody {
   /** Comma-separated list, e.g. 'btc,usdt_trc20' */
   wallet_enabled_currencies?: string;
   /** @minimum 0 */
-  wallet_min_deposit_usd?: number;
+  wallet_btc_min_deposit_usd?: number;
+  /** @minimum 0 */
+  wallet_usdt_trc20_min_deposit_usd?: number;
   /**
    * @minimum 1
    * @maximum 100
@@ -897,7 +901,9 @@ export interface UpdateWalletSettingsBody {
    */
   wallet_usdt_trc20_required_confirmations?: number;
   /** @minimum 0 */
-  wallet_withdrawal_fee_usd?: number;
+  wallet_btc_withdrawal_fee_usd?: number;
+  /** @minimum 0 */
+  wallet_usdt_trc20_withdrawal_fee_usd?: number;
   /** @minimum 0 */
   wallet_daily_withdrawal_cap_usd?: number;
   wallet_rate_source?: UpdateWalletSettingsBodyWalletRateSource;

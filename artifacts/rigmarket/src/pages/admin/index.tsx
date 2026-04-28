@@ -143,10 +143,10 @@ export default function AdminDashboard() {
 
   const handleUpdateWalletSettings = () => {
     const body: Record<string, string | number> = {};
-    if (walletMinDeposit !== "") body["wallet_min_deposit_usd"] = parseFloat(walletMinDeposit);
+    if (walletMinDeposit !== "") body["wallet_btc_min_deposit_usd"] = parseFloat(walletMinDeposit);
     if (walletBtcConf !== "") body["wallet_btc_required_confirmations"] = parseInt(walletBtcConf);
     if (walletUsdtConf !== "") body["wallet_usdt_trc20_required_confirmations"] = parseInt(walletUsdtConf);
-    if (walletWithdrawalFee !== "") body["wallet_withdrawal_fee_usd"] = parseFloat(walletWithdrawalFee);
+    if (walletWithdrawalFee !== "") body["wallet_usdt_trc20_min_deposit_usd"] = parseFloat(walletWithdrawalFee);
     if (walletDailyCap !== "") body["wallet_daily_withdrawal_cap_usd"] = parseFloat(walletDailyCap);
     body["wallet_rate_source"] = walletRateSource;
     if (walletFixedBtc !== "") body["wallet_fixed_btc_usd"] = parseFloat(walletFixedBtc);
@@ -906,10 +906,12 @@ export default function AdminDashboard() {
                     <tbody>
                       {[
                         ["Enabled Currencies", walletSettingsData.settings.enabledCurrencies.join(", ")],
-                        ["Min Deposit (USD)", `$${walletSettingsData.settings.minDepositUsd}`],
+                        ["BTC Min Deposit", `$${walletSettingsData.settings.btcMinDepositUsd}`],
+                        ["USDT Min Deposit", `$${walletSettingsData.settings.usdtTrc20MinDepositUsd}`],
                         ["BTC Confirmations", walletSettingsData.settings.btcRequiredConfirmations],
                         ["USDT TRC-20 Confirmations", walletSettingsData.settings.usdtTrc20RequiredConfirmations],
-                        ["Withdrawal Fee (USD)", `$${walletSettingsData.settings.withdrawalFeeUsd}`],
+                        ["BTC Withdrawal Fee", `$${walletSettingsData.settings.btcWithdrawalFeeUsd}`],
+                        ["USDT Withdrawal Fee", `$${walletSettingsData.settings.usdtTrc20WithdrawalFeeUsd}`],
                         ["Daily Withdrawal Cap", walletSettingsData.settings.dailyWithdrawalCapUsd === 0 ? "Unlimited" : `$${walletSettingsData.settings.dailyWithdrawalCapUsd}`],
                         ["Rate Source", walletSettingsData.settings.rateSource],
                         ["Fixed BTC Price", walletSettingsData.settings.rateSource === "fixed" ? `$${walletSettingsData.settings.fixedBtcUsd}` : "—"],
@@ -935,12 +937,12 @@ export default function AdminDashboard() {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="font-mono text-xs">Min Deposit USD</Label>
-                    <Input placeholder={String(walletSettingsData?.settings.minDepositUsd ?? 1)} value={walletMinDeposit} onChange={(e) => setWalletMinDeposit(e.target.value)} className="font-mono text-xs" />
+                    <Label className="font-mono text-xs">BTC Min Deposit USD</Label>
+                    <Input placeholder={String(walletSettingsData?.settings.btcMinDepositUsd ?? 10)} value={walletMinDeposit} onChange={(e) => setWalletMinDeposit(e.target.value)} className="font-mono text-xs" />
                   </div>
                   <div className="space-y-1">
-                    <Label className="font-mono text-xs">Withdrawal Fee USD</Label>
-                    <Input placeholder={String(walletSettingsData?.settings.withdrawalFeeUsd ?? 0)} value={walletWithdrawalFee} onChange={(e) => setWalletWithdrawalFee(e.target.value)} className="font-mono text-xs" />
+                    <Label className="font-mono text-xs">USDT Min Deposit USD</Label>
+                    <Input placeholder={String(walletSettingsData?.settings.usdtTrc20MinDepositUsd ?? 1)} value={walletWithdrawalFee} onChange={(e) => setWalletWithdrawalFee(e.target.value)} className="font-mono text-xs" />
                   </div>
                   <div className="space-y-1">
                     <Label className="font-mono text-xs">BTC Confirmations</Label>

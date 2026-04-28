@@ -73,10 +73,25 @@ async function pollPendingDeposits() {
 
       if (npStatus === "finished") {
         if (deposit.status === "credited") continue;
-        if (!deposit.userId) continue; // unmatched — skip worker crediting
+        if (!deposit.userId) continue;
 
         const amountCrypto = actuallyPaid > 0 ? actuallyPaid : Number(deposit.amountCrypto);
         const amountUsd = await cryptoToUsd(amountCrypto, deposit.currency as "btc" | "usdt_trc20");
+
+        const settings = await getWalletSettings();
+        const minDepositUsd =
+          deposit.currency === "btc"
+            ? settings.btcMinDepositUsd
+            : settings.usdtTrc20MinDepositUsd;
+        if (minDepositUsd > 0 && amountUsd < minDepositUsd) {
+          await db
+            .update(cryptoDepositsTable)
+            .set({ status: "failed", lastCheckedAt: new Date() })
+            .where(eq(cryptoDepositsTable.id, deposit.id));
+          logger.warn({ depositId: deposit.id, amountUsd, minDepositUsd }, "Deposit below minimum — marking failed");
+          continue;
+        }
+
         const rate = amountCrypto > 0 ? amountUsd / amountCrypto : 0;
 
         await db.transaction(async (tx) => {

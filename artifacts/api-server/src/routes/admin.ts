@@ -817,8 +817,10 @@ router.post("/admin/withdrawals/:id/approve", async (req, res) => {
     amountUsd: toNum(updated.amountUsd),
     status: updated.status,
     adminNote: updated.adminNote,
+    onChainTxid: updated.onChainTxid ?? null,
     createdAt: updated.createdAt.toISOString(),
     decidedAt: updated.decidedAt ? updated.decidedAt.toISOString() : null,
+    sentAt: updated.sentAt ? updated.sentAt.toISOString() : null,
   });
   res.json(data);
 });
@@ -880,8 +882,10 @@ router.post("/admin/withdrawals/:id/reject", async (req, res) => {
     amountUsd: toNum(result.amountUsd),
     status: result.status,
     adminNote: result.adminNote,
+    onChainTxid: result.onChainTxid ?? null,
     createdAt: result.createdAt.toISOString(),
     decidedAt: result.decidedAt ? result.decidedAt.toISOString() : null,
+    sentAt: result.sentAt ? result.sentAt.toISOString() : null,
   });
   res.json(data);
 });
@@ -928,7 +932,9 @@ router.post("/admin/withdrawals/:id/mark-sent", async (req, res) => {
   }
 
   const walletSettings = await getWalletSettings();
-  const feeUsd = walletSettings.withdrawalFeeUsd;
+  const feeUsd = withdrawal.asset === "BTC"
+    ? walletSettings.btcWithdrawalFeeUsd
+    : walletSettings.usdtTrc20WithdrawalFeeUsd;
   const netAmountUsd = Math.max(0, toNum(withdrawal.amountUsd) - feeUsd);
 
   let finalTxid = body.onChainTxid?.trim() ?? null;
@@ -1123,10 +1129,12 @@ router.put("/admin/wallet/settings", async (req, res) => {
       validate: (v: string) =>
         v.split(",").every((c) => ["btc", "usdt_trc20"].includes(c.trim())),
     },
-    wallet_min_deposit_usd: { type: "number", validate: (v) => v >= 0 },
+    wallet_btc_min_deposit_usd: { type: "number", validate: (v) => v >= 0 },
+    wallet_usdt_trc20_min_deposit_usd: { type: "number", validate: (v) => v >= 0 },
     wallet_btc_required_confirmations: { type: "number", validate: (v) => v >= 1 && v <= 100 },
     wallet_usdt_trc20_required_confirmations: { type: "number", validate: (v) => v >= 1 && v <= 100 },
-    wallet_withdrawal_fee_usd: { type: "number", validate: (v) => v >= 0 },
+    wallet_btc_withdrawal_fee_usd: { type: "number", validate: (v) => v >= 0 },
+    wallet_usdt_trc20_withdrawal_fee_usd: { type: "number", validate: (v) => v >= 0 },
     wallet_daily_withdrawal_cap_usd: { type: "number", validate: (v) => v >= 0 },
     wallet_rate_source: {
       type: "string",

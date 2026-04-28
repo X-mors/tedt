@@ -97,6 +97,11 @@ router.post(
         ? walletSettings.btcRequiredConfirmations
         : walletSettings.usdtTrc20RequiredConfirmations;
 
+    const minDepositUsd =
+      currency === "btc"
+        ? walletSettings.btcMinDepositUsd
+        : walletSettings.usdtTrc20MinDepositUsd;
+
     if (npStatus === "finished" && actuallyPaid > 0 && userId) {
       if (existingDeposit) {
         const depositStatus: string = existingDeposit.status;
@@ -105,6 +110,13 @@ router.post(
           return;
         }
         const amountUsd = await cryptoToUsd(actuallyPaid, currency);
+
+        if (minDepositUsd > 0 && amountUsd < minDepositUsd) {
+          logger.warn({ paymentId, amountUsd, minDepositUsd, currency }, "IPN deposit below minimum — not crediting");
+          await db.update(cryptoDepositsTable).set({ status: "failed", lastCheckedAt: new Date() }).where(eq(cryptoDepositsTable.id, existingDeposit.id));
+          res.json({ ok: true });
+          return;
+        }
         const rate = actuallyPaid > 0 ? amountUsd / actuallyPaid : 0;
         const amountUsdStr = toUsdString(amountUsd);
 
@@ -150,14 +162,19 @@ router.post(
         logger.info({ userId, amountUsd: toUsdString(await cryptoToUsd(actuallyPaid, currency)), currency }, "Deposit credited via IPN");
       } else {
         const amountUsd = await cryptoToUsd(actuallyPaid, currency);
+
+        if (minDepositUsd > 0 && amountUsd < minDepositUsd) {
+          logger.warn({ paymentId, amountUsd, minDepositUsd, currency }, "IPN new deposit below minimum — not crediting");
+          res.json({ ok: true });
+          return;
+        }
+
         const rate = actuallyPaid > 0 ? amountUsd / actuallyPaid : 0;
         const amountUsdStr = toUsdString(amountUsd);
 
         await db.transaction(async (tx) => {
-          // INSERT ... RETURNING id — returns the new row only if this
-          // transaction won the race; returns empty if another path already
-          // inserted (ON CONFLICT DO NOTHING). This is the only correct way
-          // to detect whether *this* transaction performed the insert.
+          // INSERT ... RETURNING id is the correct way to detect if this
+          // transaction won the race vs another concurrent path.
           const inserted = await tx
             .insert(cryptoDepositsTable)
             .values({
