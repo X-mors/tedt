@@ -8,3 +8,4 @@ export * from "./walletTransactions";
 export * from "./withdrawals";
 export * from "./reviews";
 export * from "./platformSettings";
+export * from "./proxyAuthFailures";

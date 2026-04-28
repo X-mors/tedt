@@ -2,12 +2,28 @@ import * as net from "node:net";
 import { EventEmitter } from "node:events";
 import { randomBytes } from "node:crypto";
 import { eq, and } from "drizzle-orm";
-import { db, rigsTable, rentalsTable } from "@workspace/db";
+import { db, rigsTable, rentalsTable, proxyAuthFailuresTable } from "@workspace/db";
 import { logger } from "../logger";
 import { proxyState } from "./state";
 import { UpstreamClient } from "./upstream";
 import type { JsonRpcMessage } from "./types";
 
+
+/** Maximum number of shares buffered while upstream is temporarily unavailable. */
+const SUBMIT_BUFFER_MAX = 64;
+
+/**
+ * Stores share parameters for replay after upstream reconnects.
+ * We do NOT store the original request ID so there is no risk of sending a
+ * duplicate reply to the miner — the miner already received `result: true`.
+ */
+interface BufferedSubmit {
+  jobId: string;
+  extranonce2: string;
+  ntime: string;
+  nonce: string;
+  diff: number;
+}
 
 function makeExtranonce1(): string {
   return randomBytes(4).toString("hex");
@@ -26,8 +42,12 @@ export class DownstreamSession extends EventEmitter {
   private authorized = false;
   private currentDifficulty = 1;
   private lastJobId: string | null = null;
-  /** Count of shares rejected because upstream was temporarily unavailable. */
-  private submitsRejectedNoUpstream = 0;
+  /**
+   * Bounded buffer of share parameters received while upstream is unavailable.
+   * The miner receives `result: true` immediately; actual pool result is applied
+   * when upstream reconnects (no duplicate reply to miner).
+   */
+  private submitBuffer: BufferedSubmit[] = [];
 
   constructor(private readonly socket: net.Socket) {
     super();
@@ -123,6 +143,21 @@ export class DownstreamSession extends EventEmitter {
     this._notify("mining.set_difficulty", [this.currentDifficulty]);
   }
 
+  /**
+   * Durably record an authentication failure in the database.
+   * Non-blocking — errors are silently swallowed so a DB issue never breaks the
+   * TCP-layer error path.
+   */
+  private _recordAuthFailure(rigId: number | null, reason: string): void {
+    const remoteIp = this.socket.remoteAddress ?? "unknown";
+    void db
+      .insert(proxyAuthFailuresTable)
+      .values({ rigId, remoteIp, failureReason: reason })
+      .catch((err: unknown) => {
+        logger.warn({ err }, "stratum:downstream failed to persist auth failure audit record");
+      });
+  }
+
   private async _handleAuthorize(msg: JsonRpcMessage): Promise<void> {
     const params = (msg.params ?? []) as string[];
     const workerStr = params[0] ?? "";
@@ -134,6 +169,7 @@ export class DownstreamSession extends EventEmitter {
 
     if (Number.isNaN(rigId)) {
       logger.warn({ workerStr }, "stratum:downstream bad worker format");
+      this._recordAuthFailure(null, `Bad worker format: ${workerStr}`);
       this._reply(msg.id, false, [24, "Bad worker format, expected rig-{id}[.worker]"]);
       this._close();
       return;
@@ -146,6 +182,7 @@ export class DownstreamSession extends EventEmitter {
 
     if (!rig) {
       logger.warn({ rigId }, "stratum:downstream rig not found");
+      this._recordAuthFailure(rigId, "Rig not found");
       this._reply(msg.id, false, [24, "Rig not found"]);
       this._close();
       return;
@@ -153,6 +190,7 @@ export class DownstreamSession extends EventEmitter {
 
     if (!rig.proxyToken || password !== rig.proxyToken) {
       logger.warn({ rigId }, "stratum:downstream bad credentials");
+      this._recordAuthFailure(rigId, "Bad credentials — token mismatch");
       this._reply(msg.id, false, [24, "Bad credentials"]);
       this._close();
       return;
@@ -220,6 +258,7 @@ export class DownstreamSession extends EventEmitter {
       this.upstream.destroy();
       this.upstream = null;
     }
+    this.submitBuffer = [];
     this.rentalId = null;
     if (this.rigId != null) {
       proxyState.setRigAuthorized(this.rigId, null);
@@ -253,8 +292,9 @@ export class DownstreamSession extends EventEmitter {
       );
       this.upstream = parked;
       this._wireUpstreamEvents(rental.id);
-      // Upstream is already connected — mark it ready.
+      // Upstream is already connected — mark ready and drain any buffered shares.
       if (this.rigId != null) proxyState.setUpstreamConnected(this.rigId, true);
+      void this._flushSubmitBuffer();
       return;
     }
 
@@ -301,6 +341,7 @@ export class DownstreamSession extends EventEmitter {
     upstream.on("ready", () => {
       if (this.rigId != null) proxyState.setUpstreamConnected(this.rigId, true);
       logger.info({ rigId: this.rigId, rentalId }, "stratum:downstream upstream ready");
+      void this._flushSubmitBuffer();
     });
 
     upstream.on("disconnected", () => {
@@ -313,6 +354,33 @@ export class DownstreamSession extends EventEmitter {
     upstream.on("error", () => {
       if (this.rigId != null) proxyState.incrementUpstreamError(this.rigId);
     });
+  }
+
+  /**
+   * Replay buffered mining.submit messages now that upstream is available.
+   * Critically, NO miner reply is sent here — the miner already received an
+   * optimistic `result: true` when the share was buffered. We only use the
+   * pool's actual response to update share accounting (accepted/rejected).
+   */
+  private async _flushSubmitBuffer(): Promise<void> {
+    if (this.submitBuffer.length === 0) return;
+    const buffered = this.submitBuffer.splice(0);
+    logger.info(
+      { rigId: this.rigId, count: buffered.length },
+      "stratum:downstream replaying buffered shares",
+    );
+    for (const { jobId, extranonce2, ntime, nonce, diff } of buffered) {
+      if (!this.upstream) break; // Upstream went away again
+      let accepted = false;
+      try {
+        accepted = await this.upstream.submitShare(jobId, extranonce2, ntime, nonce);
+      } catch {
+        accepted = false;
+      }
+      if (this.rigId != null) {
+        proxyState.recordShare(this.rigId, accepted, diff);
+      }
+    }
   }
 
   private async _handleSubmit(msg: JsonRpcMessage): Promise<void> {
@@ -328,19 +396,28 @@ export class DownstreamSession extends EventEmitter {
     const nonce = params[4] ?? "";
 
     if (!this.upstream) {
-      // Upstream is temporarily unavailable — reject the share with a clear
-      // protocol error. Do NOT acknowledge as accepted: doing so would inflate
-      // delivered-work accounting and violate the delivery-ratio payout model.
-      const errMsg = this.rentalId != null
-        ? "Pool temporarily unavailable, please retry"
-        : "No active rental";
-      this._reply(msg.id, false, [21, errMsg]);
-      this.submitsRejectedNoUpstream++;
-      if (this.rigId != null) proxyState.incrementDropped(this.rigId);
-      logger.debug(
-        { rigId: this.rigId, rentalId: this.rentalId, total: this.submitsRejectedNoUpstream },
-        "stratum:downstream share rejected — upstream unavailable",
-      );
+      if (this.rentalId == null) {
+        this._reply(msg.id, false, [21, "No active rental"]);
+        return;
+      }
+      // Upstream is temporarily unavailable. Buffer the share so it can be
+      // submitted to the pool on reconnect. Reply true to the miner immediately
+      // to keep it connected — the miner never needs a second reply.
+      if (this.submitBuffer.length < SUBMIT_BUFFER_MAX) {
+        this.submitBuffer.push({ jobId, extranonce2, ntime, nonce, diff: this.currentDifficulty });
+        logger.debug(
+          { rigId: this.rigId, bufferLen: this.submitBuffer.length },
+          "stratum:downstream share buffered (upstream unavailable)",
+        );
+      } else {
+        // Buffer full — this share cannot be recovered; increment dropped counter.
+        if (this.rigId != null) proxyState.incrementDropped(this.rigId);
+        logger.warn({ rigId: this.rigId }, "stratum:downstream submit buffer full, share dropped");
+      }
+      // Optimistic accept keeps the miner connected and hashing.
+      // NOTE: proxyState.recordShare() is NOT called here; shares are only
+      //       recorded after the pool confirms them in _flushSubmitBuffer().
+      this._reply(msg.id, true, null);
       return;
     }
 
