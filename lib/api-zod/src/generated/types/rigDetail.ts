@@ -49,6 +49,14 @@ export interface RigDetail {
   isOnline: boolean;
   /** True when the rig has a fallback pool configured (will mine there when not rented) */
   hasFallbackPool: boolean;
+  /** Hostname of the owner's personal fallback pool. Only populated in owner views. */
+  fallbackPoolHost: string | null;
+  /** Port of the owner's personal fallback pool. Only populated in owner views. */
+  fallbackPoolPort: number | null;
+  /** Worker name for the fallback pool. Only populated in owner views. */
+  fallbackPoolUser: string | null;
+  /** Password for the fallback pool worker. Only populated in owner views. */
+  fallbackPoolPassword: string | null;
   /** Worker name component in the `username.rigname` format. Null for legacy/web-created rigs not yet connected via new-style auth. */
   stratumName: string | null;
   createdAt: Date;

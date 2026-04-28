@@ -26,4 +26,15 @@ export interface CreateRigBody {
   maxRentalHours: number;
   /** @minLength 1 */
   region: string;
+  /** Hostname or IP of the owner's personal mining pool for use when the rig is not rented. */
+  fallbackPoolHost?: string;
+  /**
+   * @minimum 1
+   * @maximum 65535
+   */
+  fallbackPoolPort?: number;
+  /** Worker name to use when connecting to the fallback pool. */
+  fallbackPoolUser?: string;
+  /** Password for the fallback pool worker (usually "x"). */
+  fallbackPoolPassword?: string;
 }

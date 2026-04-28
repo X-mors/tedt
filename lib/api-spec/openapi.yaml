@@ -1587,6 +1587,22 @@ components:
         hasFallbackPool:
           type: boolean
           description: "True when the rig has a fallback pool configured (will mine there when not rented)"
+        fallbackPoolHost:
+          type: string
+          nullable: true
+          description: "Hostname of the owner's personal fallback pool. Only populated in owner views."
+        fallbackPoolPort:
+          type: integer
+          nullable: true
+          description: "Port of the owner's personal fallback pool. Only populated in owner views."
+        fallbackPoolUser:
+          type: string
+          nullable: true
+          description: "Worker name for the fallback pool. Only populated in owner views."
+        fallbackPoolPassword:
+          type: string
+          nullable: true
+          description: "Password for the fallback pool worker. Only populated in owner views."
         stratumName:
           type: string
           nullable: true
@@ -1619,6 +1635,10 @@ components:
         - ownerPassword
         - isOnline
         - hasFallbackPool
+        - fallbackPoolHost
+        - fallbackPoolPort
+        - fallbackPoolUser
+        - fallbackPoolPassword
         - stratumName
         - createdAt
 
@@ -1647,6 +1667,19 @@ components:
         region:
           type: string
           minLength: 1
+        fallbackPoolHost:
+          type: string
+          description: Hostname or IP of the owner's personal mining pool for use when the rig is not rented.
+        fallbackPoolPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        fallbackPoolUser:
+          type: string
+          description: Worker name to use when connecting to the fallback pool.
+        fallbackPoolPassword:
+          type: string
+          description: Password for the fallback pool worker (usually "x").
       required:
         - name
         - description
@@ -1681,6 +1714,19 @@ components:
           minLength: 1
         status:
           $ref: "#/components/schemas/RigStatus"
+        fallbackPoolHost:
+          type: string
+          description: Hostname or IP of the owner's personal mining pool. Set to empty string to remove.
+        fallbackPoolPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        fallbackPoolUser:
+          type: string
+          description: Worker name to use when connecting to the fallback pool.
+        fallbackPoolPassword:
+          type: string
+          description: Password for the fallback pool worker (usually "x").
 
     RentalQuoteBody:
       type: object

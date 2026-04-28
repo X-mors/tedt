@@ -466,6 +466,30 @@ export const GetRigResponse = zod.object({
     .describe(
       "True when the rig has a fallback pool configured (will mine there when not rented)",
     ),
+  fallbackPoolHost: zod
+    .string()
+    .nullable()
+    .describe(
+      "Hostname of the owner's personal fallback pool. Only populated in owner views.",
+    ),
+  fallbackPoolPort: zod
+    .number()
+    .nullable()
+    .describe(
+      "Port of the owner's personal fallback pool. Only populated in owner views.",
+    ),
+  fallbackPoolUser: zod
+    .string()
+    .nullable()
+    .describe(
+      "Worker name for the fallback pool. Only populated in owner views.",
+    ),
+  fallbackPoolPassword: zod
+    .string()
+    .nullable()
+    .describe(
+      "Password for the fallback pool worker. Only populated in owner views.",
+    ),
   stratumName: zod
     .string()
     .nullable()
@@ -545,6 +569,8 @@ export const createRigBodyDescriptionMax = 1000;
 
 export const createRigBodyHashrateExclusiveMin = 0;
 
+export const createRigBodyFallbackPoolPortMax = 65535;
+
 export const CreateRigBody = zod.object({
   name: zod.string().min(1).max(createRigBodyNameMax),
   description: zod.string().max(createRigBodyDescriptionMax),
@@ -553,6 +579,25 @@ export const CreateRigBody = zod.object({
   minRentalHours: zod.number().min(1),
   maxRentalHours: zod.number().min(1),
   region: zod.string().min(1),
+  fallbackPoolHost: zod
+    .string()
+    .optional()
+    .describe(
+      "Hostname or IP of the owner's personal mining pool for use when the rig is not rented.",
+    ),
+  fallbackPoolPort: zod
+    .number()
+    .min(1)
+    .max(createRigBodyFallbackPoolPortMax)
+    .optional(),
+  fallbackPoolUser: zod
+    .string()
+    .optional()
+    .describe("Worker name to use when connecting to the fallback pool."),
+  fallbackPoolPassword: zod
+    .string()
+    .optional()
+    .describe('Password for the fallback pool worker (usually \"x\").'),
 });
 
 /**
@@ -604,6 +649,30 @@ export const GetMyRigResponse = zod.object({
     .describe(
       "True when the rig has a fallback pool configured (will mine there when not rented)",
     ),
+  fallbackPoolHost: zod
+    .string()
+    .nullable()
+    .describe(
+      "Hostname of the owner's personal fallback pool. Only populated in owner views.",
+    ),
+  fallbackPoolPort: zod
+    .number()
+    .nullable()
+    .describe(
+      "Port of the owner's personal fallback pool. Only populated in owner views.",
+    ),
+  fallbackPoolUser: zod
+    .string()
+    .nullable()
+    .describe(
+      "Worker name for the fallback pool. Only populated in owner views.",
+    ),
+  fallbackPoolPassword: zod
+    .string()
+    .nullable()
+    .describe(
+      "Password for the fallback pool worker. Only populated in owner views.",
+    ),
   stratumName: zod
     .string()
     .nullable()
@@ -626,6 +695,8 @@ export const updateMyRigBodyDescriptionMax = 1000;
 
 export const updateMyRigBodyHashrateExclusiveMin = 0;
 
+export const updateMyRigBodyFallbackPoolPortMax = 65535;
+
 export const UpdateMyRigBody = zod.object({
   name: zod.string().min(1).max(updateMyRigBodyNameMax).optional(),
   description: zod.string().max(updateMyRigBodyDescriptionMax).optional(),
@@ -634,6 +705,25 @@ export const UpdateMyRigBody = zod.object({
   maxRentalHours: zod.number().min(1).optional(),
   region: zod.string().min(1).optional(),
   status: zod.enum(["available", "rented", "offline", "paused"]).optional(),
+  fallbackPoolHost: zod
+    .string()
+    .optional()
+    .describe(
+      "Hostname or IP of the owner's personal mining pool. Set to empty string to remove.",
+    ),
+  fallbackPoolPort: zod
+    .number()
+    .min(1)
+    .max(updateMyRigBodyFallbackPoolPortMax)
+    .optional(),
+  fallbackPoolUser: zod
+    .string()
+    .optional()
+    .describe("Worker name to use when connecting to the fallback pool."),
+  fallbackPoolPassword: zod
+    .string()
+    .optional()
+    .describe('Password for the fallback pool worker (usually \"x\").'),
 });
 
 export const UpdateMyRigResponse = zod.object({
@@ -677,6 +767,30 @@ export const UpdateMyRigResponse = zod.object({
     .boolean()
     .describe(
       "True when the rig has a fallback pool configured (will mine there when not rented)",
+    ),
+  fallbackPoolHost: zod
+    .string()
+    .nullable()
+    .describe(
+      "Hostname of the owner's personal fallback pool. Only populated in owner views.",
+    ),
+  fallbackPoolPort: zod
+    .number()
+    .nullable()
+    .describe(
+      "Port of the owner's personal fallback pool. Only populated in owner views.",
+    ),
+  fallbackPoolUser: zod
+    .string()
+    .nullable()
+    .describe(
+      "Worker name for the fallback pool. Only populated in owner views.",
+    ),
+  fallbackPoolPassword: zod
+    .string()
+    .nullable()
+    .describe(
+      "Password for the fallback pool worker. Only populated in owner views.",
     ),
   stratumName: zod
     .string()

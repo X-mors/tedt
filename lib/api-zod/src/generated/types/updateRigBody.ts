@@ -27,4 +27,15 @@ export interface UpdateRigBody {
   /** @minLength 1 */
   region?: string;
   status?: RigStatus;
+  /** Hostname or IP of the owner's personal mining pool. Set to empty string to remove. */
+  fallbackPoolHost?: string;
+  /**
+   * @minimum 1
+   * @maximum 65535
+   */
+  fallbackPoolPort?: number;
+  /** Worker name to use when connecting to the fallback pool. */
+  fallbackPoolUser?: string;
+  /** Password for the fallback pool worker (usually "x"). */
+  fallbackPoolPassword?: string;
 }

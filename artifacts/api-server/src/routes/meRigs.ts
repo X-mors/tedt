@@ -123,6 +123,8 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
       isOnline: rigsTable.isOnline,
       stratumHost: rigsTable.stratumHost,
       stratumPort: rigsTable.stratumPort,
+      stratumUser: rigsTable.stratumUser,
+      stratumPassword: rigsTable.stratumPassword,
       stratumName: rigsTable.stratumName,
       proxyToken: rigsTable.proxyToken,
       createdAt: rigsTable.createdAt,
@@ -162,6 +164,10 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
     region: row.region,
     isOnline: row.isOnline,
     hasFallbackPool: !!(row.stratumHost && row.stratumPort > 0),
+    fallbackPoolHost: row.stratumHost || null,
+    fallbackPoolPort: row.stratumPort > 0 ? row.stratumPort : null,
+    fallbackPoolUser: row.stratumUser || null,
+    fallbackPoolPassword: row.stratumPassword || null,
     stratumName: row.stratumName ?? null,
     averageRating:
       row.averageRating == null
@@ -208,6 +214,10 @@ router.post("/me/rigs", async (req, res) => {
       region: body.region,
       approvalStatus: "pending",
       proxyToken,
+      ...(body.fallbackPoolHost !== undefined && { stratumHost: body.fallbackPoolHost }),
+      ...(body.fallbackPoolPort !== undefined && { stratumPort: body.fallbackPoolPort }),
+      ...(body.fallbackPoolUser !== undefined && { stratumUser: body.fallbackPoolUser }),
+      ...(body.fallbackPoolPassword !== undefined && { stratumPassword: body.fallbackPoolPassword }),
     })
     .returning({ id: rigsTable.id });
 
@@ -273,6 +283,15 @@ router.patch("/me/rigs/:id", async (req, res) => {
     patch["maxRentalHours"] = body.maxRentalHours;
   if (body.region !== undefined) patch["region"] = body.region;
   if (body.status !== undefined) patch["status"] = body.status;
+  // Fallback pool settings — empty string clears the pool config.
+  if (body.fallbackPoolHost !== undefined)
+    patch["stratumHost"] = body.fallbackPoolHost;
+  if (body.fallbackPoolPort !== undefined)
+    patch["stratumPort"] = body.fallbackPoolPort;
+  if (body.fallbackPoolUser !== undefined)
+    patch["stratumUser"] = body.fallbackPoolUser;
+  if (body.fallbackPoolPassword !== undefined)
+    patch["stratumPassword"] = body.fallbackPoolPassword;
 
   if (Object.keys(patch).length > 0) {
     await db.update(rigsTable).set(patch).where(eq(rigsTable.id, id));
