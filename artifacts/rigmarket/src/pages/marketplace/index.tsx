@@ -13,7 +13,7 @@ export default function Marketplace() {
   const [search, setSearch] = useState("");
   const [algorithmId, setAlgorithmId] = useState<number | undefined>();
   const [status, setStatus] = useState<"available" | "rented" | "offline" | undefined>();
-  const [sort, setSort] = useState<"price_asc" | "price_desc" | "hashrate_desc" | "newest">("newest");
+  const [sort, setSort] = useState<"price_asc" | "price_desc" | "hashrate_desc" | "newest" | "rating_desc">("newest");
 
   const { data: algorithms } = useListAlgorithms();
   const { data: rigs, isLoading } = useListRigs({
@@ -71,7 +71,7 @@ export default function Marketplace() {
             </SelectContent>
           </Select>
 
-          <Select value={sort} onValueChange={(v) => setSort(v as "price_asc" | "price_desc" | "hashrate_desc" | "newest")}>
+          <Select value={sort} onValueChange={(v) => setSort(v as "price_asc" | "price_desc" | "hashrate_desc" | "newest" | "rating_desc")}>
             <SelectTrigger className="w-full md:w-[180px] font-mono text-sm bg-background">
               <SelectValue placeholder="Sort" />
             </SelectTrigger>
@@ -80,6 +80,7 @@ export default function Marketplace() {
               <SelectItem value="price_asc">PRICE_LOW_HIGH</SelectItem>
               <SelectItem value="price_desc">PRICE_HIGH_LOW</SelectItem>
               <SelectItem value="hashrate_desc">HASHRATE_HIGH_LOW</SelectItem>
+              <SelectItem value="rating_desc">TOP_RATED</SelectItem>
             </SelectContent>
           </Select>
         </CardContent>

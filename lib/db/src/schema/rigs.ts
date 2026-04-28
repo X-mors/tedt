@@ -24,7 +24,7 @@ export const rigsTable = pgTable("rigs", {
   minRentalHours: integer("min_rental_hours").notNull().default(1),
   maxRentalHours: integer("max_rental_hours").notNull().default(168),
   region: text("region").notNull().default("Global"),
-  status: text("status", { enum: ["available", "rented", "offline"] })
+  status: text("status", { enum: ["available", "rented", "offline", "paused"] })
     .notNull()
     .default("available"),
   approvalStatus: text("approval_status", {

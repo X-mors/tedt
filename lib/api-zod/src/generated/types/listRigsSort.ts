@@ -13,4 +13,5 @@ export const ListRigsSort = {
   price_desc: "price_desc",
   hashrate_desc: "hashrate_desc",
   newest: "newest",
+  rating_desc: "rating_desc",
 } as const;

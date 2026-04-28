@@ -33,7 +33,7 @@ router.get("/rigs", async (req, res) => {
   }
   if (typeof status === "string" && status !== "") {
     filters.push(
-      eq(rigsTable.status, status as "available" | "rented" | "offline"),
+      eq(rigsTable.status, status as "available" | "rented" | "offline" | "paused"),
     );
   }
   if (typeof search === "string" && search.trim() !== "") {
@@ -85,6 +85,15 @@ router.get("/rigs", async (req, res) => {
       break;
     case "hashrate_desc":
       sorted.sort((a, b) => toNum(b.hashrate) - toNum(a.hashrate));
+      break;
+    case "rating_desc":
+      sorted.sort(
+        (a, b) =>
+          (a.averageRating == null ? -1 : toNum(a.averageRating)) <
+          (b.averageRating == null ? -1 : toNum(b.averageRating))
+            ? 1
+            : -1,
+      );
       break;
     default:
       sorted.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

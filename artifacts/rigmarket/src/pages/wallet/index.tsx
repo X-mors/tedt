@@ -182,68 +182,20 @@ export default function Wallet() {
                 <DialogHeader>
                   <DialogTitle>Deposit Funds</DialogTitle>
                 </DialogHeader>
-                {!depositInstructions ? (
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label>Asset</Label>
-                      <Select value={depositAsset} onValueChange={(v) => setDepositAsset(v as DepositAsset)}>
-                        <SelectTrigger className="font-mono">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="USDT">USDT (ERC20)</SelectItem>
-                          <SelectItem value="BTC">Bitcoin (BTC)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Amount (USD Value)</Label>
-                      <Input 
-                        type="number" 
-                        className="font-mono" 
-                        placeholder="e.g. 500.00"
-                        value={depositAmount}
-                        onChange={(e) => setDepositAmount(e.target.value)}
-                      />
-                    </div>
-                    <Button onClick={handleDepositRequest} disabled={createDeposit.isPending} className="w-full mt-2 font-mono">
-                      {createDeposit.isPending ? "GENERATING..." : "GENERATE_ADDRESS"}
-                    </Button>
+                <div className="space-y-4 py-4">
+                  <div className="bg-muted/40 border border-border rounded-lg p-4 space-y-3">
+                    <p className="text-sm font-semibold font-mono">COMING_SOON</p>
+                    <p className="text-sm text-muted-foreground">
+                      On-chain BTC and USDT deposits are not yet active. Crypto deposit rails
+                      will be enabled in an upcoming release. Once live, you will be able to
+                      send BTC or USDT to a unique deposit address and your USD balance will
+                      be credited automatically at the spot rate.
+                    </p>
+                    <p className="text-xs text-muted-foreground font-mono">
+                      In the meantime, contact support to have your balance credited manually.
+                    </p>
                   </div>
-                ) : (
-                  <div className="space-y-4 py-4">
-                    <div className="bg-muted/50 p-4 rounded-md space-y-4">
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground uppercase">Send Exactly</Label>
-                        <div className="font-mono font-bold text-lg">{formatMoney(depositInstructions.amountUsd)} worth of {depositInstructions.asset}</div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground uppercase">To Address</Label>
-                        <div className="flex">
-                          <Input readOnly value={depositInstructions.depositAddress} className="font-mono text-xs bg-background rounded-r-none focus-visible:ring-0" />
-                          <Button variant="outline" className="rounded-l-none px-3" onClick={() => copyToClipboard(depositInstructions.depositAddress, 'Address')}>
-                            <Copy className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </div>
-                      {depositInstructions.memo && (
-                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground uppercase">Memo (Required)</Label>
-                          <div className="flex">
-                            <Input readOnly value={depositInstructions.memo} className="font-mono text-xs bg-background rounded-r-none focus-visible:ring-0" />
-                            <Button variant="outline" className="rounded-l-none px-3" onClick={() => copyToClipboard(depositInstructions.memo, 'Memo')}>
-                              <Copy className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-4 italic">{depositInstructions.note}</p>
-                    </div>
-                    <Button variant="outline" className="w-full font-mono" onClick={() => { setDepositInstructions(null); setDepositAmount(""); }}>
-                      DONE
-                    </Button>
-                  </div>
-                )}
+                </div>
               </DialogContent>
             </Dialog>
             {wallet?.pendingWithdrawalsUsd ? (

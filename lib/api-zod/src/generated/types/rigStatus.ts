@@ -12,4 +12,5 @@ export const RigStatus = {
   available: "available",
   rented: "rented",
   offline: "offline",
+  paused: "paused",
 } as const;

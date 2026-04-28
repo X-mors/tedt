@@ -199,13 +199,13 @@ paths:
           required: false
           schema:
             type: string
-            enum: [available, rented, offline]
+            enum: [available, rented, offline, paused]
         - in: query
           name: sort
           required: false
           schema:
             type: string
-            enum: [price_asc, price_desc, hashrate_desc, newest]
+            enum: [price_asc, price_desc, hashrate_desc, newest, rating_desc]
         - in: query
           name: search
           required: false
@@ -1205,7 +1205,7 @@ components:
 
     RigStatus:
       type: string
-      enum: [available, rented, offline]
+      enum: [available, rented, offline, paused]
 
     RigApprovalStatus:
       type: string

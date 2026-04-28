@@ -95,6 +95,7 @@ export const RigStatus = {
   available: "available",
   rented: "rented",
   offline: "offline",
+  paused: "paused",
 } as const;
 
 export type RigApprovalStatus =
@@ -738,6 +739,7 @@ export const ListRigsStatus = {
   available: "available",
   rented: "rented",
   offline: "offline",
+  paused: "paused",
 } as const;
 
 export type ListRigsSort = (typeof ListRigsSort)[keyof typeof ListRigsSort];
@@ -747,6 +749,7 @@ export const ListRigsSort = {
   price_desc: "price_desc",
   hashrate_desc: "hashrate_desc",
   newest: "newest",
+  rating_desc: "rating_desc",
 } as const;
 
 export type ListAdminRigsParams = {

@@ -13,4 +13,5 @@ export const ListRigsStatus = {
   available: "available",
   rented: "rented",
   offline: "offline",
+  paused: "paused",
 } as const;
