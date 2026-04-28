@@ -161,7 +161,7 @@ router.get(
 
       try {
         const orderId = `user-${userId}-${currency}-${Date.now()}`;
-        const payment = await createDepositPayment(currency, orderId, requiredConfirmations);
+        const payment = await createDepositPayment(currency, orderId);
         const expiresAt = new Date(Date.now() + ADDRESS_VALIDITY_MS);
 
         const [row] = await db

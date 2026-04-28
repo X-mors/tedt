@@ -91,7 +91,6 @@ function toNpCurrency(currency: "btc" | "usdt_trc20"): NpCurrency {
 export async function createDepositPayment(
   currency: "btc" | "usdt_trc20",
   orderId: string,
-  confirmationRequired?: number,
 ): Promise<NpPayment> {
   const payCurrency = toNpCurrency(currency);
   const body: Record<string, unknown> = {
@@ -103,10 +102,7 @@ export async function createDepositPayment(
     is_fixed_rate: false,
     is_fee_paid_by_user: false,
   };
-  if (confirmationRequired != null && confirmationRequired > 0) {
-    body["confirmation_required"] = confirmationRequired;
-  }
-  logger.info({ currency, orderId, confirmationRequired }, "Creating NOWPayments deposit payment");
+  logger.info({ currency, orderId }, "Creating NOWPayments deposit payment");
   return npFetch<NpPayment>("/payment", {
     method: "POST",
     body: JSON.stringify(body),
