@@ -7,14 +7,11 @@ import {
 } from "@workspace/db";
 import { getPaymentStatus, nowpaymentsConfigured } from "./nowpayments";
 import { cryptoToUsd } from "./cryptoRates";
+import { getWalletSettings } from "./platformSettings";
 import { logger } from "./logger";
 import { toUsdString, round6 } from "./money";
 
 const POLL_INTERVAL_MS = 60_000;
-const REQUIRED_CONFIRMATIONS: Record<string, number> = {
-  btc: 2,
-  usdt_trc20: 20,
-};
 
 const NP_FINAL_STATUSES = new Set([
   "finished",
@@ -24,6 +21,13 @@ const NP_FINAL_STATUSES = new Set([
   "partially_paid",
 ]);
 const NP_CONFIRMING_STATUSES = new Set(["confirming", "sending", "confirmed"]);
+
+async function getRequiredConfirmations(currency: string): Promise<number> {
+  const settings = await getWalletSettings();
+  if (currency === "btc") return settings.btcRequiredConfirmations;
+  if (currency === "usdt_trc20") return settings.usdtTrc20RequiredConfirmations;
+  return 1;
+}
 
 async function pollPendingDeposits() {
   if (!nowpaymentsConfigured()) return;
@@ -45,14 +49,27 @@ async function pollPendingDeposits() {
       const npStatus = status.payment_status;
 
       const actuallyPaid = status.actually_paid ?? 0;
-      const confirmations =
-        status.network_precision != null
-          ? Number(status.network_precision)
-          : deposit.confirmations;
 
-      const requiredConf =
-        REQUIRED_CONFIRMATIONS[deposit.currency] ??
-        deposit.requiredConfirmations;
+      // NOWPayments returns confirmations in the `payin_extra_id` for some
+      // currencies, but most reliably in `network_precision` as a string like "2/3".
+      // Parse "X/Y" format or use plain number.
+      let confirmations = deposit.confirmations;
+      if (status.network_precision != null) {
+        const raw = String(status.network_precision);
+        const slashIdx = raw.indexOf("/");
+        const parsed = slashIdx >= 0
+          ? parseInt(raw.slice(0, slashIdx), 10)
+          : parseInt(raw, 10);
+        if (Number.isFinite(parsed)) confirmations = parsed;
+      }
+
+      // on-chain txid — NOWPayments puts this in payin_hash or payin_extra_id for some chains
+      const statusAny = status as unknown as Record<string, unknown>;
+      const onChainTxid = (statusAny["payin_hash"] as string | undefined)
+        ?? (statusAny["payin_extra_id"] as string | undefined)
+        ?? null;
+
+      const requiredConf = await getRequiredConfirmations(deposit.currency);
 
       if (npStatus === "finished") {
         if (deposit.status === "credited") continue;
@@ -71,6 +88,7 @@ async function pollPendingDeposits() {
               amountUsd: toUsdString(amountUsd),
               exchangeRate: toUsdString(rate),
               confirmations: requiredConf,
+              txid: onChainTxid ?? deposit.txid,
               creditedAt: new Date(),
               lastCheckedAt: new Date(),
             })
@@ -111,6 +129,7 @@ async function pollPendingDeposits() {
           .set({
             status: "confirming",
             confirmations,
+            txid: onChainTxid ?? deposit.txid,
             lastCheckedAt: new Date(),
           })
           .where(eq(cryptoDepositsTable.id, deposit.id));

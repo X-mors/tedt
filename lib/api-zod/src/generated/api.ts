@@ -1489,3 +1489,111 @@ export const ListUnmatchedDepositsResponseItem = zod.object({
 export const ListUnmatchedDepositsResponse = zod.array(
   ListUnmatchedDepositsResponseItem,
 );
+
+/**
+ * @summary Get crypto wallet configuration settings
+ */
+export const GetWalletSettingsResponse = zod.object({
+  settings: zod.object({
+    enabledCurrencies: zod.array(zod.string()),
+    minDepositUsd: zod.number(),
+    btcRequiredConfirmations: zod.number(),
+    usdtTrc20RequiredConfirmations: zod.number(),
+    withdrawalFeeUsd: zod.number(),
+    dailyWithdrawalCapUsd: zod.number(),
+    rateSource: zod.enum(["coingecko", "fixed"]),
+    fixedBtcUsd: zod.number(),
+    fixedUsdtUsd: zod.number(),
+  }),
+  defaults: zod.object({
+    enabledCurrencies: zod.array(zod.string()),
+    minDepositUsd: zod.number(),
+    btcRequiredConfirmations: zod.number(),
+    usdtTrc20RequiredConfirmations: zod.number(),
+    withdrawalFeeUsd: zod.number(),
+    dailyWithdrawalCapUsd: zod.number(),
+    rateSource: zod.enum(["coingecko", "fixed"]),
+    fixedBtcUsd: zod.number(),
+    fixedUsdtUsd: zod.number(),
+  }),
+});
+
+/**
+ * @summary Update crypto wallet configuration settings
+ */
+export const updateWalletSettingsBodyWalletMinDepositUsdMin = 0;
+
+export const updateWalletSettingsBodyWalletBtcRequiredConfirmationsMax = 100;
+
+export const updateWalletSettingsBodyWalletUsdtTrc20RequiredConfirmationsMax = 100;
+
+export const updateWalletSettingsBodyWalletWithdrawalFeeUsdMin = 0;
+
+export const updateWalletSettingsBodyWalletDailyWithdrawalCapUsdMin = 0;
+
+export const updateWalletSettingsBodyWalletFixedBtcUsdMin = 0;
+
+export const updateWalletSettingsBodyWalletFixedUsdtUsdMin = 0;
+
+export const UpdateWalletSettingsBody = zod.object({
+  wallet_enabled_currencies: zod
+    .string()
+    .optional()
+    .describe("Comma-separated list, e.g. 'btc,usdt_trc20'"),
+  wallet_min_deposit_usd: zod
+    .number()
+    .min(updateWalletSettingsBodyWalletMinDepositUsdMin)
+    .optional(),
+  wallet_btc_required_confirmations: zod
+    .number()
+    .min(1)
+    .max(updateWalletSettingsBodyWalletBtcRequiredConfirmationsMax)
+    .optional(),
+  wallet_usdt_trc20_required_confirmations: zod
+    .number()
+    .min(1)
+    .max(updateWalletSettingsBodyWalletUsdtTrc20RequiredConfirmationsMax)
+    .optional(),
+  wallet_withdrawal_fee_usd: zod
+    .number()
+    .min(updateWalletSettingsBodyWalletWithdrawalFeeUsdMin)
+    .optional(),
+  wallet_daily_withdrawal_cap_usd: zod
+    .number()
+    .min(updateWalletSettingsBodyWalletDailyWithdrawalCapUsdMin)
+    .optional(),
+  wallet_rate_source: zod.enum(["coingecko", "fixed"]).optional(),
+  wallet_fixed_btc_usd: zod
+    .number()
+    .min(updateWalletSettingsBodyWalletFixedBtcUsdMin)
+    .optional(),
+  wallet_fixed_usdt_usd: zod
+    .number()
+    .min(updateWalletSettingsBodyWalletFixedUsdtUsdMin)
+    .optional(),
+});
+
+export const UpdateWalletSettingsResponse = zod.object({
+  settings: zod.object({
+    enabledCurrencies: zod.array(zod.string()),
+    minDepositUsd: zod.number(),
+    btcRequiredConfirmations: zod.number(),
+    usdtTrc20RequiredConfirmations: zod.number(),
+    withdrawalFeeUsd: zod.number(),
+    dailyWithdrawalCapUsd: zod.number(),
+    rateSource: zod.enum(["coingecko", "fixed"]),
+    fixedBtcUsd: zod.number(),
+    fixedUsdtUsd: zod.number(),
+  }),
+  defaults: zod.object({
+    enabledCurrencies: zod.array(zod.string()),
+    minDepositUsd: zod.number(),
+    btcRequiredConfirmations: zod.number(),
+    usdtTrc20RequiredConfirmations: zod.number(),
+    withdrawalFeeUsd: zod.number(),
+    dailyWithdrawalCapUsd: zod.number(),
+    rateSource: zod.enum(["coingecko", "fixed"]),
+    fixedBtcUsd: zod.number(),
+    fixedUsdtUsd: zod.number(),
+  }),
+});

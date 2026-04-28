@@ -14,9 +14,18 @@ import {
 import { proxyState } from "../lib/stratum/state";
 import {
   getProxySettings,
+  getWalletSettings,
   setProxySetting,
+  setWalletSetting,
   proxySettingsDefaults,
+  walletSettingsDefaults,
 } from "../lib/platformSettings";
+import {
+  createPayout,
+  nowpaymentsConfigured,
+  type NpCurrency,
+} from "../lib/nowpayments";
+import { usdToCrypto } from "../lib/cryptoRates";
 import {
   AdminCreditWalletBody,
   AdminCreditWalletResponse,
@@ -905,9 +914,50 @@ router.post("/admin/withdrawals/:id/mark-sent", async (req, res) => {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
-  const { onChainTxid } = (req.body ?? {}) as { onChainTxid?: string };
-  if (!onChainTxid || typeof onChainTxid !== "string" || onChainTxid.trim().length < 4) {
-    res.status(400).json({ error: "onChainTxid is required (min 4 characters)" });
+  const body = (req.body ?? {}) as { onChainTxid?: string; sendViaNowpayments?: boolean };
+
+  const withdrawal = await db
+    .select()
+    .from(withdrawalsTable)
+    .where(sql`${withdrawalsTable.id} = ${id} AND ${withdrawalsTable.status} IN ('pending', 'approved')`)
+    .then((r) => r[0] ?? null);
+
+  if (!withdrawal) {
+    res.status(400).json({ error: "Withdrawal not found or already sent/rejected" });
+    return;
+  }
+
+  const walletSettings = await getWalletSettings();
+  const feeUsd = walletSettings.withdrawalFeeUsd;
+  const netAmountUsd = Math.max(0, toNum(withdrawal.amountUsd) - feeUsd);
+
+  let finalTxid = body.onChainTxid?.trim() ?? null;
+  let processorPaymentId: string | null = null;
+
+  if (body.sendViaNowpayments !== false && nowpaymentsConfigured() && netAmountUsd > 0) {
+    const currency = withdrawal.asset === "BTC" ? "btc" : "usdt_trc20";
+    const npCurrency: NpCurrency = currency === "btc" ? "btc" : "usdttrc20";
+    const cryptoAmount = await usdToCrypto(netAmountUsd, currency);
+    if (cryptoAmount <= 0) {
+      res.status(400).json({ error: "Cannot compute crypto amount — check rate configuration" });
+      return;
+    }
+    try {
+      const payout = await createPayout({
+        address: withdrawal.destinationAddress,
+        currency: npCurrency,
+        amount: cryptoAmount,
+        extra_id: `withdrawal-${withdrawal.id}`,
+      });
+      processorPaymentId = payout.id;
+      finalTxid = payout.hash ?? finalTxid;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      res.status(502).json({ error: `NOWPayments payout failed: ${msg}` });
+      return;
+    }
+  } else if (!finalTxid || finalTxid.length < 4) {
+    res.status(400).json({ error: "onChainTxid is required (min 4 characters) when not using auto-send" });
     return;
   }
 
@@ -915,32 +965,29 @@ router.post("/admin/withdrawals/:id/mark-sent", async (req, res) => {
     .update(withdrawalsTable)
     .set({
       status: "sent",
-      onChainTxid: onChainTxid.trim(),
+      onChainTxid: finalTxid,
+      processorPaymentId,
       sentAt: new Date(),
       decidedAt: new Date(),
     })
-    .where(
-      sql`${withdrawalsTable.id} = ${id} AND ${withdrawalsTable.status} IN ('pending', 'approved')`,
-    )
+    .where(sql`${withdrawalsTable.id} = ${id}`)
     .returning();
 
-  if (!updated) {
-    res.status(400).json({ error: "Withdrawal not found or already sent/rejected" });
-    return;
-  }
-
   res.json({
-    id: updated.id,
-    userId: updated.userId,
-    asset: updated.asset,
-    destinationAddress: updated.destinationAddress,
-    amountUsd: toNum(updated.amountUsd),
-    status: updated.status,
-    adminNote: updated.adminNote,
-    onChainTxid: updated.onChainTxid,
-    createdAt: updated.createdAt.toISOString(),
-    decidedAt: updated.decidedAt ? updated.decidedAt.toISOString() : null,
-    sentAt: updated.sentAt ? updated.sentAt.toISOString() : null,
+    id: updated!.id,
+    userId: updated!.userId,
+    asset: updated!.asset,
+    destinationAddress: updated!.destinationAddress,
+    amountUsd: toNum(updated!.amountUsd),
+    netAmountUsd,
+    feeUsd,
+    status: updated!.status,
+    adminNote: updated!.adminNote,
+    onChainTxid: updated!.onChainTxid,
+    processorPaymentId: updated!.processorPaymentId,
+    createdAt: updated!.createdAt.toISOString(),
+    decidedAt: updated!.decidedAt ? updated!.decidedAt.toISOString() : null,
+    sentAt: updated!.sentAt ? updated!.sentAt.toISOString() : null,
   });
 });
 
@@ -1024,6 +1071,68 @@ router.put("/admin/proxy/settings", async (req, res) => {
     await setProxySetting(key, value);
   }
   const updated = await getProxySettings();
+  res.json({ ok: true, settings: updated });
+});
+
+router.get("/admin/wallet/settings", async (_req, res) => {
+  const settings = await getWalletSettings();
+  res.json({ settings, defaults: walletSettingsDefaults });
+});
+
+router.put("/admin/wallet/settings", async (req, res) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+
+  type StringValidator = { type: "string"; validate?: (v: string) => boolean };
+  type NumberValidator = { type: "number"; validate: (v: number) => boolean };
+  type FieldSpec = StringValidator | NumberValidator;
+
+  const allowed: Record<string, FieldSpec> = {
+    wallet_enabled_currencies: {
+      type: "string",
+      validate: (v: string) =>
+        v.split(",").every((c) => ["btc", "usdt_trc20"].includes(c.trim())),
+    },
+    wallet_min_deposit_usd: { type: "number", validate: (v) => v >= 0 },
+    wallet_btc_required_confirmations: { type: "number", validate: (v) => v >= 1 && v <= 100 },
+    wallet_usdt_trc20_required_confirmations: { type: "number", validate: (v) => v >= 1 && v <= 100 },
+    wallet_withdrawal_fee_usd: { type: "number", validate: (v) => v >= 0 },
+    wallet_daily_withdrawal_cap_usd: { type: "number", validate: (v) => v >= 0 },
+    wallet_rate_source: {
+      type: "string",
+      validate: (v: string) => ["coingecko", "fixed"].includes(v),
+    },
+    wallet_fixed_btc_usd: { type: "number", validate: (v) => v >= 0 },
+    wallet_fixed_usdt_usd: { type: "number", validate: (v) => v >= 0 },
+  };
+
+  const updates: Array<{ key: string; value: string }> = [];
+  for (const [key, spec] of Object.entries(allowed)) {
+    if (!(key in body)) continue;
+    if (spec.type === "number") {
+      const raw = Number(body[key]);
+      if (!Number.isFinite(raw) || !spec.validate(raw)) {
+        res.status(400).json({ error: `Invalid value for ${key}` });
+        return;
+      }
+      updates.push({ key, value: String(raw) });
+    } else {
+      const raw = String(body[key] ?? "").trim();
+      if (spec.validate && !spec.validate(raw)) {
+        res.status(400).json({ error: `Invalid value for ${key}` });
+        return;
+      }
+      updates.push({ key, value: raw });
+    }
+  }
+
+  if (updates.length === 0) {
+    res.status(400).json({ error: "No valid settings provided" });
+    return;
+  }
+  for (const { key, value } of updates) {
+    await setWalletSetting(key, value);
+  }
+  const updated = await getWalletSettings();
   res.json({ ok: true, settings: updated });
 });
 

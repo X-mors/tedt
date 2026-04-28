@@ -22,6 +22,8 @@ import {
   useGetAdminProxy,
   useAdminProxyDisconnectRig,
   useListUnmatchedDeposits,
+  useGetWalletSettings,
+  useUpdateWalletSettings,
   getGetAdminStatsQueryKey,
   getListAdminWithdrawalsQueryKey,
   getListAdminUsersQueryKey,
@@ -31,6 +33,7 @@ import {
   getListAdminWalletTransactionsQueryKey,
   getListAlgorithmsQueryKey,
   getGetAdminProxyQueryKey,
+  getGetWalletSettingsQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -59,6 +62,9 @@ export default function AdminDashboard() {
     query: { refetchInterval: 5000, queryKey: getGetAdminProxyQueryKey() },
   });
   const disconnectRig = useAdminProxyDisconnectRig();
+
+  const { data: walletSettingsData, refetch: refetchWalletSettings } = useGetWalletSettings();
+  const updateWalletSettings = useUpdateWalletSettings();
 
   const { data: proxySettings, refetch: refetchProxySettings } = useQuery({
     queryKey: ["admin-proxy-settings"],
@@ -124,10 +130,44 @@ export default function AdminDashboard() {
 
   const [markSentId, setMarkSentId] = useState<number | null>(null);
   const [markSentTxid, setMarkSentTxid] = useState("");
+  const [markSentAutoSend, setMarkSentAutoSend] = useState(true);
+
+  const [walletMinDeposit, setWalletMinDeposit] = useState("");
+  const [walletBtcConf, setWalletBtcConf] = useState("");
+  const [walletUsdtConf, setWalletUsdtConf] = useState("");
+  const [walletWithdrawalFee, setWalletWithdrawalFee] = useState("");
+  const [walletDailyCap, setWalletDailyCap] = useState("");
+  const [walletRateSource, setWalletRateSource] = useState<"coingecko" | "fixed">("coingecko");
+  const [walletFixedBtc, setWalletFixedBtc] = useState("");
+  const [walletFixedUsdt, setWalletFixedUsdt] = useState("");
+
+  const handleUpdateWalletSettings = () => {
+    const body: Record<string, string | number> = {};
+    if (walletMinDeposit !== "") body["wallet_min_deposit_usd"] = parseFloat(walletMinDeposit);
+    if (walletBtcConf !== "") body["wallet_btc_required_confirmations"] = parseInt(walletBtcConf);
+    if (walletUsdtConf !== "") body["wallet_usdt_trc20_required_confirmations"] = parseInt(walletUsdtConf);
+    if (walletWithdrawalFee !== "") body["wallet_withdrawal_fee_usd"] = parseFloat(walletWithdrawalFee);
+    if (walletDailyCap !== "") body["wallet_daily_withdrawal_cap_usd"] = parseFloat(walletDailyCap);
+    body["wallet_rate_source"] = walletRateSource;
+    if (walletFixedBtc !== "") body["wallet_fixed_btc_usd"] = parseFloat(walletFixedBtc);
+    if (walletFixedUsdt !== "") body["wallet_fixed_usdt_usd"] = parseFloat(walletFixedUsdt);
+
+    updateWalletSettings.mutate({ data: body as Parameters<typeof updateWalletSettings.mutate>[0]["data"] }, {
+      onSuccess: () => {
+        toast({ title: "Wallet Settings Saved" });
+        void refetchWalletSettings();
+        queryClient.invalidateQueries({ queryKey: getGetWalletSettingsQueryKey() });
+        setWalletMinDeposit(""); setWalletBtcConf(""); setWalletUsdtConf("");
+        setWalletWithdrawalFee(""); setWalletDailyCap(""); setWalletFixedBtc(""); setWalletFixedUsdt("");
+      },
+      onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    });
+  };
 
   const handleMarkSent = () => {
-    if (!markSentId || markSentTxid.trim().length < 4) return;
-    markWithdrawalSent.mutate({ id: markSentId, data: { onChainTxid: markSentTxid.trim() } }, {
+    if (!markSentId) return;
+    if (!markSentAutoSend && markSentTxid.trim().length < 4) return;
+    markWithdrawalSent.mutate({ id: markSentId, data: { onChainTxid: markSentAutoSend ? undefined : markSentTxid.trim(), sendViaNowpayments: markSentAutoSend } as Parameters<typeof markWithdrawalSent.mutate>[0]["data"] }, {
       onSuccess: () => {
         toast({ title: "Withdrawal Marked Sent", description: `Txid recorded: ${markSentTxid.slice(0, 16)}…` });
         setMarkSentId(null);
@@ -397,6 +437,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="users" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">Users</TabsTrigger>
           <TabsTrigger value="algorithms" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">Algorithms</TabsTrigger>
           <TabsTrigger value="config" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">Config</TabsTrigger>
+          <TabsTrigger value="wallet-config" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">Wallet Config</TabsTrigger>
           <TabsTrigger value="proxy" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">Stratum Proxy</TabsTrigger>
         </TabsList>
 
@@ -446,28 +487,37 @@ export default function AdminDashboard() {
         </TabsContent>
 
         <TabsContent value="withdrawals" className="pt-6">
-          <Dialog open={markSentId !== null} onOpenChange={(open) => { if (!open) { setMarkSentId(null); setMarkSentTxid(""); } }}>
+          <Dialog open={markSentId !== null} onOpenChange={(open) => { if (!open) { setMarkSentId(null); setMarkSentTxid(""); setMarkSentAutoSend(true); } }}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Mark Withdrawal as Sent</DialogTitle>
+                <DialogTitle>Process Withdrawal</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                <p className="text-sm text-muted-foreground">Enter the on-chain transaction ID after sending the crypto to the user.</p>
-                <div className="space-y-2">
-                  <Label>On-Chain Txid</Label>
-                  <Input
-                    className="font-mono text-xs"
-                    placeholder="Paste transaction ID here..."
-                    value={markSentTxid}
-                    onChange={(e) => setMarkSentTxid(e.target.value)}
-                  />
+                <div className="flex items-center gap-3 p-3 rounded-lg border border-border/50 bg-muted/30">
+                  <input type="checkbox" id="autoSend" checked={markSentAutoSend} onChange={(e) => setMarkSentAutoSend(e.target.checked)} className="w-4 h-4" />
+                  <div>
+                    <Label htmlFor="autoSend" className="font-mono text-xs cursor-pointer">AUTO_SEND via NOWPayments</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">Automatically calculate crypto amount and send via payout API</p>
+                  </div>
                 </div>
+                {!markSentAutoSend && (
+                  <div className="space-y-2">
+                    <Label>On-Chain Txid (manual)</Label>
+                    <Input
+                      className="font-mono text-xs"
+                      placeholder="Paste transaction ID here..."
+                      value={markSentTxid}
+                      onChange={(e) => setMarkSentTxid(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Required when sending manually outside NOWPayments</p>
+                  </div>
+                )}
                 <Button
                   onClick={handleMarkSent}
-                  disabled={markWithdrawalSent.isPending || markSentTxid.trim().length < 4}
+                  disabled={markWithdrawalSent.isPending || (!markSentAutoSend && markSentTxid.trim().length < 4)}
                   className="w-full font-mono"
                 >
-                  {markWithdrawalSent.isPending ? "SAVING..." : "CONFIRM_SENT"}
+                  {markWithdrawalSent.isPending ? "PROCESSING..." : markSentAutoSend ? "SEND_VIA_NOWPAYMENTS" : "CONFIRM_MANUAL_SENT"}
                 </Button>
               </div>
             </DialogContent>
@@ -842,6 +892,100 @@ export default function AdminDashboard() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="wallet-config" className="pt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="bg-card/50 border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="font-mono text-sm">CURRENT_SETTINGS</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {walletSettingsData ? (
+                  <table className="w-full font-mono text-xs">
+                    <tbody>
+                      {[
+                        ["Enabled Currencies", walletSettingsData.settings.enabledCurrencies.join(", ")],
+                        ["Min Deposit (USD)", `$${walletSettingsData.settings.minDepositUsd}`],
+                        ["BTC Confirmations", walletSettingsData.settings.btcRequiredConfirmations],
+                        ["USDT TRC-20 Confirmations", walletSettingsData.settings.usdtTrc20RequiredConfirmations],
+                        ["Withdrawal Fee (USD)", `$${walletSettingsData.settings.withdrawalFeeUsd}`],
+                        ["Daily Withdrawal Cap", walletSettingsData.settings.dailyWithdrawalCapUsd === 0 ? "Unlimited" : `$${walletSettingsData.settings.dailyWithdrawalCapUsd}`],
+                        ["Rate Source", walletSettingsData.settings.rateSource],
+                        ["Fixed BTC Price", walletSettingsData.settings.rateSource === "fixed" ? `$${walletSettingsData.settings.fixedBtcUsd}` : "—"],
+                        ["Fixed USDT Price", walletSettingsData.settings.rateSource === "fixed" ? `$${walletSettingsData.settings.fixedUsdtUsd}` : "—"],
+                      ].map(([k, v]) => (
+                        <tr key={String(k)} className="border-b border-border/20">
+                          <td className="py-1.5 text-muted-foreground pr-4">{k}</td>
+                          <td className="py-1.5 text-right">{v}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="text-muted-foreground text-xs">Loading...</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card/50 border-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="font-mono text-sm">UPDATE_SETTINGS</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="font-mono text-xs">Min Deposit USD</Label>
+                    <Input placeholder={String(walletSettingsData?.settings.minDepositUsd ?? 1)} value={walletMinDeposit} onChange={(e) => setWalletMinDeposit(e.target.value)} className="font-mono text-xs" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="font-mono text-xs">Withdrawal Fee USD</Label>
+                    <Input placeholder={String(walletSettingsData?.settings.withdrawalFeeUsd ?? 0)} value={walletWithdrawalFee} onChange={(e) => setWalletWithdrawalFee(e.target.value)} className="font-mono text-xs" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="font-mono text-xs">BTC Confirmations</Label>
+                    <Input placeholder={String(walletSettingsData?.settings.btcRequiredConfirmations ?? 2)} value={walletBtcConf} onChange={(e) => setWalletBtcConf(e.target.value)} className="font-mono text-xs" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="font-mono text-xs">USDT Confirmations</Label>
+                    <Input placeholder={String(walletSettingsData?.settings.usdtTrc20RequiredConfirmations ?? 20)} value={walletUsdtConf} onChange={(e) => setWalletUsdtConf(e.target.value)} className="font-mono text-xs" />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label className="font-mono text-xs">Daily Withdrawal Cap USD (0 = unlimited)</Label>
+                    <Input placeholder={String(walletSettingsData?.settings.dailyWithdrawalCapUsd ?? 0)} value={walletDailyCap} onChange={(e) => setWalletDailyCap(e.target.value)} className="font-mono text-xs" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-mono text-xs">Rate Source</Label>
+                  <div className="flex gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="rateSource" value="coingecko" checked={walletRateSource === "coingecko"} onChange={() => setWalletRateSource("coingecko")} />
+                      <span className="font-mono text-xs">CoinGecko (live)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="rateSource" value="fixed" checked={walletRateSource === "fixed"} onChange={() => setWalletRateSource("fixed")} />
+                      <span className="font-mono text-xs">Fixed rates</span>
+                    </label>
+                  </div>
+                </div>
+                {walletRateSource === "fixed" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="font-mono text-xs">Fixed BTC/USD</Label>
+                      <Input placeholder={String(walletSettingsData?.settings.fixedBtcUsd ?? 0)} value={walletFixedBtc} onChange={(e) => setWalletFixedBtc(e.target.value)} className="font-mono text-xs" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="font-mono text-xs">Fixed USDT/USD</Label>
+                      <Input placeholder={String(walletSettingsData?.settings.fixedUsdtUsd ?? 1)} value={walletFixedUsdt} onChange={(e) => setWalletFixedUsdt(e.target.value)} className="font-mono text-xs" />
+                    </div>
+                  </div>
+                )}
+                <Button onClick={handleUpdateWalletSettings} disabled={updateWalletSettings.isPending} className="w-full font-mono text-xs">
+                  {updateWalletSettings.isPending ? "SAVING..." : "SAVE_WALLET_SETTINGS"}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="proxy" className="pt-6">

@@ -70,7 +70,9 @@ import type {
   UpdateCommissionBody,
   UpdateMeBody,
   UpdateRigBody,
+  UpdateWalletSettingsBody,
   Wallet,
+  WalletSettingsResponse,
   WithdrawalRequest,
 } from "./api.schemas";
 
@@ -4792,3 +4794,173 @@ export function useListUnmatchedDeposits<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get crypto wallet configuration settings
+ */
+export const getGetWalletSettingsUrl = () => {
+  return `/api/admin/wallet/settings`;
+};
+
+export const getWalletSettings = async (
+  options?: RequestInit,
+): Promise<WalletSettingsResponse> => {
+  return customFetch<WalletSettingsResponse>(getGetWalletSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetWalletSettingsQueryKey = () => {
+  return [`/api/admin/wallet/settings`] as const;
+};
+
+export const getGetWalletSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getWalletSettings>>,
+  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getWalletSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetWalletSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getWalletSettings>>
+  > = ({ signal }) => getWalletSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getWalletSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetWalletSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getWalletSettings>>
+>;
+export type GetWalletSettingsQueryError = ErrorType<
+  UnauthorizedResponse | ForbiddenResponse
+>;
+
+/**
+ * @summary Get crypto wallet configuration settings
+ */
+
+export function useGetWalletSettings<
+  TData = Awaited<ReturnType<typeof getWalletSettings>>,
+  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getWalletSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetWalletSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update crypto wallet configuration settings
+ */
+export const getUpdateWalletSettingsUrl = () => {
+  return `/api/admin/wallet/settings`;
+};
+
+export const updateWalletSettings = async (
+  updateWalletSettingsBody: UpdateWalletSettingsBody,
+  options?: RequestInit,
+): Promise<WalletSettingsResponse> => {
+  return customFetch<WalletSettingsResponse>(getUpdateWalletSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateWalletSettingsBody),
+  });
+};
+
+export const getUpdateWalletSettingsMutationOptions = <
+  TError = ErrorType<
+    BadRequestResponse | UnauthorizedResponse | ForbiddenResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateWalletSettings>>,
+    TError,
+    { data: BodyType<UpdateWalletSettingsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateWalletSettings>>,
+  TError,
+  { data: BodyType<UpdateWalletSettingsBody> },
+  TContext
+> => {
+  const mutationKey = ["updateWalletSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateWalletSettings>>,
+    { data: BodyType<UpdateWalletSettingsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateWalletSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateWalletSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateWalletSettings>>
+>;
+export type UpdateWalletSettingsMutationBody =
+  BodyType<UpdateWalletSettingsBody>;
+export type UpdateWalletSettingsMutationError = ErrorType<
+  BadRequestResponse | UnauthorizedResponse | ForbiddenResponse
+>;
+
+/**
+ * @summary Update crypto wallet configuration settings
+ */
+export const useUpdateWalletSettings = <
+  TError = ErrorType<
+    BadRequestResponse | UnauthorizedResponse | ForbiddenResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateWalletSettings>>,
+    TError,
+    { data: BodyType<UpdateWalletSettingsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateWalletSettings>>,
+  TError,
+  { data: BodyType<UpdateWalletSettingsBody> },
+  TContext
+> => {
+  return useMutation(getUpdateWalletSettingsMutationOptions(options));
+};

@@ -113,6 +113,40 @@ export async function getPaymentStatus(paymentId: string): Promise<NpPaymentStat
   return npFetch<NpPaymentStatus>(`/payment/${paymentId}`);
 }
 
+export interface NpPayoutRequest {
+  address: string;
+  currency: NpCurrency;
+  amount: number;
+  ipn_callback_url?: string;
+  extra_id?: string;
+}
+
+export interface NpPayoutResponse {
+  id: string;
+  address: string;
+  currency: string;
+  amount: number;
+  status: string;
+  batch_withdrawal_id?: string;
+  error?: string;
+  extra_id?: string;
+  hash?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createPayout(req: NpPayoutRequest): Promise<NpPayoutResponse> {
+  logger.info({ address: req.address, currency: req.currency, amount: req.amount }, "Creating NOWPayments payout");
+  return npFetch<NpPayoutResponse>("/payout", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
+export async function getPayoutStatus(payoutId: string): Promise<NpPayoutResponse> {
+  return npFetch<NpPayoutResponse>(`/payout/${payoutId}`);
+}
+
 export interface NpWebhookPayload {
   payment_id: string;
   payment_status: string;

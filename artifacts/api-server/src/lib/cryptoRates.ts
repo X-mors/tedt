@@ -1,3 +1,4 @@
+import { getWalletSettings } from "./platformSettings";
 import { logger } from "./logger";
 
 const COINGECKO_URL =
@@ -12,10 +13,7 @@ interface RateCache {
 let cache: RateCache | null = null;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-export async function getCryptoRates(): Promise<{
-  btcUsd: number;
-  usdtUsd: number;
-}> {
+async function fetchCoingeckoRates(): Promise<{ btcUsd: number; usdtUsd: number }> {
   const now = Date.now();
   if (cache && now - cache.fetchedAt < CACHE_TTL_MS) {
     return { btcUsd: cache.btcUsd, usdtUsd: cache.usdtUsd };
@@ -42,6 +40,20 @@ export async function getCryptoRates(): Promise<{
     if (cache) return { btcUsd: cache.btcUsd, usdtUsd: cache.usdtUsd };
     return { btcUsd: 0, usdtUsd: 1 };
   }
+}
+
+export async function getCryptoRates(): Promise<{
+  btcUsd: number;
+  usdtUsd: number;
+}> {
+  const settings = await getWalletSettings();
+  if (settings.rateSource === "fixed") {
+    return {
+      btcUsd: settings.fixedBtcUsd > 0 ? settings.fixedBtcUsd : 0,
+      usdtUsd: settings.fixedUsdtUsd > 0 ? settings.fixedUsdtUsd : 1,
+    };
+  }
+  return fetchCoingeckoRates();
 }
 
 export async function usdToCrypto(

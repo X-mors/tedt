@@ -845,6 +845,65 @@ export interface MarketplaceSummary {
   topRigs: RigSummary[];
 }
 
+export type WalletCryptoSettingsRateSource =
+  (typeof WalletCryptoSettingsRateSource)[keyof typeof WalletCryptoSettingsRateSource];
+
+export const WalletCryptoSettingsRateSource = {
+  coingecko: "coingecko",
+  fixed: "fixed",
+} as const;
+
+export interface WalletCryptoSettings {
+  enabledCurrencies: string[];
+  minDepositUsd: number;
+  btcRequiredConfirmations: number;
+  usdtTrc20RequiredConfirmations: number;
+  withdrawalFeeUsd: number;
+  dailyWithdrawalCapUsd: number;
+  rateSource: WalletCryptoSettingsRateSource;
+  fixedBtcUsd: number;
+  fixedUsdtUsd: number;
+}
+
+export interface WalletSettingsResponse {
+  settings: WalletCryptoSettings;
+  defaults: WalletCryptoSettings;
+}
+
+export type UpdateWalletSettingsBodyWalletRateSource =
+  (typeof UpdateWalletSettingsBodyWalletRateSource)[keyof typeof UpdateWalletSettingsBodyWalletRateSource];
+
+export const UpdateWalletSettingsBodyWalletRateSource = {
+  coingecko: "coingecko",
+  fixed: "fixed",
+} as const;
+
+export interface UpdateWalletSettingsBody {
+  /** Comma-separated list, e.g. 'btc,usdt_trc20' */
+  wallet_enabled_currencies?: string;
+  /** @minimum 0 */
+  wallet_min_deposit_usd?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  wallet_btc_required_confirmations?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  wallet_usdt_trc20_required_confirmations?: number;
+  /** @minimum 0 */
+  wallet_withdrawal_fee_usd?: number;
+  /** @minimum 0 */
+  wallet_daily_withdrawal_cap_usd?: number;
+  wallet_rate_source?: UpdateWalletSettingsBodyWalletRateSource;
+  /** @minimum 0 */
+  wallet_fixed_btc_usd?: number;
+  /** @minimum 0 */
+  wallet_fixed_usdt_usd?: number;
+}
+
 /**
  * Bad request
  */

@@ -1179,6 +1179,46 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /admin/wallet/settings:
+    get:
+      operationId: getWalletSettings
+      tags: [admin]
+      summary: Get crypto wallet configuration settings
+      responses:
+        "200":
+          description: Wallet settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletSettingsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      operationId: updateWalletSettings
+      tags: [admin]
+      summary: Update crypto wallet configuration settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWalletSettingsBody"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletSettingsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
 # ============================================================================
 # Components
 # ============================================================================
@@ -2862,3 +2902,80 @@ components:
         - algorithmsOnline
         - breakdown
         - topRigs
+
+    WalletCryptoSettings:
+      type: object
+      properties:
+        enabledCurrencies:
+          type: array
+          items:
+            type: string
+        minDepositUsd:
+          type: number
+        btcRequiredConfirmations:
+          type: integer
+        usdtTrc20RequiredConfirmations:
+          type: integer
+        withdrawalFeeUsd:
+          type: number
+        dailyWithdrawalCapUsd:
+          type: number
+        rateSource:
+          type: string
+          enum: [coingecko, fixed]
+        fixedBtcUsd:
+          type: number
+        fixedUsdtUsd:
+          type: number
+      required:
+        - enabledCurrencies
+        - minDepositUsd
+        - btcRequiredConfirmations
+        - usdtTrc20RequiredConfirmations
+        - withdrawalFeeUsd
+        - dailyWithdrawalCapUsd
+        - rateSource
+        - fixedBtcUsd
+        - fixedUsdtUsd
+
+    WalletSettingsResponse:
+      type: object
+      properties:
+        settings:
+          $ref: "#/components/schemas/WalletCryptoSettings"
+        defaults:
+          $ref: "#/components/schemas/WalletCryptoSettings"
+      required: [settings, defaults]
+
+    UpdateWalletSettingsBody:
+      type: object
+      properties:
+        wallet_enabled_currencies:
+          type: string
+          description: "Comma-separated list, e.g. 'btc,usdt_trc20'"
+        wallet_min_deposit_usd:
+          type: number
+          minimum: 0
+        wallet_btc_required_confirmations:
+          type: integer
+          minimum: 1
+          maximum: 100
+        wallet_usdt_trc20_required_confirmations:
+          type: integer
+          minimum: 1
+          maximum: 100
+        wallet_withdrawal_fee_usd:
+          type: number
+          minimum: 0
+        wallet_daily_withdrawal_cap_usd:
+          type: number
+          minimum: 0
+        wallet_rate_source:
+          type: string
+          enum: [coingecko, fixed]
+        wallet_fixed_btc_usd:
+          type: number
+          minimum: 0
+        wallet_fixed_usdt_usd:
+          type: number
+          minimum: 0
