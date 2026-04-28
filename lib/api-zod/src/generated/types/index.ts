@@ -50,6 +50,7 @@ export * from "./proxyConnectedRig";
 export * from "./proxyStatus";
 export * from "./rejectWithdrawalBody";
 export * from "./rentalDetail";
+export * from "./rentalLive";
 export * from "./rentalQuote";
 export * from "./rentalQuoteBody";
 export * from "./rentalStats";

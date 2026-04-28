@@ -446,16 +446,33 @@ paths:
     get:
       operationId: getRentalStats
       tags: [rentals]
-      summary: Live mining stats for a rental (placeholder until Stratum proxy ships)
+      summary: Historical mining stats + sparkline for a rental
       parameters:
         - $ref: "#/components/parameters/IdPath"
       responses:
         "200":
-          description: Live stats
+          description: Stats with sparkline samples
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/RentalStats"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /rentals/{id}/live:
+    get:
+      operationId: getRentalLive
+      tags: [rentals]
+      summary: Real-time proxy state for a rental (poll every 3-5s)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Live proxy snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalLive"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -1807,6 +1824,48 @@ components:
         - message
         - minerConnected
         - upstreamConnected
+
+    RentalLive:
+      type: object
+      description: Real-time proxy snapshot — safe to poll every 3-5 seconds
+      properties:
+        rentalId:
+          type: integer
+        status:
+          $ref: "#/components/schemas/RentalStatus"
+        minerConnected:
+          type: boolean
+        upstreamConnected:
+          type: boolean
+        currentHashrateH:
+          type: number
+          description: Effective hashrate in H/s computed from shares in the current flush window
+        sharesAccepted:
+          type: integer
+        sharesRejected:
+          type: integer
+        currentDifficulty:
+          type: number
+        lastShareAt:
+          type: ["string", "null"]
+          format: date-time
+        deliveryRatio:
+          type: number
+          description: currentHashrateH / advertisedH capped at 1.05
+        secondsRemaining:
+          type: integer
+      required:
+        - rentalId
+        - status
+        - minerConnected
+        - upstreamConnected
+        - currentHashrateH
+        - sharesAccepted
+        - sharesRejected
+        - currentDifficulty
+        - lastShareAt
+        - deliveryRatio
+        - secondsRemaining
 
     Review:
       type: object

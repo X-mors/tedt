@@ -53,6 +53,7 @@ import type {
   ProxyStatus,
   RejectWithdrawalBody,
   RentalDetail,
+  RentalLive,
   RentalQuote,
   RentalQuoteBody,
   RentalStats,
@@ -1815,7 +1816,7 @@ export function useGetRental<
 }
 
 /**
- * @summary Live mining stats for a rental (placeholder until Stratum proxy ships)
+ * @summary Historical mining stats + sparkline for a rental
  */
 export const getGetRentalStatsUrl = (id: number) => {
   return `/api/rentals/${id}/stats`;
@@ -1875,7 +1876,7 @@ export type GetRentalStatsQueryResult = NonNullable<
 export type GetRentalStatsQueryError = ErrorType<NotFoundResponse>;
 
 /**
- * @summary Live mining stats for a rental (placeholder until Stratum proxy ships)
+ * @summary Historical mining stats + sparkline for a rental
  */
 
 export function useGetRentalStats<
@@ -1893,6 +1894,93 @@ export function useGetRentalStats<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetRentalStatsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Real-time proxy state for a rental (poll every 3-5s)
+ */
+export const getGetRentalLiveUrl = (id: number) => {
+  return `/api/rentals/${id}/live`;
+};
+
+export const getRentalLive = async (
+  id: number,
+  options?: RequestInit,
+): Promise<RentalLive> => {
+  return customFetch<RentalLive>(getGetRentalLiveUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetRentalLiveQueryKey = (id: number) => {
+  return [`/api/rentals/${id}/live`] as const;
+};
+
+export const getGetRentalLiveQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRentalLive>>,
+  TError = ErrorType<NotFoundResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getRentalLive>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetRentalLiveQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getRentalLive>>> = ({
+    signal,
+  }) => getRentalLive(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRentalLive>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetRentalLiveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRentalLive>>
+>;
+export type GetRentalLiveQueryError = ErrorType<NotFoundResponse>;
+
+/**
+ * @summary Real-time proxy state for a rental (poll every 3-5s)
+ */
+
+export function useGetRentalLive<
+  TData = Awaited<ReturnType<typeof getRentalLive>>,
+  TError = ErrorType<NotFoundResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getRentalLive>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetRentalLiveQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

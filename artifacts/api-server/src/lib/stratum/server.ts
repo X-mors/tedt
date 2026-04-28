@@ -214,9 +214,14 @@ export class StratumServer {
           .returning();
         if (!claimed) return;
 
+        // Flag rig for admin review — low delivery auto-cancel requires manual re-approval.
         await tx
           .update(rigsTable)
-          .set({ status: "available" })
+          .set({
+            status: "offline",
+            approvalStatus: "pending",
+            approvalNote: `Auto-cancelled rental #${rental.id}: sustained hashrate below ${Math.round(LOW_DELIVERY_THRESHOLD * 100)}% of advertised value.`,
+          })
           .where(eq(rigsTable.id, rental.rigId));
 
         const totalSecs =

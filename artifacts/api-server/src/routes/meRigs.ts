@@ -18,22 +18,16 @@ import {
 import { requireAuth } from "../lib/auth";
 import { getCommission } from "../lib/commission";
 import { toNum, toUsdString } from "../lib/money";
-import { createHash } from "node:crypto";
+import { randomBytes } from "node:crypto";
 
-// Placeholder stratum endpoint shown to owners before Task 2 ships the real proxy.
-// The host/port are intentionally obviously placeholder so owners know it's not live yet.
 const PROXY_HOST = process.env["STRATUM_PROXY_HOST"] ?? "proxy.rigmarket.dev";
 const PROXY_PORT = process.env["STRATUM_PROXY_PORT"] ?? "3333";
 
-function ownerStratumFields(rigId: number, createdAt: Date) {
-  const token = createHash("sha256")
-    .update(`rig-${rigId}-${createdAt.toISOString()}`)
-    .digest("hex")
-    .slice(0, 32);
+function ownerStratumFields(rigId: number, proxyToken: string) {
   return {
     ownerStratumUrl: `stratum+tcp://${PROXY_HOST}:${PROXY_PORT}`,
     ownerWorker: `rig-${rigId}`,
-    ownerPassword: token,
+    ownerPassword: proxyToken,
   };
 }
 
@@ -119,6 +113,7 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
       approvalStatus: rigsTable.approvalStatus,
       approvalNote: rigsTable.approvalNote,
       region: rigsTable.region,
+      proxyToken: rigsTable.proxyToken,
       createdAt: rigsTable.createdAt,
       averageRating: sql<string | null>`AVG(${reviewsTable.rating})`,
       reviewCount: sql<string>`COUNT(DISTINCT ${reviewsTable.id})`,
@@ -161,9 +156,7 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
     reviewCount: Number(row.reviewCount),
     totalRentals: Number(rentals?.c ?? 0),
     createdAt: row.createdAt.toISOString(),
-    // Placeholder stratum endpoint for the owner to connect their miner.
-    // Task 2 (Stratum proxy service) will replace these with live credentials.
-    ...ownerStratumFields(row.id, row.createdAt),
+    ...ownerStratumFields(row.id, row.proxyToken),
   };
 }
 
@@ -187,6 +180,7 @@ router.post("/me/rigs", async (req, res) => {
     return;
   }
   // Newly listed rigs always start in `pending` and require admin approval.
+  const proxyToken = randomBytes(32).toString("hex");
   const [created] = await db
     .insert(rigsTable)
     .values({
@@ -199,6 +193,7 @@ router.post("/me/rigs", async (req, res) => {
       maxRentalHours: body.maxRentalHours,
       region: body.region,
       approvalStatus: "pending",
+      proxyToken,
     })
     .returning({ id: rigsTable.id });
 

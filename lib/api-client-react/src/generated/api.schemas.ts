@@ -367,6 +367,26 @@ export interface RentalStats {
   upstreamConnected: boolean;
 }
 
+/**
+ * Real-time proxy snapshot — safe to poll every 3-5 seconds
+ */
+export interface RentalLive {
+  rentalId: number;
+  status: RentalStatus;
+  minerConnected: boolean;
+  upstreamConnected: boolean;
+  /** Effective hashrate in H/s computed from shares in the current flush window */
+  currentHashrateH: number;
+  sharesAccepted: number;
+  sharesRejected: number;
+  currentDifficulty: number;
+  /** @nullable */
+  lastShareAt: string | null;
+  /** currentHashrateH / advertisedH capped at 1.05 */
+  deliveryRatio: number;
+  secondsRemaining: number;
+}
+
 export interface Review {
   id: number;
   rigId: number;

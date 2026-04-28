@@ -39,6 +39,10 @@ export const rigsTable = pgTable("rigs", {
   stratumPort: integer("stratum_port").notNull().default(0),
   stratumUser: text("stratum_user").notNull().default(""),
   stratumPassword: text("stratum_password").notNull().default("x"),
+  // Cryptographically random secret issued at rig creation; used by the proxy to authenticate the miner.
+  proxyToken: text("proxy_token").notNull().default(""),
+  // Set by the Stratum proxy when the miner authenticates.
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

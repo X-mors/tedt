@@ -1,6 +1,6 @@
 import * as net from "node:net";
 import { EventEmitter } from "node:events";
-import { createHash } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { eq, and } from "drizzle-orm";
 import { db, rigsTable, rentalsTable } from "@workspace/db";
 import { logger } from "../logger";
@@ -8,18 +8,8 @@ import { proxyState } from "./state";
 import { UpstreamClient } from "./upstream";
 import type { JsonRpcMessage } from "./types";
 
-function makeExtranonce1(rigId: number): string {
-  return createHash("sha256")
-    .update(`en1-${rigId}`)
-    .digest("hex")
-    .slice(0, 8);
-}
-
-function rigTokenFromId(rigId: number, createdAtIso: string): string {
-  return createHash("sha256")
-    .update(`rig-${rigId}-${createdAtIso}`)
-    .digest("hex")
-    .slice(0, 32);
+function makeExtranonce1(): string {
+  return randomBytes(4).toString("hex");
 }
 
 export class DownstreamSession extends EventEmitter {
@@ -119,7 +109,7 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
     this.subscribed = true;
-    this.extranonce1 = makeExtranonce1(this.msgIdCounter++);
+    this.extranonce1 = makeExtranonce1();
     this.extranonce2Size = 4;
 
     this._reply(msg.id, [
@@ -147,7 +137,7 @@ export class DownstreamSession extends EventEmitter {
     }
 
     const [rig] = await db
-      .select({ id: rigsTable.id, name: rigsTable.name, createdAt: rigsTable.createdAt })
+      .select({ id: rigsTable.id, name: rigsTable.name, proxyToken: rigsTable.proxyToken })
       .from(rigsTable)
       .where(eq(rigsTable.id, rigId));
 
@@ -158,8 +148,7 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
 
-    const expectedToken = rigTokenFromId(rig.id, rig.createdAt.toISOString());
-    if (password !== expectedToken) {
+    if (!rig.proxyToken || password !== rig.proxyToken) {
       logger.warn({ rigId }, "stratum:downstream bad credentials");
       this._reply(msg.id, false, [24, "Bad credentials"]);
       this._close();
@@ -169,6 +158,12 @@ export class DownstreamSession extends EventEmitter {
     this.rigId = rig.id;
     this.authorized = true;
     proxyState.addRig(rig.id, this, rig.name);
+
+    // Persist last-seen timestamp so admin can see when a rig was last active.
+    await db
+      .update(rigsTable)
+      .set({ lastSeenAt: new Date() })
+      .where(eq(rigsTable.id, rig.id));
 
     const activeRental = await this._findActiveRental(rig.id);
     this.rentalId = activeRental?.id ?? null;

@@ -25,7 +25,7 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
 import { getCommission } from "../lib/commission";
-import { round2, round6, toNum, toUsdString } from "../lib/money";
+import { round2, round6, toNum, toUsdString, unitMultiplier } from "../lib/money";
 import { settleExpiredRentals } from "../lib/settlement";
 import { randomBytes } from "node:crypto";
 
@@ -256,7 +256,15 @@ router.post("/rentals", async (req, res) => {
     throw err;
   }
 
-  res.status(201).json(await loadRentalDetail(rentalId));
+  const newRental = await loadRentalDetail(rentalId);
+
+  // If the rig owner's miner is already connected to the proxy, start routing immediately.
+  const session = proxyState.getRigSession(body.rigId);
+  if (session) {
+    void session.activateRental(rentalId, body.poolUrl, body.poolWorker, body.poolPassword ?? "x");
+  }
+
+  res.status(201).json(newRental);
 });
 
 async function loadRentalDetail(id: number) {
@@ -380,8 +388,11 @@ router.get("/rentals/:id/stats", async (req, res) => {
       startedAt: rentalsTable.startedAt,
       endsAt: rentalsTable.endsAt,
       deliveredHashrateAvg: rentalsTable.deliveredHashrateAvg,
+      algorithmUnit: algorithmsTable.unit,
     })
     .from(rentalsTable)
+    .innerJoin(rigsTable, eq(rigsTable.id, rentalsTable.rigId))
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
     .where(eq(rentalsTable.id, id));
   if (!rental) {
     res.status(404).json({ error: "Rental not found" });
@@ -402,7 +413,9 @@ router.get("/rentals/:id/stats", async (req, res) => {
       : 0;
 
   const live = proxyState.getLiveStats(id);
-  const advertisedHashrate = toNum(rental.hashrate);
+  // advertisedHashrate is in algorithm units (TH, MH, GH, kH); convert to H/s for comparison.
+  const algMultiplier = unitMultiplier(rental.algorithmUnit);
+  const advertisedH = toNum(rental.hashrate) * algMultiplier;
 
   const dbSamples = await db
     .select({
@@ -423,7 +436,6 @@ router.get("/rentals/:id/stats", async (req, res) => {
     samples.length > 0
       ? samples.reduce((sum, s) => sum + s.hashrate, 0) / samples.length
       : 0;
-  const advertisedH = advertisedHashrate;
   const deliveryRatio =
     advertisedH > 0 && avgDeliveredH > 0
       ? Math.min(1.05, avgDeliveredH / advertisedH)
@@ -453,6 +465,65 @@ router.get("/rentals/:id/stats", async (req, res) => {
     upstreamConnected: live.upstreamConnected,
   });
   res.json(data);
+});
+
+router.get("/rentals/:id/live", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [rental] = await db
+    .select({
+      id: rentalsTable.id,
+      renterId: rentalsTable.renterId,
+      ownerId: rentalsTable.ownerId,
+      status: rentalsTable.status,
+      hashrate: rentalsTable.hashrate,
+      endsAt: rentalsTable.endsAt,
+      algorithmUnit: algorithmsTable.unit,
+    })
+    .from(rentalsTable)
+    .innerJoin(rigsTable, eq(rigsTable.id, rentalsTable.rigId))
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
+    .where(eq(rentalsTable.id, id));
+  if (!rental) {
+    res.status(404).json({ error: "Rental not found" });
+    return;
+  }
+  if (
+    rental.renterId !== req.currentUser!.id &&
+    rental.ownerId !== req.currentUser!.id &&
+    req.currentUser!.role !== "admin"
+  ) {
+    res.status(403).json({ error: "Not allowed" });
+    return;
+  }
+
+  const live = proxyState.getLiveStats(id);
+  const algMultiplier = unitMultiplier(rental.algorithmUnit);
+  const advertisedH = toNum(rental.hashrate) * algMultiplier;
+  const deliveryRatio =
+    advertisedH > 0 && live.effectiveHashrateH > 0
+      ? Math.min(1.05, live.effectiveHashrateH / advertisedH)
+      : 0;
+
+  res.json({
+    rentalId: id,
+    status: rental.status,
+    minerConnected: live.minerConnected,
+    upstreamConnected: live.upstreamConnected,
+    currentHashrateH: live.effectiveHashrateH,
+    sharesAccepted: live.sharesAccepted,
+    sharesRejected: live.sharesRejected,
+    currentDifficulty: live.currentDifficulty,
+    lastShareAt: live.lastShareAt?.toISOString() ?? null,
+    deliveryRatio,
+    secondsRemaining:
+      rental.status === "active"
+        ? Math.max(0, Math.floor((rental.endsAt.getTime() - Date.now()) / 1000))
+        : 0,
+  });
 });
 
 router.post("/rentals/:id/cancel", async (req, res) => {
@@ -560,6 +631,9 @@ router.post("/rentals/:id/cancel", async (req, res) => {
       }
     }
   });
+
+  // Tear down any live proxy routing for this rental.
+  proxyState.getRigSession(rental.rigId)?.deactivateRental();
 
   const detail = await loadRentalDetail(rental.id);
   res.json(CancelRentalResponse.parse(detail));

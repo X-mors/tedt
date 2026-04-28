@@ -619,7 +619,7 @@ export const GetRentalResponse = zod.object({
 });
 
 /**
- * @summary Live mining stats for a rental (placeholder until Stratum proxy ships)
+ * @summary Historical mining stats + sparkline for a rental
  */
 export const GetRentalStatsParams = zod.object({
   id: zod.coerce.number(),
@@ -659,6 +659,35 @@ export const GetRentalStatsResponse = zod.object({
       "Whether the proxy has an active connection to the renter's pool",
     ),
 });
+
+/**
+ * @summary Real-time proxy state for a rental (poll every 3-5s)
+ */
+export const GetRentalLiveParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetRentalLiveResponse = zod
+  .object({
+    rentalId: zod.number(),
+    status: zod.enum(["pending", "active", "completed", "cancelled"]),
+    minerConnected: zod.boolean(),
+    upstreamConnected: zod.boolean(),
+    currentHashrateH: zod
+      .number()
+      .describe(
+        "Effective hashrate in H\/s computed from shares in the current flush window",
+      ),
+    sharesAccepted: zod.number(),
+    sharesRejected: zod.number(),
+    currentDifficulty: zod.number(),
+    lastShareAt: zod.coerce.date().nullable(),
+    deliveryRatio: zod
+      .number()
+      .describe("currentHashrateH \/ advertisedH capped at 1.05"),
+    secondsRemaining: zod.number(),
+  })
+  .describe("Real-time proxy snapshot — safe to poll every 3-5 seconds");
 
 /**
  * @summary Cancel an active rental — refunds remaining time prorated
