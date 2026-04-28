@@ -88,13 +88,27 @@ function toNpCurrency(currency: "btc" | "usdt_trc20"): NpCurrency {
   return CURRENCY_MAP[currency] ?? "btc";
 }
 
+async function getMinAmount(payCurrency: NpCurrency): Promise<number> {
+  try {
+    const res = await npFetch<{ min_amount: number }>(
+      `/min-amount?currency_from=usd&currency_to=${payCurrency}`,
+    );
+    // min_amount is in USD; add a 50% safety margin and enforce a $5 floor
+    return Math.max(res.min_amount * 1.5, 5);
+  } catch {
+    // Fall back to a safe value if the min-amount endpoint fails
+    return 50;
+  }
+}
+
 export async function createDepositPayment(
   currency: "btc" | "usdt_trc20",
   orderId: string,
 ): Promise<NpPayment> {
   const payCurrency = toNpCurrency(currency);
+  const priceAmount = await getMinAmount(payCurrency);
   const body: Record<string, unknown> = {
-    price_amount: 1,
+    price_amount: priceAmount,
     price_currency: "usd",
     pay_currency: payCurrency,
     order_id: orderId,
@@ -102,7 +116,7 @@ export async function createDepositPayment(
     is_fixed_rate: false,
     is_fee_paid_by_user: false,
   };
-  logger.info({ currency, orderId }, "Creating NOWPayments deposit payment");
+  logger.info({ currency, orderId, priceAmount }, "Creating NOWPayments deposit payment");
   return npFetch<NpPayment>("/payment", {
     method: "POST",
     body: JSON.stringify(body),
