@@ -127,6 +127,7 @@ export class StratumServer {
       .select({
         id: rentalsTable.id,
         hashrate: rentalsTable.hashrate,
+        deliveredHashrateAvg: rentalsTable.deliveredHashrateAvg,
         renterTotalUsd: rentalsTable.renterTotalUsd,
         ownerEarningsUsd: rentalsTable.ownerEarningsUsd,
         startedAt: rentalsTable.startedAt,
@@ -194,6 +195,8 @@ export class StratumServer {
   private async _autoCancelRental(
     rental: {
       id: number;
+      hashrate: string;
+      deliveredHashrateAvg: string | null;
       renterTotalUsd: string;
       ownerEarningsUsd: string;
       renterId: number;
@@ -229,23 +232,36 @@ export class StratumServer {
           })
           .where(eq(rigsTable.id, rental.rigId));
 
+        // Delivery-based settlement — mirrors the cancel-route reconciliation.
+        // deliveryRatio: delivered vs. advertised hashrate (capped at 1.05 for slight overperformance).
+        // usedRatio:     elapsed time vs. total booked time.
+        // effectiveRatio = deliveryRatio × usedRatio — owner earns this fraction, renter gets the rest.
         const totalSecs =
           (rental.endsAt.getTime() - rental.startedAt.getTime()) / 1000;
         const usedSecs = Math.max(
           0,
-          (now.getTime() - rental.startedAt.getTime()) / 1000,
+          Math.min(totalSecs, (now.getTime() - rental.startedAt.getTime()) / 1000),
         );
         const usedRatio = totalSecs > 0 ? usedSecs / totalSecs : 1;
-        const refund = round6(
-          toNum(rental.renterTotalUsd) * (1 - usedRatio),
-        );
 
-        if (refund > 0) {
-          const refundStr = toUsdString(refund);
+        const advertisedHashrate = toNum(rental.hashrate);
+        const deliveredHashrate = toNum(rental.deliveredHashrateAvg ?? "0");
+        const deliveryRatio =
+          deliveredHashrate > 0 && advertisedHashrate > 0
+            ? Math.min(1.05, deliveredHashrate / advertisedHashrate)
+            : 0.0;
+
+        const effectiveRatio = deliveryRatio * usedRatio;
+        const ownerPayout = round6(toNum(rental.ownerEarningsUsd) * effectiveRatio);
+        const renterRefund = round6(toNum(rental.renterTotalUsd) * (1 - effectiveRatio));
+
+        if (renterRefund > 0) {
+          const refundStr = toUsdString(renterRefund);
           const [credited] = await tx
             .update(usersTable)
             .set({
               balanceUsd: sql`${usersTable.balanceUsd} + ${refundStr}`,
+              totalSpentUsd: sql`GREATEST(0, ${usersTable.totalSpentUsd} - ${refundStr})`,
             })
             .where(eq(usersTable.id, rental.renterId))
             .returning({ balanceUsd: usersTable.balanceUsd });
@@ -254,10 +270,30 @@ export class StratumServer {
               userId: rental.renterId,
               type: "rental_refund",
               amountUsd: refundStr,
-              balanceAfterUsd: toUsdString(
-                round6(toNum(credited.balanceUsd)),
-              ),
-              memo: `Auto-cancelled: low hashrate delivery — refund for rental #${rental.id}`,
+              balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
+              memo: `Auto-cancel refund for rental #${rental.id}: ${Math.round(deliveryRatio * 100)}% hashrate × ${Math.round(usedRatio * 100)}% time = ${Math.round(effectiveRatio * 100)}% value delivered`,
+              relatedRentalId: rental.id,
+            });
+          }
+        }
+
+        if (ownerPayout > 0) {
+          const payoutStr = toUsdString(ownerPayout);
+          const [credited] = await tx
+            .update(usersTable)
+            .set({
+              balanceUsd: sql`${usersTable.balanceUsd} + ${payoutStr}`,
+              totalEarnedUsd: sql`${usersTable.totalEarnedUsd} + ${payoutStr}`,
+            })
+            .where(eq(usersTable.id, rental.ownerId))
+            .returning({ balanceUsd: usersTable.balanceUsd });
+          if (credited) {
+            await tx.insert(walletTransactionsTable).values({
+              userId: rental.ownerId,
+              type: "rental_payout",
+              amountUsd: payoutStr,
+              balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
+              memo: `Auto-cancel payout for rental #${rental.id}: ${Math.round(deliveryRatio * 100)}% delivery × ${Math.round(usedRatio * 100)}% time used`,
               relatedRentalId: rental.id,
             });
           }
