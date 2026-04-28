@@ -741,7 +741,13 @@ export interface AdminWithdrawalRow {
   asset: DepositAsset;
   destinationAddress: string;
   amountUsd: number;
+  /** Platform withdrawal fee deducted before sending */
+  feeUsd: number;
+  /** Amount actually sent on-chain after fee deduction */
+  netAmountUsd: number;
   status: WithdrawalStatus;
+  adminNote?: string | null;
+  onChainTxid?: string | null;
   createdAt: string;
 }
 

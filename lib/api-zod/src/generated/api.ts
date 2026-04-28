@@ -1395,6 +1395,12 @@ export const ListAdminWithdrawalsResponseItem = zod.object({
   asset: zod.enum(["BTC", "USDT"]),
   destinationAddress: zod.string(),
   amountUsd: zod.number(),
+  feeUsd: zod
+    .number()
+    .describe("Platform withdrawal fee deducted before sending"),
+  netAmountUsd: zod
+    .number()
+    .describe("Amount actually sent on-chain after fee deduction"),
   status: zod.enum([
     "pending",
     "approved",
@@ -1403,6 +1409,8 @@ export const ListAdminWithdrawalsResponseItem = zod.object({
     "confirmed",
     "rejected",
   ]),
+  adminNote: zod.string().nullish(),
+  onChainTxid: zod.string().nullish(),
   createdAt: zod.coerce.date(),
 });
 export const ListAdminWithdrawalsResponse = zod.array(

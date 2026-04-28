@@ -541,16 +541,18 @@ export default function AdminDashboard() {
                     <TableHead className="font-mono text-xs">TIME</TableHead>
                     <TableHead className="font-mono text-xs">USER</TableHead>
                     <TableHead className="font-mono text-xs">DESTINATION</TableHead>
-                    <TableHead className="font-mono text-xs text-right">AMOUNT</TableHead>
+                    <TableHead className="font-mono text-xs text-right">GROSS</TableHead>
+                    <TableHead className="font-mono text-xs text-right">FEE</TableHead>
+                    <TableHead className="font-mono text-xs text-right">NET SEND</TableHead>
                     <TableHead className="font-mono text-xs text-right">STATUS</TableHead>
                     <TableHead className="font-mono text-xs text-right">ACTION</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {withdrawalsLoading ? (
-                     <TableRow><TableCell colSpan={6} className="text-center py-8">LOADING...</TableCell></TableRow>
+                     <TableRow><TableCell colSpan={8} className="text-center py-8">LOADING...</TableCell></TableRow>
                   ) : withdrawals?.length === 0 ? (
-                     <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Queue is empty.</TableCell></TableRow>
+                     <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Queue is empty.</TableCell></TableRow>
                   ) : withdrawals?.map(wr => (
                     <TableRow key={wr.id}>
                       <TableCell className="font-mono text-xs text-muted-foreground">{format(new Date(wr.createdAt), "MMM d HH:mm")}</TableCell>
@@ -560,6 +562,8 @@ export default function AdminDashboard() {
                         {wr.destinationAddress}
                       </TableCell>
                       <TableCell className="text-right font-mono font-bold">{formatMoney(wr.amountUsd)}</TableCell>
+                      <TableCell className="text-right font-mono text-xs text-muted-foreground">{formatMoney(wr.feeUsd ?? 0)}</TableCell>
+                      <TableCell className="text-right font-mono font-bold text-green-400">{formatMoney(wr.netAmountUsd ?? wr.amountUsd)}</TableCell>
                       <TableCell className="text-right">
                          <Badge variant="outline" className={`font-mono text-[10px] uppercase
                           ${wr.status === 'sent' ? 'bg-green-500/10 text-green-500 border-green-500/20' :

@@ -2626,8 +2626,20 @@ components:
           type: string
         amountUsd:
           type: number
+        feeUsd:
+          type: number
+          description: Platform withdrawal fee deducted before sending
+        netAmountUsd:
+          type: number
+          description: Amount actually sent on-chain after fee deduction
         status:
           $ref: "#/components/schemas/WithdrawalStatus"
+        adminNote:
+          type: string
+          nullable: true
+        onChainTxid:
+          type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -2639,6 +2651,8 @@ components:
         - asset
         - destinationAddress
         - amountUsd
+        - feeUsd
+        - netAmountUsd
         - status
         - createdAt
 

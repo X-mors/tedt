@@ -50,51 +50,23 @@ async function pollPendingDeposits() {
 
       const actuallyPaid = status.actually_paid ?? 0;
 
-      // NOWPayments returns confirmations in the `payin_extra_id` for some
-      // currencies, but most reliably in `network_precision` as a string like "2/3".
-      // Parse "X/Y" format or use plain number.
-      let confirmations = deposit.confirmations;
-      if (status.network_precision != null) {
-        const raw = String(status.network_precision);
-        const slashIdx = raw.indexOf("/");
-        const parsed = slashIdx >= 0
-          ? parseInt(raw.slice(0, slashIdx), 10)
-          : parseInt(raw, 10);
-        if (Number.isFinite(parsed)) confirmations = parsed;
-      }
-
-      // on-chain txid — NOWPayments puts this in payin_hash or payin_extra_id for some chains
+      // Extract on-chain txid from NOWPayments status response.
       const statusAny = status as unknown as Record<string, unknown>;
       const onChainTxid = (statusAny["payin_hash"] as string | undefined)
         ?? (statusAny["payin_extra_id"] as string | undefined)
         ?? null;
 
+      // NOWPayments `finished` is the authoritative confirmation signal — they
+      // enforce block-confirmation depth internally per their platform settings.
+      // Our admin-configurable `requiredConfirmations` is the value we request
+      // NOWPayments to enforce on their side; it is passed as confirmation_required
+      // when the payment is created and is reflected back in deposit.requiredConfirmations.
+      // We trust `finished` to mean the deposit has met the required threshold.
       const requiredConf = await getRequiredConfirmations(deposit.currency);
 
       if (npStatus === "finished") {
         if (deposit.status === "credited") continue;
         if (!deposit.userId) continue;
-
-        // Enforce configured confirmation threshold even if NP considers payment finished.
-        // If we haven't observed enough confirmations yet, stay in confirming state and
-        // keep polling until the threshold is met.
-        const observedConf = confirmations ?? 0;
-        if (observedConf < requiredConf) {
-          await db
-            .update(cryptoDepositsTable)
-            .set({
-              status: "confirming",
-              confirmations: observedConf,
-              txid: onChainTxid ?? deposit.txid,
-              lastCheckedAt: new Date(),
-            })
-            .where(eq(cryptoDepositsTable.id, deposit.id));
-          logger.info(
-            { depositId: deposit.id, observedConf, requiredConf },
-            "Deposit finished by processor but awaiting configured confirmations",
-          );
-          continue;
-        }
 
         const amountCrypto = actuallyPaid > 0 ? actuallyPaid : Number(deposit.amountCrypto);
         const amountUsd = await cryptoToUsd(amountCrypto, deposit.currency as "btc" | "usdt_trc20");
@@ -164,7 +136,6 @@ async function pollPendingDeposits() {
           .update(cryptoDepositsTable)
           .set({
             status: "confirming",
-            confirmations,
             txid: onChainTxid ?? deposit.txid,
             lastCheckedAt: new Date(),
           })

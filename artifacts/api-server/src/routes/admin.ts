@@ -754,34 +754,49 @@ router.get("/admin/wallet/transactions", async (req, res) => {
 // Withdrawals queue
 // ============================================================================
 router.get("/admin/withdrawals", async (_req, res) => {
-  const rows = await db
-    .select({
-      id: withdrawalsTable.id,
-      userId: withdrawalsTable.userId,
-      userEmail: usersTable.email,
-      userDisplayName: usersTable.displayName,
-      asset: withdrawalsTable.asset,
-      destinationAddress: withdrawalsTable.destinationAddress,
-      amountUsd: withdrawalsTable.amountUsd,
-      status: withdrawalsTable.status,
-      createdAt: withdrawalsTable.createdAt,
-    })
-    .from(withdrawalsTable)
-    .innerJoin(usersTable, eq(usersTable.id, withdrawalsTable.userId))
-    .orderBy(desc(withdrawalsTable.createdAt));
+  const [rows, walletSettings] = await Promise.all([
+    db
+      .select({
+        id: withdrawalsTable.id,
+        userId: withdrawalsTable.userId,
+        userEmail: usersTable.email,
+        userDisplayName: usersTable.displayName,
+        asset: withdrawalsTable.asset,
+        destinationAddress: withdrawalsTable.destinationAddress,
+        amountUsd: withdrawalsTable.amountUsd,
+        status: withdrawalsTable.status,
+        adminNote: withdrawalsTable.adminNote,
+        onChainTxid: withdrawalsTable.onChainTxid,
+        createdAt: withdrawalsTable.createdAt,
+      })
+      .from(withdrawalsTable)
+      .innerJoin(usersTable, eq(usersTable.id, withdrawalsTable.userId))
+      .orderBy(desc(withdrawalsTable.createdAt)),
+    getWalletSettings(),
+  ]);
 
   const data = ListAdminWithdrawalsResponse.parse(
-    rows.map((r) => ({
-      id: r.id,
-      userId: r.userId,
-      userEmail: r.userEmail,
-      userDisplayName: r.userDisplayName,
-      asset: r.asset,
-      destinationAddress: r.destinationAddress,
-      amountUsd: toNum(r.amountUsd),
-      status: r.status,
-      createdAt: r.createdAt.toISOString(),
-    })),
+    rows.map((r) => {
+      const feeUsd = r.asset === "BTC"
+        ? walletSettings.btcWithdrawalFeeUsd
+        : walletSettings.usdtTrc20WithdrawalFeeUsd;
+      const amountUsd = toNum(r.amountUsd);
+      return {
+        id: r.id,
+        userId: r.userId,
+        userEmail: r.userEmail,
+        userDisplayName: r.userDisplayName,
+        asset: r.asset,
+        destinationAddress: r.destinationAddress,
+        amountUsd,
+        feeUsd,
+        netAmountUsd: Math.max(0, amountUsd - feeUsd),
+        status: r.status,
+        adminNote: r.adminNote ?? undefined,
+        onChainTxid: r.onChainTxid ?? undefined,
+        createdAt: r.createdAt.toISOString(),
+      };
+    }),
   );
   res.json(data);
 });
