@@ -38,7 +38,7 @@ router.post(
     const sig = (req.headers["x-nowpayments-sig"] as string) ?? "";
     if (!verifyIpnSignature(rawBody, sig)) {
       logger.warn("NOWPayments IPN signature mismatch");
-      res.status(400).json({ error: "Invalid signature" });
+      res.status(401).json({ error: "Invalid signature" });
       return;
     }
 
@@ -98,12 +98,17 @@ router.post(
 
     if (npStatus === "finished" && actuallyPaid > 0 && userId) {
       if (existingDeposit) {
+        const depositStatus: string = existingDeposit.status;
+        if (depositStatus === "credited") {
+          res.json({ ok: true });
+          return;
+        }
         const amountUsd = await cryptoToUsd(actuallyPaid, currency);
         const rate = actuallyPaid > 0 ? amountUsd / actuallyPaid : 0;
         const amountUsdStr = toUsdString(amountUsd);
 
         await db.transaction(async (tx) => {
-          await tx
+          const [updated] = await tx
             .update(cryptoDepositsTable)
             .set({
               status: "credited",
@@ -114,7 +119,12 @@ router.post(
               creditedAt: new Date(),
               lastCheckedAt: new Date(),
             })
-            .where(eq(cryptoDepositsTable.id, existingDeposit.id));
+            .where(
+              sql`${cryptoDepositsTable.id} = ${existingDeposit.id} AND ${cryptoDepositsTable.status} != 'credited'`,
+            )
+            .returning();
+
+          if (!updated) return; // already credited by concurrent path
 
           const [credited] = await tx
             .update(usersTable)
@@ -136,27 +146,42 @@ router.post(
           });
         });
 
-        logger.info({ userId, amountUsd, currency }, "Deposit credited via IPN");
+        logger.info({ userId, amountUsd: toUsdString(await cryptoToUsd(actuallyPaid, currency)), currency }, "Deposit credited via IPN");
       } else {
         const amountUsd = await cryptoToUsd(actuallyPaid, currency);
         const rate = actuallyPaid > 0 ? amountUsd / actuallyPaid : 0;
         const amountUsdStr = toUsdString(amountUsd);
 
         await db.transaction(async (tx) => {
-          await tx.insert(cryptoDepositsTable).values({
-            userId: userId!,
-            depositAddressId: depositAddress?.id ?? null,
-            currency,
-            amountCrypto: String(actuallyPaid),
-            amountUsd: amountUsdStr,
-            exchangeRate: toUsdString(rate),
-            processorPaymentId: paymentId,
-            status: "credited",
-            confirmations: requiredConf,
-            requiredConfirmations: requiredConf,
-            creditedAt: new Date(),
-            lastCheckedAt: new Date(),
-          });
+          await tx
+            .insert(cryptoDepositsTable)
+            .values({
+              userId: userId!,
+              depositAddressId: depositAddress?.id ?? null,
+              currency,
+              amountCrypto: String(actuallyPaid),
+              amountUsd: amountUsdStr,
+              exchangeRate: toUsdString(rate),
+              processorPaymentId: paymentId,
+              status: "credited",
+              confirmations: requiredConf,
+              requiredConfirmations: requiredConf,
+              creditedAt: new Date(),
+              lastCheckedAt: new Date(),
+            })
+            .onConflictDoNothing({ target: cryptoDepositsTable.processorPaymentId });
+
+          // Only credit user if the insert succeeded (not a duplicate)
+          const check = await tx
+            .select({ status: cryptoDepositsTable.status })
+            .from(cryptoDepositsTable)
+            .where(eq(cryptoDepositsTable.processorPaymentId, paymentId))
+            .then((r) => r[0] ?? null);
+
+          if (!check || check.status !== "credited") {
+            logger.info({ paymentId }, "IPN insert skipped (already credited by worker)");
+            return;
+          }
 
           const [credited] = await tx
             .update(usersTable)
@@ -224,18 +249,21 @@ router.post(
         { paymentId, orderId },
         "IPN received with no matching user — storing as unmatched",
       );
-      await db.insert(cryptoDepositsTable).values({
-        userId: 0,
-        currency,
-        amountCrypto: String(actuallyPaid),
-        processorPaymentId: paymentId,
-        status: "unmatched",
-        confirmations: requiredConf,
-        requiredConfirmations: requiredConf,
-        creditedAt: new Date(),
-        lastCheckedAt: new Date(),
-        processorData: rawBody.slice(0, 4000),
-      });
+      await db
+        .insert(cryptoDepositsTable)
+        .values({
+          userId: null,
+          currency,
+          amountCrypto: String(actuallyPaid),
+          processorPaymentId: paymentId,
+          status: "unmatched",
+          confirmations: requiredConf,
+          requiredConfirmations: requiredConf,
+          creditedAt: new Date(),
+          lastCheckedAt: new Date(),
+          processorData: rawBody.slice(0, 4000),
+        })
+        .onConflictDoNothing({ target: cryptoDepositsTable.processorPaymentId });
     }
 
     res.json({ ok: true });

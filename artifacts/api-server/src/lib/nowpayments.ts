@@ -138,18 +138,24 @@ export function verifyIpnSignature(
 ): boolean {
   const secret = process.env["NOWPAYMENTS_IPN_SECRET"];
   if (!secret) {
-    logger.warn("NOWPAYMENTS_IPN_SECRET not set — skipping signature check");
-    return true;
+    logger.error("NOWPAYMENTS_IPN_SECRET not set — rejecting IPN request");
+    return false;
   }
-  const sorted = sortedJsonString(rawBody);
-  const expected = crypto
-    .createHmac("sha512", secret)
-    .update(sorted)
-    .digest("hex");
-  return crypto.timingSafeEqual(
-    Buffer.from(expected, "hex"),
-    Buffer.from(receivedSig.toLowerCase(), "hex"),
-  );
+  try {
+    const sorted = sortedJsonString(rawBody);
+    const expected = crypto
+      .createHmac("sha512", secret)
+      .update(sorted)
+      .digest("hex");
+    const sigLower = receivedSig.toLowerCase();
+    if (sigLower.length !== expected.length) return false;
+    return crypto.timingSafeEqual(
+      Buffer.from(expected, "hex"),
+      Buffer.from(sigLower, "hex"),
+    );
+  } catch {
+    return false;
+  }
 }
 
 function sortedJsonString(raw: string): string {

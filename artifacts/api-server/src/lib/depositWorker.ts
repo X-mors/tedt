@@ -56,13 +56,14 @@ async function pollPendingDeposits() {
 
       if (npStatus === "finished") {
         if (deposit.status === "credited") continue;
+        if (!deposit.userId) continue; // unmatched — skip worker crediting
 
         const amountCrypto = actuallyPaid > 0 ? actuallyPaid : Number(deposit.amountCrypto);
         const amountUsd = await cryptoToUsd(amountCrypto, deposit.currency as "btc" | "usdt_trc20");
         const rate = amountCrypto > 0 ? amountUsd / amountCrypto : 0;
 
         await db.transaction(async (tx) => {
-          await tx
+          const [updated] = await tx
             .update(cryptoDepositsTable)
             .set({
               status: "credited",
@@ -73,7 +74,12 @@ async function pollPendingDeposits() {
               creditedAt: new Date(),
               lastCheckedAt: new Date(),
             })
-            .where(eq(cryptoDepositsTable.id, deposit.id));
+            .where(
+              sql`${cryptoDepositsTable.id} = ${deposit.id} AND ${cryptoDepositsTable.status} != 'credited'`,
+            )
+            .returning();
+
+          if (!updated) return; // already credited by concurrent IPN webhook
 
           const amountUsdStr = toUsdString(amountUsd);
           const [credited] = await tx
@@ -82,13 +88,13 @@ async function pollPendingDeposits() {
               balanceUsd: sql`${usersTable.balanceUsd} + ${amountUsdStr}`,
               totalDepositedUsd: sql`${usersTable.totalDepositedUsd} + ${amountUsdStr}`,
             })
-            .where(eq(usersTable.id, deposit.userId))
+            .where(eq(usersTable.id, deposit.userId!))
             .returning({ balanceUsd: usersTable.balanceUsd });
 
           if (!credited) throw new Error("Failed to credit user");
 
           await tx.insert(walletTransactionsTable).values({
-            userId: deposit.userId,
+            userId: deposit.userId!,
             type: "deposit",
             amountUsd: amountUsdStr,
             balanceAfterUsd: toUsdString(round6(Number(credited.balanceUsd))),

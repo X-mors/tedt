@@ -5,6 +5,7 @@ import {
   text,
   numeric,
   timestamp,
+  unique,
 } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 import { depositAddressesTable } from "./depositAddresses";
@@ -12,7 +13,6 @@ import { depositAddressesTable } from "./depositAddresses";
 export const cryptoDepositsTable = pgTable("crypto_deposits", {
   id: serial("id").primaryKey(),
   userId: integer("user_id")
-    .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
   depositAddressId: integer("deposit_address_id").references(
     () => depositAddressesTable.id,
@@ -37,7 +37,9 @@ export const cryptoDepositsTable = pgTable("crypto_deposits", {
   creditedAt: timestamp("credited_at", { withTimezone: true }),
   lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
   processorData: text("processor_data"),
-});
+}, (t) => [
+  unique("crypto_deposits_processor_payment_id_unique").on(t.processorPaymentId),
+]);
 
 export type CryptoDeposit = typeof cryptoDepositsTable.$inferSelect;
 export type InsertCryptoDeposit = typeof cryptoDepositsTable.$inferInsert;
