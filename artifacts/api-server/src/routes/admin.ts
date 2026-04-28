@@ -920,17 +920,20 @@ router.post("/admin/withdrawals/:id/mark-sent", async (req, res) => {
   }
   const body = (req.body ?? {}) as { onChainTxid?: string; sendViaNowpayments?: boolean };
 
-  const withdrawal = await db
-    .select()
-    .from(withdrawalsTable)
+  // Atomically claim the withdrawal: only one admin/retry can proceed past here.
+  // Use status transition pending|approved → sending to act as a distributed lock.
+  const [claimed] = await db
+    .update(withdrawalsTable)
+    .set({ status: "sending", decidedAt: new Date() })
     .where(sql`${withdrawalsTable.id} = ${id} AND ${withdrawalsTable.status} IN ('pending', 'approved')`)
-    .then((r) => r[0] ?? null);
+    .returning();
 
-  if (!withdrawal) {
-    res.status(400).json({ error: "Withdrawal not found or already sent/rejected" });
+  if (!claimed) {
+    res.status(409).json({ error: "Withdrawal not found, already processing, or already sent/rejected" });
     return;
   }
 
+  const withdrawal = claimed;
   const walletSettings = await getWalletSettings();
   const feeUsd = withdrawal.asset === "BTC"
     ? walletSettings.btcWithdrawalFeeUsd
@@ -945,6 +948,8 @@ router.post("/admin/withdrawals/:id/mark-sent", async (req, res) => {
     const npCurrency: NpCurrency = currency === "btc" ? "btc" : "usdttrc20";
     const cryptoAmount = await usdToCrypto(netAmountUsd, currency);
     if (cryptoAmount <= 0) {
+      // Revert to approved so admin can retry
+      await db.update(withdrawalsTable).set({ status: "approved" }).where(eq(withdrawalsTable.id, id));
       res.status(400).json({ error: "Cannot compute crypto amount — check rate configuration" });
       return;
     }
@@ -958,11 +963,15 @@ router.post("/admin/withdrawals/:id/mark-sent", async (req, res) => {
       processorPaymentId = payout.id;
       finalTxid = payout.hash ?? finalTxid;
     } catch (err) {
+      // Revert to approved so admin can retry
+      await db.update(withdrawalsTable).set({ status: "approved" }).where(eq(withdrawalsTable.id, id));
       const msg = err instanceof Error ? err.message : String(err);
       res.status(502).json({ error: `NOWPayments payout failed: ${msg}` });
       return;
     }
   } else if (!finalTxid || finalTxid.length < 4) {
+    // Revert to approved so admin can retry
+    await db.update(withdrawalsTable).set({ status: "approved" }).where(eq(withdrawalsTable.id, id));
     res.status(400).json({ error: "onChainTxid is required (min 4 characters) when not using auto-send" });
     return;
   }

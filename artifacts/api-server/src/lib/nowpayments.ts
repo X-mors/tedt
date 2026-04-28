@@ -164,6 +164,8 @@ export interface NpWebhookPayload {
   purchase_id?: string;
   created_at: string;
   updated_at: string;
+  /** Current confirmation count — may be "X/Y" (parsed) or a plain number */
+  network_precision?: string | number;
 }
 
 export function verifyIpnSignature(

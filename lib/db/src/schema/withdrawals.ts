@@ -17,7 +17,7 @@ export const withdrawalsTable = pgTable("withdrawals", {
   destinationAddress: text("destination_address").notNull(),
   amountUsd: numeric("amount_usd", { precision: 18, scale: 6 }).notNull(),
   status: text("status", {
-    enum: ["pending", "approved", "sent", "confirmed", "rejected"],
+    enum: ["pending", "approved", "sending", "sent", "confirmed", "rejected"],
   })
     .notNull()
     .default("pending"),

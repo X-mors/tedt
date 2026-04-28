@@ -102,7 +102,53 @@ router.post(
         ? walletSettings.btcMinDepositUsd
         : walletSettings.usdtTrc20MinDepositUsd;
 
+    // Parse observed confirmations from IPN payload (same logic as deposit worker).
+    let ipnConfirmations: number | null = null;
+    if (payload.network_precision != null) {
+      const raw = String(payload.network_precision);
+      const slashIdx = raw.indexOf("/");
+      const parsed = slashIdx >= 0
+        ? parseInt(raw.slice(0, slashIdx), 10)
+        : parseInt(raw, 10);
+      if (Number.isFinite(parsed)) ipnConfirmations = parsed;
+    }
+
     if (npStatus === "finished" && actuallyPaid > 0 && userId) {
+      // Enforce configured confirmation threshold before crediting.
+      // If IPN doesn't report confirmations, assume 0 and defer to the poll worker.
+      const observedConf = ipnConfirmations ?? 0;
+      if (observedConf < requiredConf) {
+        // Record/update as confirming and let the poll worker do the credit once
+        // enough confirmations are observed.
+        if (existingDeposit) {
+          await db
+            .update(cryptoDepositsTable)
+            .set({ status: "confirming", confirmations: observedConf, lastCheckedAt: new Date() })
+            .where(eq(cryptoDepositsTable.id, existingDeposit.id));
+        } else {
+          await db
+            .insert(cryptoDepositsTable)
+            .values({
+              userId,
+              depositAddressId: depositAddress?.id ?? null,
+              currency,
+              amountCrypto: String(actuallyPaid),
+              processorPaymentId: paymentId,
+              status: "confirming",
+              confirmations: observedConf,
+              requiredConfirmations: requiredConf,
+              lastCheckedAt: new Date(),
+            })
+            .onConflictDoNothing({ target: cryptoDepositsTable.processorPaymentId });
+        }
+        logger.info(
+          { paymentId, observedConf, requiredConf },
+          "IPN finished but confirmation threshold not met — deferring to poll worker",
+        );
+        res.json({ ok: true });
+        return;
+      }
+
       if (existingDeposit) {
         const depositStatus: string = existingDeposit.status;
         if (depositStatus === "credited") {

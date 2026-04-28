@@ -75,6 +75,27 @@ async function pollPendingDeposits() {
         if (deposit.status === "credited") continue;
         if (!deposit.userId) continue;
 
+        // Enforce configured confirmation threshold even if NP considers payment finished.
+        // If we haven't observed enough confirmations yet, stay in confirming state and
+        // keep polling until the threshold is met.
+        const observedConf = confirmations ?? 0;
+        if (observedConf < requiredConf) {
+          await db
+            .update(cryptoDepositsTable)
+            .set({
+              status: "confirming",
+              confirmations: observedConf,
+              txid: onChainTxid ?? deposit.txid,
+              lastCheckedAt: new Date(),
+            })
+            .where(eq(cryptoDepositsTable.id, deposit.id));
+          logger.info(
+            { depositId: deposit.id, observedConf, requiredConf },
+            "Deposit finished by processor but awaiting configured confirmations",
+          );
+          continue;
+        }
+
         const amountCrypto = actuallyPaid > 0 ? actuallyPaid : Number(deposit.amountCrypto);
         const amountUsd = await cryptoToUsd(amountCrypto, deposit.currency as "btc" | "usdt_trc20");
 

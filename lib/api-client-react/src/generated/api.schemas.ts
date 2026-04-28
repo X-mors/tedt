@@ -491,6 +491,7 @@ export type WithdrawalStatus =
 export const WithdrawalStatus = {
   pending: "pending",
   approved: "approved",
+  sending: "sending",
   sent: "sent",
   confirmed: "confirmed",
   rejected: "rejected",

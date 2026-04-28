@@ -2157,7 +2157,7 @@ components:
 
     WithdrawalStatus:
       type: string
-      enum: [pending, approved, sent, confirmed, rejected]
+      enum: [pending, approved, sending, sent, confirmed, rejected]
 
     WithdrawalRequest:
       type: object
