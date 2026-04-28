@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedDatabase } from "./lib/seed";
+import { StratumServer } from "./lib/stratum/server";
 
 const rawPort = process.env["PORT"];
 
@@ -16,9 +17,13 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// Idempotent first-boot seeding — runs before accepting traffic.
+const stratumPort = Number(process.env["STRATUM_PORT"] ?? "3333");
+const stratumServer = new StratumServer(stratumPort);
+
 seedDatabase()
   .then(() => {
+    stratumServer.start();
+
     app.listen(port, (err) => {
       if (err) {
         logger.error({ err }, "Error listening on port");

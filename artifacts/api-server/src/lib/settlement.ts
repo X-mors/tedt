@@ -9,17 +9,16 @@ import {
 import { round6, toNum, toUsdString } from "./money";
 
 /**
- * Settle any active rentals whose `endsAt` has passed:
- *   - mark the rental `completed` and stamp `settledAt`
- *   - credit the rig owner the full `ownerEarningsUsd`
- *   - flip the rig back to `available` (only if it isn't already part of
- *     another active rental — by uniqueness of rented status this is safe).
+ * Settle any active rentals whose `endsAt` has passed.
  *
- * Without a real Stratum proxy we cannot yet measure delivery shortfalls,
- * so the owner gets the full pre-agreed payout. When task-2 lands the
- * settlement function will scale `ownerEarningsUsd` by `deliveredHashrateAvg
- * / hashrate`. The skim that would otherwise have been refunded to the renter
- * will be added there.
+ * Delivery-ratio payout (Task #2):
+ *   delivery_ratio = CLIP(deliveredHashrateAvg / hashrate, 0, 1.05)
+ *   ownerPayout    = ownerEarningsUsd × delivery_ratio
+ *   renterRefund   = renterTotalUsd   × (1 − delivery_ratio)
+ *
+ * If deliveredHashrateAvg IS NULL (proxy not connected, or no shares arrived)
+ * we assume full delivery so the owner is not penalised for infrastructure
+ * issues outside their control.
  */
 export async function settleExpiredRentals(): Promise<number> {
   const now = new Date();
@@ -40,8 +39,7 @@ export async function settleExpiredRentals(): Promise<number> {
 
   for (const { id } of expired) {
     const ok = await db.transaction(async (tx) => {
-      // Re-check inside the transaction with row lock semantics via
-      // a conditional update — only the first concurrent caller wins.
+      // Re-check inside the transaction — only the first concurrent caller wins.
       const [claimed] = await tx
         .update(rentalsTable)
         .set({ status: "completed", settledAt: now })
@@ -55,13 +53,24 @@ export async function settleExpiredRentals(): Promise<number> {
         .returning();
       if (!claimed) return false;
 
-      const ownerPayout = toNum(claimed.ownerEarningsUsd);
+      const advertisedHashrate = toNum(claimed.hashrate);
+      const deliveredHashrate = toNum(claimed.deliveredHashrateAvg);
+
+      const deliveryRatio =
+        deliveredHashrate > 0 && advertisedHashrate > 0
+          ? Math.min(1.05, deliveredHashrate / advertisedHashrate)
+          : 1.0;
+
+      const ownerPayout = round6(toNum(claimed.ownerEarningsUsd) * deliveryRatio);
+      const renterRefund = round6(toNum(claimed.renterTotalUsd) * (1 - deliveryRatio));
+
       if (ownerPayout > 0) {
+        const payoutStr = toUsdString(ownerPayout);
         const [credited] = await tx
           .update(usersTable)
           .set({
-            balanceUsd: sql`${usersTable.balanceUsd} + ${toUsdString(ownerPayout)}`,
-            totalEarnedUsd: sql`${usersTable.totalEarnedUsd} + ${toUsdString(ownerPayout)}`,
+            balanceUsd: sql`${usersTable.balanceUsd} + ${payoutStr}`,
+            totalEarnedUsd: sql`${usersTable.totalEarnedUsd} + ${payoutStr}`,
           })
           .where(eq(usersTable.id, claimed.ownerId))
           .returning({ balanceUsd: usersTable.balanceUsd });
@@ -70,16 +79,37 @@ export async function settleExpiredRentals(): Promise<number> {
           await tx.insert(walletTransactionsTable).values({
             userId: claimed.ownerId,
             type: "rental_payout",
-            amountUsd: toUsdString(ownerPayout),
+            amountUsd: payoutStr,
             balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
-            memo: `Payout for completed rental #${claimed.id}`,
+            memo: `Payout for rental #${claimed.id} (${Math.round(deliveryRatio * 100)}% delivery)`,
             relatedRentalId: claimed.id,
           });
         }
       }
 
-      // Mark the rig available again — but only if no other active rental
-      // exists on it (defensive: the schema currently allows only one).
+      if (renterRefund > 0) {
+        const refundStr = toUsdString(renterRefund);
+        const [credited] = await tx
+          .update(usersTable)
+          .set({
+            balanceUsd: sql`${usersTable.balanceUsd} + ${refundStr}`,
+          })
+          .where(eq(usersTable.id, claimed.renterId))
+          .returning({ balanceUsd: usersTable.balanceUsd });
+
+        if (credited) {
+          await tx.insert(walletTransactionsTable).values({
+            userId: claimed.renterId,
+            type: "rental_refund",
+            amountUsd: refundStr,
+            balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
+            memo: `Delivery shortfall refund for rental #${claimed.id} (${Math.round((1 - deliveryRatio) * 100)}% undelivered)`,
+            relatedRentalId: claimed.id,
+          });
+        }
+      }
+
+      // Mark the rig available again.
       await tx
         .update(rigsTable)
         .set({ status: "available" })

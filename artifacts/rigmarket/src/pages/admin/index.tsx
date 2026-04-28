@@ -17,6 +17,8 @@ import {
   useCreateAlgorithm,
   useUpdateAlgorithm,
   useDeleteAlgorithm,
+  useGetAdminProxy,
+  useAdminProxyDisconnectRig,
   getGetAdminStatsQueryKey,
   getListAdminWithdrawalsQueryKey,
   getListAdminUsersQueryKey,
@@ -25,6 +27,7 @@ import {
   getListAdminRentalsQueryKey,
   getListAdminWalletTransactionsQueryKey,
   getListAlgorithmsQueryKey,
+  getGetAdminProxyQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -48,6 +51,10 @@ export default function AdminDashboard() {
   const { data: allRentals, isLoading: rentalsLoading } = useListAdminRentals();
   const { data: ledger, isLoading: ledgerLoading } = useListAdminWalletTransactions({ limit: 200 });
   const { data: algorithms, isLoading: algosLoading } = useListAlgorithms();
+  const { data: proxyStatus, isLoading: proxyLoading } = useGetAdminProxy({
+    query: { refetchInterval: 5000, queryKey: getGetAdminProxyQueryKey() },
+  });
+  const disconnectRig = useAdminProxyDisconnectRig();
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -332,6 +339,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="users" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">Users</TabsTrigger>
           <TabsTrigger value="algorithms" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">Algorithms</TabsTrigger>
           <TabsTrigger value="config" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">Config</TabsTrigger>
+          <TabsTrigger value="proxy" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">Stratum Proxy</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending-rigs" className="pt-6">
@@ -710,6 +718,107 @@ export default function AdminDashboard() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="proxy" className="pt-6">
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="bg-card/50 border-border/50">
+                <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground uppercase tracking-wider">Connected Miners</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold font-mono">{proxyStatus?.connectedRigs.length ?? 0}</p></CardContent>
+              </Card>
+              <Card className="bg-card/50 border-border/50">
+                <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground uppercase tracking-wider">Active Routes (Miner→Pool)</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold font-mono text-primary">{proxyStatus?.activeRoutes ?? 0}</p></CardContent>
+              </Card>
+              <Card className="bg-card/50 border-border/50">
+                <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground uppercase tracking-wider">Total Shares Seen</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold font-mono">{proxyStatus?.totalSharesPerSec ?? 0}</p></CardContent>
+              </Card>
+            </div>
+
+            <Card className="bg-card/50 border-border/50">
+              <CardHeader>
+                <CardTitle className="text-lg font-mono">Connected Rigs — Live View</CardTitle>
+                <p className="text-xs text-muted-foreground">Refreshes every 5s. Disconnect terminates the miner's TCP session.</p>
+              </CardHeader>
+              <CardContent className="p-0">
+                {proxyLoading ? (
+                  <div className="p-8 text-center text-muted-foreground font-mono text-sm">LOADING_PROXY_STATE...</div>
+                ) : !proxyStatus || proxyStatus.connectedRigs.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground font-mono text-sm">NO_MINERS_CONNECTED — waiting for rigs to authenticate.</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-border/50">
+                        <TableHead className="font-mono text-xs">Rig</TableHead>
+                        <TableHead className="font-mono text-xs">Rental</TableHead>
+                        <TableHead className="font-mono text-xs">Miner</TableHead>
+                        <TableHead className="font-mono text-xs">Pool</TableHead>
+                        <TableHead className="font-mono text-xs text-right">Shares A/R</TableHead>
+                        <TableHead className="font-mono text-xs">Connected</TableHead>
+                        <TableHead className="font-mono text-xs text-right">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {proxyStatus.connectedRigs.map((rig) => (
+                        <TableRow key={rig.rigId} className="border-border/30 font-mono text-xs">
+                          <TableCell>
+                            <div className="font-semibold">{rig.rigName}</div>
+                            <div className="text-muted-foreground">ID: {rig.rigId}</div>
+                          </TableCell>
+                          <TableCell>
+                            {rig.rentalId ? (
+                              <span className="text-primary">#{rig.rentalId}</span>
+                            ) : (
+                              <span className="text-muted-foreground">idle</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${rig.authorized ? 'bg-green-500/20 text-green-500' : 'bg-yellow-500/20 text-yellow-500'}`}>
+                              {rig.authorized ? 'AUTH' : 'PENDING'}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${rig.upstreamConnected ? 'bg-green-500/20 text-green-500' : 'bg-muted text-muted-foreground'}`}>
+                              {rig.upstreamConnected ? 'CONNECTED' : 'IDLE'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className="text-green-500">{rig.sharesAccepted}</span>
+                            <span className="text-muted-foreground"> / </span>
+                            <span className="text-destructive">{rig.sharesRejected}</span>
+                          </TableCell>
+                          <TableCell>
+                            {format(new Date(rig.connectedAt), "HH:mm:ss")}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="font-mono text-[10px] h-7 px-2"
+                              disabled={disconnectRig.isPending}
+                              onClick={() => {
+                                disconnectRig.mutate({ rigId: rig.rigId }, {
+                                  onSuccess: () => {
+                                    toast({ title: "Rig Disconnected", description: `Rig #${rig.rigId} TCP session terminated.` });
+                                    queryClient.invalidateQueries({ queryKey: getGetAdminProxyQueryKey() });
+                                  },
+                                  onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+                                });
+                              }}
+                            >
+                              DISCONNECT
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

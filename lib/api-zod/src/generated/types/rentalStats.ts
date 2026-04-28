@@ -24,4 +24,8 @@ export interface RentalStats {
    * @nullable
    */
   message: string | null;
+  /** Whether the rig's miner is currently connected to the proxy */
+  minerConnected: boolean;
+  /** Whether the proxy has an active connection to the renter's pool */
+  upstreamConnected: boolean;
 }

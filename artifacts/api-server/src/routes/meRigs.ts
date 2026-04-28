@@ -27,9 +27,9 @@ const PROXY_PORT = process.env["STRATUM_PROXY_PORT"] ?? "3333";
 
 function ownerStratumFields(rigId: number, createdAt: Date) {
   const token = createHash("sha256")
-    .update(`rigmarket-owner-${rigId}-${createdAt.getTime()}`)
+    .update(`rig-${rigId}-${createdAt.toISOString()}`)
     .digest("hex")
-    .slice(0, 20);
+    .slice(0, 32);
   return {
     ownerStratumUrl: `stratum+tcp://${PROXY_HOST}:${PROXY_PORT}`,
     ownerWorker: `rig-${rigId}`,

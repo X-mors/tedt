@@ -38,7 +38,10 @@ commissions (renter + owner) on every rental.
   upstream Stratum (host/port/user/password) used by the proxy
 - **rentals** — immutable price snapshot (hashrate × hours × base × fees)
   plus generated proxy credentials (`stratumProxyUrl`, `proxyWorker`,
-  `proxyPassword`) and timestamps
+  `proxyPassword`), timestamps, and `deliveredHashrateAvg` updated in real
+  time by the Stratum proxy
+- **rentalHashSamples** — 60-second hashrate snapshots flushed by the proxy:
+  `sharesAccepted`, `sharesRejected`, `difficultySum`, `effectiveHashrateH`
 - **walletTransactions** — append-only ledger
   (`deposit | withdrawal | rental_charge | rental_refund | rental_payout |
   admin_credit | admin_debit`)
@@ -59,13 +62,40 @@ price `P`:
 Cancellations prorate by elapsed time, refund the renter and pay the owner
 their prorated earnings.
 
+**Delivery-based settlement (Task #2):** When a rental expires, settlement
+uses the actual hashrate measured by the Stratum proxy:
+
+- `delivery_ratio = CLIP(deliveredHashrateAvg / advertisedHashrate, 0, 1.05)`
+- `ownerPayout = ownerEarningsUsd × delivery_ratio`
+- `renterRefund = renterTotalUsd × (1 − delivery_ratio)`
+- If no hash data (proxy never connected), ratio defaults to 1.0 — full
+  payout to owner.
+
+Auto-cancel: if average hashrate over a 30-minute window falls below 70% of
+the advertised value (and at least 5 shares have been seen), the rental is
+cancelled with a prorated refund.
+
+## Stratum Proxy
+
+The in-process Stratum v1 TCP proxy runs on `STRATUM_PORT` (default 3333).
+
+Architecture: each rig owner's miner connects with `rig-{id}` as the
+Stratum worker and the rig's secret token as password (SHA-256 of
+`rig-{id}-{createdAt.toISOString()}`). When an active rental exists the
+proxy opens a connection to the renter's `poolUrl` and routes all traffic
+bidirectionally. Shares are tracked per-rental (difficulty × 2^32 / time =
+H/s) and flushed to `rental_hash_samples` every 60 seconds.
+
+Admin can see all connected rigs and force-disconnect them from the admin
+dashboard → "Stratum Proxy" tab.
+
 ## API surface (selected)
 
 - `GET /api/marketplace/summary`, `GET /api/algorithms`
 - `GET /api/rigs`, `GET /api/rigs/:id`, `GET /api/rigs/:id/reviews`
 - `GET|POST /api/me/rigs`, `PATCH|DELETE /api/me/rigs/:id`
 - `POST /api/rentals/quote`, `POST /api/rentals`, `GET /api/rentals/:id`,
-  `GET /api/rentals/:id/stats`, `POST /api/rentals/:id/cancel`,
+  `GET /api/rentals/:id/stats` (live proxy data), `POST /api/rentals/:id/cancel`,
   `POST /api/rentals/:id/review`
 - `GET /api/me/rentals`, `GET /api/me/rentals/lessor`
 - `GET /api/me/wallet`, `POST /api/me/wallet/deposits`,
@@ -73,7 +103,8 @@ their prorated earnings.
 - Admin: `GET /api/admin/stats`, `GET /api/admin/users`,
   `POST /api/admin/wallet/credit`, `GET|PATCH /api/admin/commission`,
   `POST|PATCH|DELETE /api/admin/algorithms`, withdrawals queue with
-  `approve` / `reject`
+  `approve` / `reject`, `GET /api/admin/proxy`,
+  `POST /api/admin/proxy/rigs/:rigId/disconnect`
 - `GET /api/me`, `PATCH /api/me`, `POST /api/me/sync`
 
 ## Environment variables
@@ -83,6 +114,9 @@ their prorated earnings.
   `VITE_CLERK_PUBLISHABLE_KEY` (required)
 - `ADMIN_EMAILS` (optional, comma-separated allowlist; users with a
   matching Clerk primary email are auto-promoted to `admin` on sync)
+- `STRATUM_PORT` (optional, default 3333) — TCP port for the Stratum proxy
+- `STRATUM_PROXY_HOST` (optional, default `proxy.rigmarket.dev`) — shown to
+  rig owners as the proxy URL
 
 ## Seeding
 
@@ -94,12 +128,6 @@ default 3% / 5% commission row, and 5 demo rigs across two seed owners
 
 ## Outstanding work (next tasks)
 
-- **Stratum proxy service**: the rental detail returns generated proxy
-  credentials but `/api/rentals/:id/stats` currently returns zeros and a
-  "Awaiting hash data" notice. A Stratum TCP proxy (separate artifact)
-  must accept worker connections, route to the owner's upstream pool, and
-  push live share / hashrate stats back into `rentals` and a new
-  `rental_samples` table.
 - **Crypto deposit watcher**: `POST /api/me/wallet/deposits` returns a
   generated address; production needs an on-chain watcher (BTC
   full-node/Electrum + USDT TRC-20 RPC) that credits the user's wallet

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Activity, Server, Copy, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { Activity, Server, Copy, ShieldAlert, CheckCircle2, Wifi, WifiOff, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -15,6 +15,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { Star } from "lucide-react";
+
+function ConnectionBadge({ connected, label }: { connected: boolean; label: string }) {
+  return (
+    <div className={`flex items-center gap-1.5 text-xs font-mono px-2 py-1 rounded-full border ${
+      connected 
+        ? 'text-green-500 border-green-500/40 bg-green-500/10' 
+        : 'text-muted-foreground border-border/50 bg-muted/20'
+    }`}>
+      {connected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+      {label}
+    </div>
+  );
+}
 
 export default function RentalCockpit() {
   const { id } = useParams<{ id: string }>();
@@ -155,15 +168,28 @@ export default function RentalCockpit() {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Activity className="w-4 h-4 text-primary" /> Live Telemetry
+                {rental.status === 'active' && stats && (
+                  <div className="flex items-center gap-2 ml-auto">
+                    <ConnectionBadge connected={stats.minerConnected} label="MINER" />
+                    <ArrowRight className="w-3 h-3 text-muted-foreground" />
+                    <ConnectionBadge connected={stats.upstreamConnected} label="POOL" />
+                  </div>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {rental.status === 'active' && stats?.message ? (
+              {rental.status === 'active' && stats?.message && !stats.minerConnected ? (
                  <div className="text-center py-12 flex flex-col items-center justify-center border border-dashed border-border/50 rounded-lg bg-muted/10">
                     <Activity className="w-8 h-8 text-primary animate-pulse mb-4" />
                     <p className="font-mono text-sm text-primary uppercase">{stats.message}</p>
-                    <p className="text-xs text-muted-foreground mt-2">Waiting for rig to connect and submit shares...</p>
+                    <p className="text-xs text-muted-foreground mt-2">Point your rig at the proxy URL shown on the right. Polling every 5s.</p>
                  </div>
+              ) : rental.status === 'active' && stats && stats.minerConnected && !stats.upstreamConnected ? (
+                <div className="text-center py-12 flex flex-col items-center justify-center border border-dashed border-border/50 rounded-lg bg-muted/10">
+                  <Wifi className="w-8 h-8 text-yellow-500 animate-pulse mb-4" />
+                  <p className="font-mono text-sm text-yellow-500 uppercase">MINER_CONNECTED — ESTABLISHING POOL LINK</p>
+                  <p className="text-xs text-muted-foreground mt-2">Proxy is connecting to your destination pool. Hash will start flowing shortly.</p>
+                </div>
               ) : rental.status === 'active' && stats ? (
                 <div className="space-y-6">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -186,6 +212,23 @@ export default function RentalCockpit() {
                       <span className="font-mono text-lg font-bold"><span className="text-green-500">{stats.sharesAccepted}</span> / <span className="text-destructive">{stats.sharesRejected}</span></span>
                     </div>
                   </div>
+
+                  {stats.samples.length > 1 && (
+                    <div className="flex items-end gap-0.5 h-16 bg-background/30 rounded-md border border-border/30 px-3 py-2">
+                      {stats.samples.map((s, i) => {
+                        const max = Math.max(...stats.samples.map((x) => x.hashrate), 1);
+                        const h = Math.max(4, (s.hashrate / max) * 100);
+                        return (
+                          <div
+                            key={i}
+                            title={`${formatHashrate(s.hashrate, rental.algorithmUnit)}`}
+                            style={{ height: `${h}%` }}
+                            className="flex-1 rounded-sm bg-primary/60 min-w-[2px]"
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
                   
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs font-mono text-muted-foreground">

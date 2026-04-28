@@ -650,6 +650,14 @@ export const GetRentalStatsResponse = zod.object({
     .describe(
       'Optional human-readable status note (e.g. \"awaiting hash data\")',
     ),
+  minerConnected: zod
+    .boolean()
+    .describe("Whether the rig's miner is currently connected to the proxy"),
+  upstreamConnected: zod
+    .boolean()
+    .describe(
+      "Whether the proxy has an active connection to the renter's pool",
+    ),
 });
 
 /**
@@ -1204,6 +1212,39 @@ export const ListAdminRentalsResponseItem = zod.object({
   createdAt: zod.coerce.date(),
 });
 export const ListAdminRentalsResponse = zod.array(ListAdminRentalsResponseItem);
+
+/**
+ * @summary Real-time Stratum proxy status — connected rigs and active routes
+ */
+export const GetAdminProxyResponse = zod.object({
+  connectedRigs: zod.array(
+    zod.object({
+      rigId: zod.number(),
+      rigName: zod.string(),
+      connectedAt: zod.coerce.date(),
+      authorized: zod.boolean(),
+      rentalId: zod.number().nullable(),
+      sharesAccepted: zod.number(),
+      sharesRejected: zod.number(),
+      lastShareAt: zod.coerce.date().nullable(),
+      upstreamConnected: zod.boolean(),
+    }),
+  ),
+  activeRoutes: zod.number(),
+  totalSharesPerSec: zod.number(),
+});
+
+/**
+ * @summary Force-disconnect a rig from the Stratum proxy
+ */
+export const AdminProxyDisconnectRigParams = zod.object({
+  rigId: zod.coerce.number(),
+});
+
+export const AdminProxyDisconnectRigResponse = zod.object({
+  ok: zod.boolean(),
+  message: zod.string(),
+});
 
 /**
  * @summary Full wallet ledger across all users

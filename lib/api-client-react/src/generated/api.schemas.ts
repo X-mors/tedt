@@ -325,6 +325,26 @@ export interface HashSamplePoint {
   hashrate: number;
 }
 
+export interface ProxyConnectedRig {
+  rigId: number;
+  rigName: string;
+  connectedAt: string;
+  authorized: boolean;
+  /** @nullable */
+  rentalId: number | null;
+  sharesAccepted: number;
+  sharesRejected: number;
+  /** @nullable */
+  lastShareAt: string | null;
+  upstreamConnected: boolean;
+}
+
+export interface ProxyStatus {
+  connectedRigs: ProxyConnectedRig[];
+  activeRoutes: number;
+  totalSharesPerSec: number;
+}
+
 export interface RentalStats {
   rentalId: number;
   currentHashrate: number;
@@ -341,6 +361,10 @@ export interface RentalStats {
    * @nullable
    */
   message: string | null;
+  /** Whether the rig's miner is currently connected to the proxy */
+  minerConnected: boolean;
+  /** Whether the proxy has an active connection to the renter's pool */
+  upstreamConnected: boolean;
 }
 
 export interface Review {
@@ -759,6 +783,11 @@ export type CreateDeposit503 = {
 
 export type ListAdminRigsParams = {
   approvalStatus?: RigApprovalStatus;
+};
+
+export type AdminProxyDisconnectRig200 = {
+  ok: boolean;
+  message: string;
 };
 
 export type ListAdminWalletTransactionsParams = {

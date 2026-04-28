@@ -7,6 +7,7 @@
  */
 
 export * from "./adminCreditBody";
+export * from "./adminProxyDisconnectRig200";
 export * from "./adminRentalRow";
 export * from "./adminRigDecisionBody";
 export * from "./adminRigRow";
@@ -45,6 +46,8 @@ export * from "./marketplaceSummary";
 export * from "./meProfile";
 export * from "./notFoundResponse";
 export * from "./ownerDashboardSummary";
+export * from "./proxyConnectedRig";
+export * from "./proxyStatus";
 export * from "./rejectWithdrawalBody";
 export * from "./rentalDetail";
 export * from "./rentalQuote";

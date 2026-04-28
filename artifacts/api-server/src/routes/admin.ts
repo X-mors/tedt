@@ -10,6 +10,7 @@ import {
   withdrawalsTable,
   commissionConfigTable,
 } from "@workspace/db";
+import { proxyState } from "../lib/stratum/state";
 import {
   AdminCreditWalletBody,
   AdminCreditWalletResponse,
@@ -868,6 +869,39 @@ router.post("/admin/withdrawals/:id/reject", async (req, res) => {
     decidedAt: result.decidedAt ? result.decidedAt.toISOString() : null,
   });
   res.json(data);
+});
+
+router.get("/admin/proxy", (req, res) => {
+  const status = proxyState.getAdminStatus();
+  res.json({
+    connectedRigs: status.connectedRigs.map((r) => ({
+      rigId: r.rigId,
+      rigName: r.rigName,
+      connectedAt: r.connectedAt.toISOString(),
+      authorized: r.authorized,
+      rentalId: r.rentalId,
+      sharesAccepted: r.sharesAccepted,
+      sharesRejected: r.sharesRejected,
+      lastShareAt: r.lastShareAt ? r.lastShareAt.toISOString() : null,
+      upstreamConnected: r.upstreamConnected,
+    })),
+    activeRoutes: status.activeRoutes,
+    totalSharesPerSec: status.totalSharesPerSec,
+  });
+});
+
+router.post("/admin/proxy/rigs/:rigId/disconnect", (req, res) => {
+  const rigId = Number(req.params["rigId"]);
+  if (!Number.isFinite(rigId)) {
+    res.status(400).json({ error: "Invalid rigId" });
+    return;
+  }
+  const ok = proxyState.forceDisconnect(rigId);
+  if (!ok) {
+    res.status(404).json({ error: "Rig not currently connected" });
+    return;
+  }
+  res.json({ ok: true, message: `Rig ${rigId} disconnected` });
 });
 
 export default router;

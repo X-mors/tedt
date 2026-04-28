@@ -8,7 +8,9 @@ import {
   rentalsTable,
   walletTransactionsTable,
   reviewsTable,
+  rentalHashSamplesTable,
 } from "@workspace/db";
+import { proxyState } from "../lib/stratum/state";
 import {
   CreateRentalBody,
   CreateRentalQuoteBody,
@@ -369,7 +371,16 @@ router.get("/rentals/:id/stats", async (req, res) => {
   }
   await settleExpiredRentals();
   const [rental] = await db
-    .select()
+    .select({
+      id: rentalsTable.id,
+      renterId: rentalsTable.renterId,
+      ownerId: rentalsTable.ownerId,
+      status: rentalsTable.status,
+      hashrate: rentalsTable.hashrate,
+      startedAt: rentalsTable.startedAt,
+      endsAt: rentalsTable.endsAt,
+      deliveredHashrateAvg: rentalsTable.deliveredHashrateAvg,
+    })
     .from(rentalsTable)
     .where(eq(rentalsTable.id, id));
   if (!rental) {
@@ -390,18 +401,56 @@ router.get("/rentals/:id/stats", async (req, res) => {
       ? Math.max(0, Math.floor((rental.endsAt.getTime() - now) / 1000))
       : 0;
 
+  const live = proxyState.getLiveStats(id);
+  const advertisedHashrate = toNum(rental.hashrate);
+
+  const dbSamples = await db
+    .select({
+      sampledAt: rentalHashSamplesTable.sampledAt,
+      effectiveHashrateH: rentalHashSamplesTable.effectiveHashrateH,
+    })
+    .from(rentalHashSamplesTable)
+    .where(eq(rentalHashSamplesTable.rentalId, id))
+    .orderBy(desc(rentalHashSamplesTable.sampledAt))
+    .limit(30);
+
+  const samples = dbSamples.reverse().map((s) => ({
+    timestamp: s.sampledAt.toISOString(),
+    hashrate: toNum(s.effectiveHashrateH ?? "0"),
+  }));
+
+  const avgDeliveredH =
+    samples.length > 0
+      ? samples.reduce((sum, s) => sum + s.hashrate, 0) / samples.length
+      : 0;
+  const advertisedH = advertisedHashrate;
+  const deliveryRatio =
+    advertisedH > 0 && avgDeliveredH > 0
+      ? Math.min(1.05, avgDeliveredH / advertisedH)
+      : 0;
+
+  let message: string | null = null;
+  if (rental.status === "active" && !live.minerConnected) {
+    message = "Awaiting miner connection — point your rig at the proxy URL.";
+  } else if (rental.status === "active" && live.minerConnected && !live.upstreamConnected) {
+    message = "Miner connected — establishing upstream pool connection.";
+  } else if (rental.status !== "active" && samples.length === 0) {
+    message = "No hashrate data recorded for this rental.";
+  }
+
   const data = GetRentalStatsResponse.parse({
     rentalId: rental.id,
-    currentHashrate: 0,
-    averageHashrate: 0,
-    deliveryRatio: 0,
-    sharesAccepted: 0,
-    sharesRejected: 0,
+    currentHashrate: live.effectiveHashrateH,
+    averageHashrate: avgDeliveredH,
+    deliveryRatio,
+    sharesAccepted: live.sharesAccepted,
+    sharesRejected: live.sharesRejected,
     secondsRemaining,
     status: rental.status,
-    samples: [],
-    message:
-      "Awaiting hash data — Stratum proxy will report live stats once a worker connects.",
+    samples,
+    message,
+    minerConnected: live.minerConnected,
+    upstreamConnected: live.upstreamConnected,
   });
   res.json(data);
 });

@@ -18,6 +18,7 @@ import type {
 
 import type {
   AdminCreditBody,
+  AdminProxyDisconnectRig200,
   AdminRentalRow,
   AdminRigDecisionBody,
   AdminRigRow,
@@ -49,6 +50,7 @@ import type {
   MeProfile,
   NotFoundResponse,
   OwnerDashboardSummary,
+  ProxyStatus,
   RejectWithdrawalBody,
   RentalDetail,
   RentalQuote,
@@ -3758,6 +3760,176 @@ export function useListAdminRentals<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Real-time Stratum proxy status — connected rigs and active routes
+ */
+export const getGetAdminProxyUrl = () => {
+  return `/api/admin/proxy`;
+};
+
+export const getAdminProxy = async (
+  options?: RequestInit,
+): Promise<ProxyStatus> => {
+  return customFetch<ProxyStatus>(getGetAdminProxyUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAdminProxyQueryKey = () => {
+  return [`/api/admin/proxy`] as const;
+};
+
+export const getGetAdminProxyQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAdminProxy>>,
+  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminProxy>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAdminProxyQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminProxy>>> = ({
+    signal,
+  }) => getAdminProxy({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminProxy>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAdminProxyQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAdminProxy>>
+>;
+export type GetAdminProxyQueryError = ErrorType<
+  UnauthorizedResponse | ForbiddenResponse
+>;
+
+/**
+ * @summary Real-time Stratum proxy status — connected rigs and active routes
+ */
+
+export function useGetAdminProxy<
+  TData = Awaited<ReturnType<typeof getAdminProxy>>,
+  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminProxy>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAdminProxyQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Force-disconnect a rig from the Stratum proxy
+ */
+export const getAdminProxyDisconnectRigUrl = (rigId: number) => {
+  return `/api/admin/proxy/rigs/${rigId}/disconnect`;
+};
+
+export const adminProxyDisconnectRig = async (
+  rigId: number,
+  options?: RequestInit,
+): Promise<AdminProxyDisconnectRig200> => {
+  return customFetch<AdminProxyDisconnectRig200>(
+    getAdminProxyDisconnectRigUrl(rigId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getAdminProxyDisconnectRigMutationOptions = <
+  TError = ErrorType<
+    UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminProxyDisconnectRig>>,
+    TError,
+    { rigId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminProxyDisconnectRig>>,
+  TError,
+  { rigId: number },
+  TContext
+> => {
+  const mutationKey = ["adminProxyDisconnectRig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminProxyDisconnectRig>>,
+    { rigId: number }
+  > = (props) => {
+    const { rigId } = props ?? {};
+
+    return adminProxyDisconnectRig(rigId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminProxyDisconnectRigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminProxyDisconnectRig>>
+>;
+
+export type AdminProxyDisconnectRigMutationError = ErrorType<
+  UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+>;
+
+/**
+ * @summary Force-disconnect a rig from the Stratum proxy
+ */
+export const useAdminProxyDisconnectRig = <
+  TError = ErrorType<
+    UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminProxyDisconnectRig>>,
+    TError,
+    { rigId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminProxyDisconnectRig>>,
+  TError,
+  { rigId: number },
+  TContext
+> => {
+  return useMutation(getAdminProxyDisconnectRigMutationOptions(options));
+};
 
 /**
  * @summary Full wallet ledger across all users

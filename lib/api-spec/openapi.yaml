@@ -930,6 +930,54 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /admin/proxy:
+    get:
+      operationId: getAdminProxy
+      tags: [admin]
+      summary: Real-time Stratum proxy status — connected rigs and active routes
+      responses:
+        "200":
+          description: Proxy status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/proxy/rigs/{rigId}/disconnect:
+    post:
+      operationId: adminProxyDisconnectRig
+      tags: [admin]
+      summary: Force-disconnect a rig from the Stratum proxy
+      parameters:
+        - name: rigId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  message:
+                    type: string
+                required: [ok, message]
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /admin/wallet/transactions:
     get:
       operationId: listAdminWalletTransactions
@@ -1663,6 +1711,56 @@ components:
           type: number
       required: [timestamp, hashrate]
 
+    ProxyConnectedRig:
+      type: object
+      properties:
+        rigId:
+          type: integer
+        rigName:
+          type: string
+        connectedAt:
+          type: string
+          format: date-time
+        authorized:
+          type: boolean
+        rentalId:
+          type: ["integer", "null"]
+        sharesAccepted:
+          type: integer
+        sharesRejected:
+          type: integer
+        lastShareAt:
+          type: ["string", "null"]
+          format: date-time
+        upstreamConnected:
+          type: boolean
+      required:
+        - rigId
+        - rigName
+        - connectedAt
+        - authorized
+        - rentalId
+        - sharesAccepted
+        - sharesRejected
+        - lastShareAt
+        - upstreamConnected
+
+    ProxyStatus:
+      type: object
+      properties:
+        connectedRigs:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProxyConnectedRig"
+        activeRoutes:
+          type: integer
+        totalSharesPerSec:
+          type: number
+      required:
+        - connectedRigs
+        - activeRoutes
+        - totalSharesPerSec
+
     RentalStats:
       type: object
       properties:
@@ -1690,6 +1788,12 @@ components:
         message:
           type: ["string", "null"]
           description: Optional human-readable status note (e.g. "awaiting hash data")
+        minerConnected:
+          type: boolean
+          description: Whether the rig's miner is currently connected to the proxy
+        upstreamConnected:
+          type: boolean
+          description: Whether the proxy has an active connection to the renter's pool
       required:
         - rentalId
         - currentHashrate
@@ -1701,6 +1805,8 @@ components:
         - status
         - samples
         - message
+        - minerConnected
+        - upstreamConnected
 
     Review:
       type: object
