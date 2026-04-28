@@ -27,5 +27,9 @@ export interface RigSummary {
   /** @nullable */
   averageRating: number | null;
   reviewCount: number;
+  /** True while the owner's miner is connected to the Stratum proxy */
+  isOnline: boolean;
+  /** True when the rig has a fallback pool configured (always false in public/marketplace views) */
+  hasFallbackPool: boolean;
   createdAt: Date;
 }

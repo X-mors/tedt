@@ -1466,6 +1466,12 @@ components:
           type: ["number", "null"]
         reviewCount:
           type: integer
+        isOnline:
+          type: boolean
+          description: "True while the owner's miner is connected to the Stratum proxy"
+        hasFallbackPool:
+          type: boolean
+          description: "True when the rig has a fallback pool configured (always false in public/marketplace views)"
         createdAt:
           type: string
           format: date-time
@@ -1485,6 +1491,8 @@ components:
         - approvalStatus
         - averageRating
         - reviewCount
+        - isOnline
+        - hasFallbackPool
         - createdAt
 
     RigDetail:

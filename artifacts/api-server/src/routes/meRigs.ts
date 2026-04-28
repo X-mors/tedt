@@ -118,6 +118,9 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
       approvalStatus: rigsTable.approvalStatus,
       approvalNote: rigsTable.approvalNote,
       region: rigsTable.region,
+      isOnline: rigsTable.isOnline,
+      stratumHost: rigsTable.stratumHost,
+      stratumPort: rigsTable.stratumPort,
       proxyToken: rigsTable.proxyToken,
       createdAt: rigsTable.createdAt,
       averageRating: sql<string | null>`AVG(${reviewsTable.rating})`,
@@ -154,6 +157,8 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
     approvalStatus: row.approvalStatus,
     approvalNote: row.approvalNote,
     region: row.region,
+    isOnline: row.isOnline,
+    hasFallbackPool: !!(row.stratumHost && row.stratumPort > 0),
     averageRating:
       row.averageRating == null
         ? null

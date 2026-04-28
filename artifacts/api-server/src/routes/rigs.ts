@@ -56,6 +56,7 @@ router.get("/rigs", async (req, res) => {
       status: rigsTable.status,
       approvalStatus: rigsTable.approvalStatus,
       approvalNote: rigsTable.approvalNote,
+      isOnline: rigsTable.isOnline,
       createdAt: rigsTable.createdAt,
       averageRating: sql<string | null>`AVG(${reviewsTable.rating})`,
       reviewCount: sql<string>`COUNT(${reviewsTable.id})`,
@@ -115,6 +116,8 @@ router.get("/rigs", async (req, res) => {
       status: r.status,
       approvalStatus: r.approvalStatus,
       approvalNote: r.approvalNote,
+      isOnline: r.isOnline,
+      hasFallbackPool: false,
       averageRating:
         r.averageRating == null
           ? null
@@ -154,6 +157,7 @@ router.get("/rigs/:id", async (req, res) => {
       approvalStatus: rigsTable.approvalStatus,
       approvalNote: rigsTable.approvalNote,
       region: rigsTable.region,
+      isOnline: rigsTable.isOnline,
       createdAt: rigsTable.createdAt,
       averageRating: sql<string | null>`(SELECT AVG(rating) FROM reviews WHERE rig_id = ${rigsTable.id})`,
       reviewCount: sql<string>`(SELECT COUNT(*) FROM reviews WHERE rig_id = ${rigsTable.id})`,
@@ -197,10 +201,12 @@ router.get("/rigs/:id", async (req, res) => {
         : Number(toNum(row.averageRating).toFixed(2)),
     reviewCount: Number(row.reviewCount),
     totalRentals: Number(row.totalRentals),
-    // Public endpoint does not expose owner-private stratum credentials.
+    // Public endpoint does not expose owner-private stratum credentials or fallback pool config.
     ownerStratumUrl: null,
     ownerWorker: null,
     ownerPassword: null,
+    isOnline: row.isOnline,
+    hasFallbackPool: false,
     createdAt: row.createdAt.toISOString(),
   });
 

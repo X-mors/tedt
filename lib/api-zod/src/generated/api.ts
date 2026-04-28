@@ -145,6 +145,14 @@ export const GetMarketplaceFeaturedResponseItem = zod.object({
   approvalStatus: zod.enum(["pending", "approved", "rejected"]),
   averageRating: zod.number().nullable(),
   reviewCount: zod.number(),
+  isOnline: zod
+    .boolean()
+    .describe("True while the owner's miner is connected to the Stratum proxy"),
+  hasFallbackPool: zod
+    .boolean()
+    .describe(
+      "True when the rig has a fallback pool configured (always false in public\/marketplace views)",
+    ),
   createdAt: zod.coerce.date(),
 });
 export const GetMarketplaceFeaturedResponse = zod.array(
@@ -210,6 +218,16 @@ export const GetMarketplaceSummaryResponse = zod.object({
       approvalStatus: zod.enum(["pending", "approved", "rejected"]),
       averageRating: zod.number().nullable(),
       reviewCount: zod.number(),
+      isOnline: zod
+        .boolean()
+        .describe(
+          "True while the owner's miner is connected to the Stratum proxy",
+        ),
+      hasFallbackPool: zod
+        .boolean()
+        .describe(
+          "True when the rig has a fallback pool configured (always false in public\/marketplace views)",
+        ),
       createdAt: zod.coerce.date(),
     }),
   ),
@@ -274,6 +292,14 @@ export const ListRigsResponseItem = zod.object({
   approvalStatus: zod.enum(["pending", "approved", "rejected"]),
   averageRating: zod.number().nullable(),
   reviewCount: zod.number(),
+  isOnline: zod
+    .boolean()
+    .describe("True while the owner's miner is connected to the Stratum proxy"),
+  hasFallbackPool: zod
+    .boolean()
+    .describe(
+      "True when the rig has a fallback pool configured (always false in public\/marketplace views)",
+    ),
   createdAt: zod.coerce.date(),
 });
 export const ListRigsResponse = zod.array(ListRigsResponseItem);
@@ -373,6 +399,14 @@ export const ListMyRigsResponseItem = zod.object({
   approvalStatus: zod.enum(["pending", "approved", "rejected"]),
   averageRating: zod.number().nullable(),
   reviewCount: zod.number(),
+  isOnline: zod
+    .boolean()
+    .describe("True while the owner's miner is connected to the Stratum proxy"),
+  hasFallbackPool: zod
+    .boolean()
+    .describe(
+      "True when the rig has a fallback pool configured (always false in public\/marketplace views)",
+    ),
   createdAt: zod.coerce.date(),
 });
 export const ListMyRigsResponse = zod.array(ListMyRigsResponseItem);
