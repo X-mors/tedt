@@ -266,6 +266,9 @@ export class DownstreamSession extends EventEmitter {
       this.upstream.destroy();
       this.upstream = null;
     }
+    // Discard any buffered fallback shares — they belong to the owner's pool
+    // and must not be replayed to the renter's pool.
+    this.submitBuffer = [];
     this.isFallback = false;
     this.rentalId = rentalId;
     if (this.rigId != null) proxyState.setRigAuthorized(this.rigId, rentalId);
@@ -315,9 +318,10 @@ export class DownstreamSession extends EventEmitter {
       .from(rigsTable)
       .where(eq(rigsTable.id, rigId));
 
-    // Guard: if a rental has started while we were awaiting the DB read, do not
-    // overwrite the active rental upstream with a fallback connection.
-    if (rig?.stratumHost && rig.stratumPort > 0 && this.rentalId === null) {
+    // Guard: abort if the session was destroyed or a rental started while
+    // we were awaiting the DB read (prevents fallback overwriting an active rental).
+    if (this.destroyed || this.rentalId !== null) return;
+    if (rig?.stratumHost && rig.stratumPort > 0) {
       await this._startFallbackUpstream(rig);
     }
   }
