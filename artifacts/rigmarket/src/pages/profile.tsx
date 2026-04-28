@@ -9,6 +9,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Copy, RefreshCw, Wifi } from "lucide-react";
 
+function maskToken(token: string): string {
+  return "••••••••••••••••••••" + token.slice(-6);
+}
+
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const { data: me, isLoading } = useGetMe();
@@ -18,7 +22,6 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [stratumUsernameInput, setStratumUsernameInput] = useState("");
   const [editingStratumUsername, setEditingStratumUsername] = useState(false);
-  const [tokenVisible, setTokenVisible] = useState(false);
 
   const updateMe = useUpdateMe({
     mutation: {
@@ -100,10 +103,6 @@ export default function ProfilePage() {
 
   const PROXY_HOST = "proxy.rigmarket.dev";
   const PROXY_PORT = "3333";
-
-  const maskedToken = me.stratumToken
-    ? "••••••••••••••••••••" + me.stratumToken.slice(-6)
-    : null;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10 space-y-6">
@@ -234,13 +233,9 @@ export default function ProfilePage() {
               <span className="text-xs text-muted-foreground font-mono uppercase w-20">Password</span>
               {me.stratumToken ? (
                 <>
-                  <button
-                    className="text-sm font-mono flex-1 text-left text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                    onClick={() => setTokenVisible((v) => !v)}
-                    title="Click to reveal"
-                  >
-                    {tokenVisible ? me.stratumToken : maskedToken}
-                  </button>
+                  <span className="text-sm font-mono flex-1 text-muted-foreground select-none" title="Copy to use">
+                    {maskToken(me.stratumToken)}
+                  </span>
                   <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => copyToClipboard(me.stratumToken!, "Token")}>
                     <Copy className="w-3 h-3" />
                   </Button>
