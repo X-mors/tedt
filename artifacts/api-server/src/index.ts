@@ -22,6 +22,13 @@ if (Number.isNaN(port) || port <= 0) {
 const stratumPort = Number(process.env["STRATUM_PORT"] ?? "3333");
 const stratumServer = new StratumServer(stratumPort);
 
+if (!process.env["NOWPAYMENTS_API_KEY"]) {
+  logger.warn("NOWPAYMENTS_API_KEY is not set — crypto deposits and payouts are disabled");
+}
+if (!process.env["NOWPAYMENTS_IPN_SECRET"]) {
+  logger.warn("NOWPAYMENTS_IPN_SECRET is not set — IPN signature verification will reject all webhooks");
+}
+
 seedDatabase()
   .then(() => backfillRigTokens())
   .then(() => {

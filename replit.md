@@ -47,7 +47,8 @@ commissions (renter + owner) on every rental.
   admin_credit | admin_debit`)
 - **withdrawals** — user-requested payout (BTC / USDT) requiring admin
   approval; extended with `onChainTxid`, `processorPaymentId`, `sentAt`;
-  statuses: `pending | approved | rejected | sent`
+  statuses: `pending | approved | sending | sent | confirmed | rejected`
+  (`sending` is a transient lock preventing double-payout races)
 - **depositAddresses** — one BTC + one USDT-TRC20 address per user,
   generated via NOWPayments and cached forever (table has unique per userId+currency)
 - **cryptoDeposits** — per-payment deposit row tracked by the deposit worker
@@ -79,6 +80,39 @@ uses the actual hashrate measured by the Stratum proxy:
 Auto-cancel: if average hashrate over a 30-minute window falls below 70% of
 the advertised value (and at least 5 shares have been seen), the rental is
 cancelled with a prorated refund.
+
+## Crypto Wallet Integration
+
+Deposits and withdrawals use [NOWPayments](https://nowpayments.io/) as the
+payment processor. Price feeds use [CoinGecko](https://coingecko.com/) (public
+API, no key required) or admin-configurable fixed rates.
+
+**Deposit flow:**
+1. User requests deposit addresses via `GET /api/me/wallet/deposit-addresses`
+2. Server creates a NOWPayments payment per currency (BTC / USDT-TRC20) with
+   `confirmation_required` set from admin config; the resulting `pay_address`
+   is cached in `depositAddresses`
+3. NOWPayments sends IPN events to `POST /api/wallet/webhook/nowpayments`
+   (HMAC-verified with `NOWPAYMENTS_IPN_SECRET`); the deposit worker also polls
+   every 60 s as a fallback
+4. On `finished` status: deposit is credited atomically to user balance +
+   `walletTransactions` ledger (idempotent via `processorPaymentId` unique key)
+
+**Withdrawal flow:**
+1. User requests withdrawal via `POST /api/me/wallet/withdrawals`
+2. Admin approves (`POST /admin/withdrawals/:id/approve`) or rejects
+3. Admin marks sent (`POST /admin/withdrawals/:id/mark-sent`) — this
+   atomically transitions `pending|approved → sending` (distributed lock
+   preventing double-payout), calls NOWPayments payout API, then sets `sent`
+4. Admin confirms (`POST /admin/withdrawals/:id/confirm`) transitions `sent → confirmed`
+5. On rejection, user balance is refunded atomically
+
+**Secrets required:**
+- `NOWPAYMENTS_API_KEY` — NOWPayments v1 API key (from account.nowpayments.io/api-keys)
+- `NOWPAYMENTS_IPN_SECRET` — IPN HMAC secret (from NOWPayments account → IPN settings)
+
+If either secret is absent, the server logs a warning at startup and crypto
+functions return `ready: false` to the client.
 
 ## Stratum Proxy
 
