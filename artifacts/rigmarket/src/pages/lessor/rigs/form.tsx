@@ -1,6 +1,18 @@
 import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
-import { useCreateRig, useUpdateMyRig, useGetMyRig, useListAlgorithms, getListMyRigsQueryKey, getGetMyRigQueryKey, getGetRigQueryKey } from "@workspace/api-client-react";
+import {
+  useCreateRig,
+  useUpdateMyRig,
+  useGetMyRig,
+  useListAlgorithms,
+  useGetMe,
+  useUpdateMe,
+  useResetStratumToken,
+  getListMyRigsQueryKey,
+  getGetMyRigQueryKey,
+  getGetRigQueryKey,
+  getGetMeQueryKey,
+} from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +21,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Waves } from "lucide-react";
+import { ArrowLeft, Copy, RefreshCw, Waves, Wifi } from "lucide-react";
+
+function maskToken(token: string): string {
+  return "••••••••••••••••••••" + token.slice(-6);
+}
+
+function parseStratumUrl(url: string): { host: string; port: string } {
+  try {
+    const withoutScheme = url.replace(/^stratum\+tcp:\/\//, "");
+    const [host, port] = withoutScheme.split(":");
+    return { host: host ?? url, port: port ?? "3333" };
+  } catch {
+    return { host: url, port: "3333" };
+  }
+}
 
 export default function RigForm() {
   const { id } = useParams<{ id: string }>();
@@ -21,9 +47,38 @@ export default function RigForm() {
 
   const { data: algorithms } = useListAlgorithms();
   const { data: rig, isLoading: rigLoading } = useGetMyRig(rigId);
+  const { data: me } = useGetMe();
 
   const createRig = useCreateRig();
   const updateRig = useUpdateMyRig();
+
+  const [stratumUsernameInput, setStratumUsernameInput] = useState("");
+  const [editingStratumUsername, setEditingStratumUsername] = useState(false);
+
+  const updateMe = useUpdateMe({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+        setEditingStratumUsername(false);
+        toast({ title: "Mining username saved" });
+      },
+      onError: (err: Error) => {
+        toast({ title: "Update failed", description: err.message, variant: "destructive" });
+      },
+    },
+  });
+
+  const resetToken = useResetStratumToken({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+        toast({ title: "Token regenerated", description: "Update your miner's password to the new token." });
+      },
+      onError: (err: Error) => {
+        toast({ title: "Reset failed", description: err.message, variant: "destructive" });
+      },
+    },
+  });
 
   const [formData, setFormData] = useState({
     name: "",
@@ -118,9 +173,30 @@ export default function RigForm() {
     }
   };
 
+  const handleSaveStratumUsername = () => {
+    const slug = stratumUsernameInput.trim().toLowerCase();
+    if (!/^[a-z0-9-]{3,24}$/.test(slug)) {
+      toast({
+        title: "Invalid username",
+        description: "3–24 characters, lowercase letters, digits, and hyphens only.",
+        variant: "destructive",
+      });
+      return;
+    }
+    updateMe.mutate({ data: { stratumUsername: slug } });
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast({ title: `${label} copied` });
+    });
+  };
+
   const set = (field: string, value: string) => setFormData(prev => ({ ...prev, [field]: value }));
 
   if (isEditing && rigLoading) return <div className="p-8 text-center font-mono">LOADING_CONFIG...</div>;
+
+  const parsedUrl = rig?.ownerStratumUrl ? parseStratumUrl(rig.ownerStratumUrl) : null;
 
   return (
     <div className="container py-8 px-4 max-w-2xl mx-auto space-y-6">
@@ -134,6 +210,122 @@ export default function RigForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+
+        {/* Mining Connection — edit mode only */}
+        {isEditing && rig && (
+          <Card className="bg-card/50 border-primary/30">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Wifi className="w-4 h-4 text-primary" />
+                Mining Connection
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <p className="text-sm text-muted-foreground">
+                Point your miner at the RigMarket proxy with the credentials below.
+                The worker is unique to this rig.
+              </p>
+
+              {/* Connection rows */}
+              <div className="space-y-3 bg-muted/40 rounded-lg p-4">
+                {[
+                  { label: "Host", value: parsedUrl?.host ?? "" },
+                  { label: "Port", value: parsedUrl?.port ?? "3333" },
+                  { label: "Worker", value: rig.ownerWorker ?? "", highlight: true },
+                  { label: "Password", value: rig.ownerPassword ?? "", masked: true },
+                ].map(({ label, value, highlight, masked }) => (
+                  <div key={label} className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground font-mono uppercase w-20">{label}</span>
+                    <span className={`text-sm font-mono flex-1 ${highlight ? "text-primary" : ""} ${masked ? "text-muted-foreground select-none" : ""}`}>
+                      {masked && value ? maskToken(value) : (value || <em className="text-muted-foreground">—</em>)}
+                    </span>
+                    {value && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => copyToClipboard(value, label)}
+                      >
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Stratum Username */}
+              <div className="space-y-2 border-t border-border/50 pt-4">
+                <Label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                  Mining Username
+                </Label>
+                {editingStratumUsername ? (
+                  <div className="flex gap-2">
+                    <Input
+                      value={stratumUsernameInput}
+                      onChange={(e) => setStratumUsernameInput(e.target.value.toLowerCase())}
+                      placeholder="e.g. satoshi"
+                      maxLength={24}
+                      className="font-mono bg-background"
+                    />
+                    <Button type="button" size="sm" onClick={handleSaveStratumUsername} disabled={updateMe.isPending}>
+                      {updateMe.isPending ? "Saving..." : "Save"}
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setEditingStratumUsername(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-mono">
+                      {me?.stratumUsername ?? <em className="text-muted-foreground">Not set</em>}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs h-7"
+                      onClick={() => {
+                        setStratumUsernameInput(me?.stratumUsername ?? "");
+                        setEditingStratumUsername(true);
+                      }}
+                    >
+                      {me?.stratumUsername ? "Change" : "Set Username"}
+                    </Button>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Lowercase letters, digits, hyphens only · 3–24 chars · globally unique.
+                  With a username set, you can also use <span className="font-mono bg-muted px-1 rounded">{me?.stratumUsername ?? "username"}.{rig.stratumName ?? "rigname"}</span> as the worker.
+                </p>
+              </div>
+
+              {/* Token reset */}
+              <div className="flex items-center justify-between border-t border-border/50 pt-4">
+                <div>
+                  <p className="text-sm font-medium">Authentication Token</p>
+                  <p className="text-xs text-muted-foreground">Regenerating invalidates all active miner connections.</p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 font-mono text-xs"
+                  onClick={() => {
+                    if (confirm("Regenerate token? All connected miners will need to re-authenticate.")) {
+                      resetToken.mutate();
+                    }
+                  }}
+                  disabled={resetToken.isPending}
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  {resetToken.isPending ? "Regenerating..." : "Regenerate"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Hardware Specs */}
         <Card className="bg-card/50 border-border/50">
           <CardHeader>
