@@ -1560,7 +1560,7 @@ components:
           description: "Worker name the owner's miner should use"
         ownerPassword:
           type: ["string", "null"]
-          description: "Password the owner's miner should use"
+          description: "Password field for the owner's miner — any value is accepted (e.g. 'x'); the proxy authenticates by stratumUsername alone"
         isOnline:
           type: boolean
           description: "True while the owner's miner is connected to the Stratum proxy"
