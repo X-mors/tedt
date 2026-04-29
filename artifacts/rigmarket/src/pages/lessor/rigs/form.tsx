@@ -211,33 +211,44 @@ export default function RigForm() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
 
-        {/* Mining Connection — edit mode only */}
-        {isEditing && rig && (
-          <Card className="bg-card/50 border-primary/30">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Wifi className="w-4 h-4 text-primary" />
-                Mining Connection
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <p className="text-sm text-muted-foreground">
-                Point your miner at the RigMarket proxy with the credentials below.
-                The worker is unique to this rig.
-              </p>
+        {/* Mining Connection */}
+        <Card className="bg-card/50 border-primary/30">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Wifi className="w-4 h-4 text-primary" />
+              Mining Connection
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <p className="text-sm text-muted-foreground">
+              Point your miner at the RigMarket proxy with the credentials below.
+              {isEditing ? " The worker is unique to this rig." : " After saving, you'll get a unique worker and password for this rig."}
+            </p>
 
-              {/* Connection rows */}
-              <div className="space-y-3 bg-muted/40 rounded-lg p-4">
-                {[
-                  { label: "Host", value: parsedUrl?.host ?? "" },
-                  { label: "Port", value: parsedUrl?.port ?? "3333" },
-                  { label: "Worker", value: rig.ownerWorker ?? "", highlight: true },
-                  { label: "Password", value: rig.ownerPassword ?? "", masked: true },
-                ].map(({ label, value, highlight, masked }) => (
+            {/* Connection rows */}
+            <div className="space-y-3 bg-muted/40 rounded-lg p-4">
+              {(() => {
+                const proxyHost = parsedUrl?.host ?? "proxy.rigmarket.dev";
+                const proxyPort = parsedUrl?.port ?? "3333";
+                const rigName = formData.name.trim().toLowerCase().replace(/\s+/g, "-") || "rigname";
+                const worker = isEditing && rig
+                  ? (rig.ownerWorker ?? "")
+                  : (me?.stratumUsername ? `${me.stratumUsername}.${rigName}` : "");
+                const password = isEditing && rig ? (rig.ownerPassword ?? "") : (me?.stratumToken ?? "");
+
+                return [
+                  { label: "Host", value: proxyHost },
+                  { label: "Port", value: proxyPort },
+                  { label: "Worker", value: worker, highlight: true, placeholder: "set username below" },
+                  { label: "Password", value: password, masked: true, placeholder: isEditing ? "—" : "available after saving" },
+                ].map(({ label, value, highlight, masked, placeholder }) => (
                   <div key={label} className="flex items-center justify-between gap-2">
                     <span className="text-xs text-muted-foreground font-mono uppercase w-20">{label}</span>
-                    <span className={`text-sm font-mono flex-1 ${highlight ? "text-primary" : ""} ${masked ? "text-muted-foreground select-none" : ""}`}>
-                      {masked && value ? maskToken(value) : (value || <em className="text-muted-foreground">—</em>)}
+                    <span className={`text-sm font-mono flex-1 ${highlight && value ? "text-primary" : ""} ${masked ? "text-muted-foreground select-none" : ""}`}>
+                      {value
+                        ? (masked ? maskToken(value) : value)
+                        : <em className="text-muted-foreground not-italic opacity-60">{placeholder ?? "—"}</em>
+                      }
                     </span>
                     {value && (
                       <Button
@@ -251,80 +262,79 @@ export default function RigForm() {
                       </Button>
                     )}
                   </div>
-                ))}
-              </div>
+                ));
+              })()}
+            </div>
 
-              {/* Stratum Username */}
-              <div className="space-y-2 border-t border-border/50 pt-4">
-                <Label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
-                  Mining Username
-                </Label>
-                {editingStratumUsername ? (
-                  <div className="flex gap-2">
-                    <Input
-                      value={stratumUsernameInput}
-                      onChange={(e) => setStratumUsernameInput(e.target.value.toLowerCase())}
-                      placeholder="e.g. satoshi"
-                      maxLength={24}
-                      className="font-mono bg-background"
-                    />
-                    <Button type="button" size="sm" onClick={handleSaveStratumUsername} disabled={updateMe.isPending}>
-                      {updateMe.isPending ? "Saving..." : "Save"}
-                    </Button>
-                    <Button type="button" size="sm" variant="ghost" onClick={() => setEditingStratumUsername(false)}>
-                      Cancel
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-mono">
-                      {me?.stratumUsername ?? <em className="text-muted-foreground">Not set</em>}
-                    </span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="text-xs h-7"
-                      onClick={() => {
-                        setStratumUsernameInput(me?.stratumUsername ?? "");
-                        setEditingStratumUsername(true);
-                      }}
-                    >
-                      {me?.stratumUsername ? "Change" : "Set Username"}
-                    </Button>
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Lowercase letters, digits, hyphens only · 3–24 chars · globally unique.
-                  With a username set, you can also use <span className="font-mono bg-muted px-1 rounded">{me?.stratumUsername ?? "username"}.{rig.stratumName ?? "rigname"}</span> as the worker.
-                </p>
-              </div>
-
-              {/* Token reset */}
-              <div className="flex items-center justify-between border-t border-border/50 pt-4">
-                <div>
-                  <p className="text-sm font-medium">Authentication Token</p>
-                  <p className="text-xs text-muted-foreground">Regenerating invalidates all active miner connections.</p>
+            {/* Stratum Username */}
+            <div className="space-y-2 border-t border-border/50 pt-4">
+              <Label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                Mining Username
+              </Label>
+              {editingStratumUsername ? (
+                <div className="flex gap-2">
+                  <Input
+                    value={stratumUsernameInput}
+                    onChange={(e) => setStratumUsernameInput(e.target.value.toLowerCase())}
+                    placeholder="e.g. satoshi"
+                    maxLength={24}
+                    className="font-mono bg-background"
+                  />
+                  <Button type="button" size="sm" onClick={handleSaveStratumUsername} disabled={updateMe.isPending}>
+                    {updateMe.isPending ? "Saving..." : "Save"}
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setEditingStratumUsername(false)}>
+                    Cancel
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 font-mono text-xs"
-                  onClick={() => {
-                    if (confirm("Regenerate token? All connected miners will need to re-authenticate.")) {
-                      resetToken.mutate();
-                    }
-                  }}
-                  disabled={resetToken.isPending}
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  {resetToken.isPending ? "Regenerating..." : "Regenerate"}
-                </Button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-mono">
+                    {me?.stratumUsername ?? <em className="text-muted-foreground">Not set</em>}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="text-xs h-7"
+                    onClick={() => {
+                      setStratumUsernameInput(me?.stratumUsername ?? "");
+                      setEditingStratumUsername(true);
+                    }}
+                  >
+                    {me?.stratumUsername ? "Change" : "Set Username"}
+                  </Button>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Lowercase letters, digits, hyphens only · 3–24 chars · globally unique.
+              </p>
+            </div>
+
+            {/* Token reset */}
+            <div className="flex items-center justify-between border-t border-border/50 pt-4">
+              <div>
+                <p className="text-sm font-medium">Authentication Token</p>
+                <p className="text-xs text-muted-foreground">Regenerating invalidates all active miner connections.</p>
               </div>
-            </CardContent>
-          </Card>
-        )}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5 font-mono text-xs"
+                onClick={() => {
+                  if (confirm("Regenerate token? All connected miners will need to re-authenticate.")) {
+                    resetToken.mutate();
+                  }
+                }}
+                disabled={resetToken.isPending}
+              >
+                <RefreshCw className="w-3 h-3" />
+                {resetToken.isPending ? "Regenerating..." : "Regenerate"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Hardware Specs */}
         <Card className="bg-card/50 border-border/50">
