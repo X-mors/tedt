@@ -18,6 +18,7 @@ import {
 import { requireAuth } from "../lib/auth";
 import { getCommission } from "../lib/commission";
 import { toNum, toUsdString } from "../lib/money";
+import { proxyState } from "../lib/stratum/state";
 import { randomBytes } from "node:crypto";
 
 const PROXY_HOST = process.env["STRATUM_PROXY_HOST"] ?? "proxy.rigmarket.dev";
@@ -185,6 +186,8 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
     reviewCount: Number(row.reviewCount),
     totalRentals: Number(rentals?.c ?? 0),
     createdAt: row.createdAt.toISOString(),
+    fallbackPoolConnected: proxyState.getFallbackPoolStatus(row.id)?.connected ?? null,
+    fallbackPoolAuthFailed: proxyState.getFallbackPoolStatus(row.id)?.authFailed ?? null,
     ...ownerStratumFields(
       row.ownerStratumUsername ?? null,
       row.stratumName ?? null,

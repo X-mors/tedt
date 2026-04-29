@@ -15,6 +15,8 @@ export interface RentalLive {
   status: RentalStatus;
   minerConnected: boolean;
   upstreamConnected: boolean;
+  /** True when the pool rejected the worker credentials (wrong worker name or password) */
+  poolAuthFailed: boolean;
   /** Effective hashrate in H/s computed from shares in the current flush window */
   currentHashrateH: number;
   /** currentHashrateH converted to algorithm units (TH/s, MH/s etc.) — use this for display */

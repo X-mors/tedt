@@ -455,6 +455,8 @@ router.get("/rentals/:id/stats", async (req, res) => {
   let message: string | null = null;
   if (rental.status === "active" && !live.minerConnected) {
     message = "Awaiting miner connection — point your rig at the proxy URL.";
+  } else if (rental.status === "active" && live.minerConnected && live.poolAuthFailed) {
+    message = "Pool rejected worker credentials — check your pool worker name and password.";
   } else if (rental.status === "active" && live.minerConnected && !live.upstreamConnected) {
     message = "Miner connected — establishing upstream pool connection.";
   } else if (rental.status !== "active" && samples.length === 0) {
@@ -474,6 +476,7 @@ router.get("/rentals/:id/stats", async (req, res) => {
     message,
     minerConnected: live.minerConnected,
     upstreamConnected: live.upstreamConnected,
+    poolAuthFailed: live.poolAuthFailed,
   });
   res.json(data);
 });
@@ -524,6 +527,7 @@ router.get("/rentals/:id/live", async (req, res) => {
     status: rental.status,
     minerConnected: live.minerConnected,
     upstreamConnected: live.upstreamConnected,
+    poolAuthFailed: live.poolAuthFailed,
     currentHashrateH: live.effectiveHashrateH,
     currentHashrate: live.effectiveHashrateH / algMultiplier,
     sharesAccepted: live.sharesAccepted,

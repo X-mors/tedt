@@ -175,7 +175,7 @@ export interface RigDetail {
    */
   ownerWorker: string | null;
   /**
-   * Password the owner's miner should use
+   * Password field for the owner's miner — any value is accepted (e.g. 'x'); the proxy authenticates by stratumUsername alone
    * @nullable
    */
   ownerPassword: string | null;
@@ -193,6 +193,10 @@ export interface RigDetail {
   fallbackPoolPassword: string | null;
   /** Worker name component in the `username.rigname` format. Null for legacy/web-created rigs not yet connected via new-style auth. */
   stratumName: string | null;
+  /** True when the miner is connected and the fallback pool connection is verified (mining.authorize accepted). Null when the miner is not connected. */
+  fallbackPoolConnected: boolean | null;
+  /** True when the fallback pool rejected the worker credentials (wrong worker name or password). Null when the miner is not connected. */
+  fallbackPoolAuthFailed: boolean | null;
   createdAt: string;
 }
 
@@ -423,6 +427,8 @@ export interface RentalStats {
   minerConnected: boolean;
   /** Whether the proxy has an active connection to the renter's pool */
   upstreamConnected: boolean;
+  /** True when the pool rejected the worker credentials (wrong worker name or password) */
+  poolAuthFailed: boolean;
 }
 
 /**
@@ -433,6 +439,8 @@ export interface RentalLive {
   status: RentalStatus;
   minerConnected: boolean;
   upstreamConnected: boolean;
+  /** True when the pool rejected the worker credentials (wrong worker name or password) */
+  poolAuthFailed: boolean;
   /** Effective hashrate in H/s computed from shares in the current flush window */
   currentHashrateH: number;
   /** currentHashrateH converted to algorithm units (TH/s, MH/s etc.) — use this for display */

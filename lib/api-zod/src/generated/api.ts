@@ -397,7 +397,9 @@ export const GetRigResponse = zod.object({
   ownerPassword: zod
     .string()
     .nullable()
-    .describe("Password the owner's miner should use"),
+    .describe(
+      "Password field for the owner's miner — any value is accepted (e.g. 'x'); the proxy authenticates by stratumUsername alone",
+    ),
   isOnline: zod
     .boolean()
     .describe("True while the owner's miner is connected to the Stratum proxy"),
@@ -435,6 +437,18 @@ export const GetRigResponse = zod.object({
     .nullable()
     .describe(
       "Worker name component in the `username.rigname` format. Null for legacy\/web-created rigs not yet connected via new-style auth.",
+    ),
+  fallbackPoolConnected: zod
+    .boolean()
+    .nullable()
+    .describe(
+      "True when the miner is connected and the fallback pool connection is verified (mining.authorize accepted). Null when the miner is not connected.",
+    ),
+  fallbackPoolAuthFailed: zod
+    .boolean()
+    .nullable()
+    .describe(
+      "True when the fallback pool rejected the worker credentials (wrong worker name or password). Null when the miner is not connected.",
     ),
   createdAt: zod.coerce.date(),
 });
@@ -580,7 +594,9 @@ export const GetMyRigResponse = zod.object({
   ownerPassword: zod
     .string()
     .nullable()
-    .describe("Password the owner's miner should use"),
+    .describe(
+      "Password field for the owner's miner — any value is accepted (e.g. 'x'); the proxy authenticates by stratumUsername alone",
+    ),
   isOnline: zod
     .boolean()
     .describe("True while the owner's miner is connected to the Stratum proxy"),
@@ -618,6 +634,18 @@ export const GetMyRigResponse = zod.object({
     .nullable()
     .describe(
       "Worker name component in the `username.rigname` format. Null for legacy\/web-created rigs not yet connected via new-style auth.",
+    ),
+  fallbackPoolConnected: zod
+    .boolean()
+    .nullable()
+    .describe(
+      "True when the miner is connected and the fallback pool connection is verified (mining.authorize accepted). Null when the miner is not connected.",
+    ),
+  fallbackPoolAuthFailed: zod
+    .boolean()
+    .nullable()
+    .describe(
+      "True when the fallback pool rejected the worker credentials (wrong worker name or password). Null when the miner is not connected.",
     ),
   createdAt: zod.coerce.date(),
 });
@@ -699,7 +727,9 @@ export const UpdateMyRigResponse = zod.object({
   ownerPassword: zod
     .string()
     .nullable()
-    .describe("Password the owner's miner should use"),
+    .describe(
+      "Password field for the owner's miner — any value is accepted (e.g. 'x'); the proxy authenticates by stratumUsername alone",
+    ),
   isOnline: zod
     .boolean()
     .describe("True while the owner's miner is connected to the Stratum proxy"),
@@ -737,6 +767,18 @@ export const UpdateMyRigResponse = zod.object({
     .nullable()
     .describe(
       "Worker name component in the `username.rigname` format. Null for legacy\/web-created rigs not yet connected via new-style auth.",
+    ),
+  fallbackPoolConnected: zod
+    .boolean()
+    .nullable()
+    .describe(
+      "True when the miner is connected and the fallback pool connection is verified (mining.authorize accepted). Null when the miner is not connected.",
+    ),
+  fallbackPoolAuthFailed: zod
+    .boolean()
+    .nullable()
+    .describe(
+      "True when the fallback pool rejected the worker credentials (wrong worker name or password). Null when the miner is not connected.",
     ),
   createdAt: zod.coerce.date(),
 });
@@ -907,6 +949,11 @@ export const GetRentalStatsResponse = zod.object({
     .describe(
       "Whether the proxy has an active connection to the renter's pool",
     ),
+  poolAuthFailed: zod
+    .boolean()
+    .describe(
+      "True when the pool rejected the worker credentials (wrong worker name or password)",
+    ),
 });
 
 /**
@@ -922,6 +969,11 @@ export const GetRentalLiveResponse = zod
     status: zod.enum(["pending", "active", "completed", "cancelled"]),
     minerConnected: zod.boolean(),
     upstreamConnected: zod.boolean(),
+    poolAuthFailed: zod
+      .boolean()
+      .describe(
+        "True when the pool rejected the worker credentials (wrong worker name or password)",
+      ),
     currentHashrateH: zod
       .number()
       .describe(

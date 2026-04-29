@@ -31,6 +31,8 @@ export interface ProxyRigEntry {
   sharesRejected: number;
   lastShareAt: Date | null;
   upstreamConnected: boolean;
+  /** True when the upstream pool rejected mining.authorize (wrong worker/password) */
+  upstreamAuthFailed: boolean;
   /** Number of mining.submit messages that were buffered and dropped (buffer full) */
   submitsDropped: number;
   /** Number of upstream connection errors observed for this session */

@@ -33,6 +33,7 @@ class ProxyState {
         sharesRejected: 0,
         lastShareAt: null,
         upstreamConnected: false,
+        upstreamAuthFailed: false,
         submitsDropped: 0,
         upstreamErrors: 0,
         upstreamDisconnects: 0,
@@ -73,7 +74,30 @@ class ProxyState {
 
   setUpstreamConnected(rigId: number, connected: boolean): void {
     const conn = this.rigConnections.get(rigId);
-    if (conn) conn.entry.upstreamConnected = connected;
+    if (conn) {
+      conn.entry.upstreamConnected = connected;
+      if (connected) conn.entry.upstreamAuthFailed = false;
+    }
+  }
+
+  setUpstreamAuthFailed(rigId: number, failed: boolean): void {
+    const conn = this.rigConnections.get(rigId);
+    if (conn) conn.entry.upstreamAuthFailed = failed;
+  }
+
+  /**
+   * Returns fallback pool connection status only when the rig is connected and
+   * NOT currently in an active rental (i.e. miner is running in fallback mode).
+   * Returns null when the rig is offline or when a rental is active.
+   */
+  getFallbackPoolStatus(rigId: number): { connected: boolean; authFailed: boolean } | null {
+    const conn = this.rigConnections.get(rigId);
+    if (!conn) return null;
+    if (conn.entry.rentalId !== null) return null;
+    return {
+      connected: conn.entry.upstreamConnected,
+      authFailed: conn.entry.upstreamAuthFailed,
+    };
   }
 
   recordShare(rigId: number, accepted: boolean, difficulty: number): void {
@@ -172,6 +196,7 @@ class ProxyState {
   getLiveStats(rentalId: number): {
     minerConnected: boolean;
     upstreamConnected: boolean;
+    poolAuthFailed: boolean;
     sharesAccepted: number;
     sharesRejected: number;
     lastShareAt: Date | null;
@@ -183,6 +208,7 @@ class ProxyState {
       return {
         minerConnected: false,
         upstreamConnected: false,
+        poolAuthFailed: false,
         sharesAccepted: 0,
         sharesRejected: 0,
         lastShareAt: null,
@@ -200,6 +226,7 @@ class ProxyState {
     return {
       minerConnected: conn != null,
       upstreamConnected: conn?.entry.upstreamConnected ?? false,
+      poolAuthFailed: conn?.entry.upstreamAuthFailed ?? false,
       // Return cumulative lifetime totals for stable rental-level accounting.
       sharesAccepted: window.sharesAcceptedLifetime,
       sharesRejected: window.sharesRejectedLifetime,

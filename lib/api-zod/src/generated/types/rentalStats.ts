@@ -28,4 +28,6 @@ export interface RentalStats {
   minerConnected: boolean;
   /** Whether the proxy has an active connection to the renter's pool */
   upstreamConnected: boolean;
+  /** True when the pool rejected the worker credentials (wrong worker name or password) */
+  poolAuthFailed: boolean;
 }

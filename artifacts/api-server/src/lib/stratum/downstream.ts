@@ -532,6 +532,11 @@ export class DownstreamSession extends EventEmitter {
       logger.info({ rigId }, "stratum:downstream fallback upstream ready");
     });
 
+    upstream.on("authFailed", () => {
+      proxyState.setUpstreamAuthFailed(rigId, true);
+      logger.warn({ rigId }, "stratum:downstream fallback pool rejected worker credentials");
+    });
+
     upstream.on("disconnected", () => {
       proxyState.setUpstreamConnected(rigId, false);
       proxyState.incrementUpstreamDisconnect(rigId);
@@ -611,6 +616,13 @@ export class DownstreamSession extends EventEmitter {
       if (this.rigId != null) proxyState.setUpstreamConnected(this.rigId, true);
       logger.info({ rigId: this.rigId, rentalId }, "stratum:downstream upstream ready");
       void this._flushSubmitBuffer();
+    });
+
+    upstream.on("authFailed", () => {
+      if (this.rigId != null) {
+        proxyState.setUpstreamAuthFailed(this.rigId, true);
+        logger.warn({ rigId: this.rigId, rentalId }, "stratum:downstream pool rejected worker credentials");
+      }
     });
 
     upstream.on("disconnected", () => {

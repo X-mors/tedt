@@ -15,14 +15,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { Star } from "lucide-react";
 
-function StatusDot({ connected, label, sublabel }: { connected: boolean; label: string; sublabel?: string }) {
+function StatusDot({ connected, label, sublabel, error }: { connected: boolean; label: string; sublabel?: string; error?: boolean }) {
   return (
     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
-      connected
-        ? 'text-green-500 border-green-500/30 bg-green-500/10'
-        : 'text-muted-foreground border-border/40 bg-muted/20'
+      error
+        ? 'text-red-500 border-red-500/30 bg-red-500/10'
+        : connected
+          ? 'text-green-500 border-green-500/30 bg-green-500/10'
+          : 'text-muted-foreground border-border/40 bg-muted/20'
     }`}>
-      <div className={`w-2 h-2 rounded-full shrink-0 ${connected ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/50'}`} />
+      <div className={`w-2 h-2 rounded-full shrink-0 ${error ? 'bg-red-500' : connected ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/50'}`} />
       <div>
         <p className="text-xs font-mono font-semibold">{label}</p>
         {sublabel && <p className="text-[10px] opacity-70">{sublabel}</p>}
@@ -100,6 +102,7 @@ export default function RentalCockpit() {
 
   const minerConnected = live?.minerConnected ?? false;
   const poolConnected = live?.upstreamConnected ?? false;
+  const poolAuthFailed = live?.poolAuthFailed ?? false;
 
   return (
     <div className="container py-8 px-4 max-w-5xl mx-auto space-y-6">
@@ -184,8 +187,14 @@ export default function RentalCockpit() {
               />
               <StatusDot
                 connected={poolConnected}
+                error={!poolConnected && poolAuthFailed}
                 label="YOUR POOL"
-                sublabel={poolConnected ? "Receiving hashrate" : minerConnected ? "Establishing pool link..." : "Waiting for rig first"}
+                sublabel={
+                  poolConnected ? "Receiving hashrate"
+                  : poolAuthFailed ? "Pool rejected credentials"
+                  : minerConnected ? "Establishing pool link..."
+                  : "Waiting for rig first"
+                }
               />
             </div>
           )}
@@ -203,6 +212,12 @@ export default function RentalCockpit() {
                   <WifiOff className="w-8 h-8 text-muted-foreground mb-4" />
                   <p className="font-mono text-sm text-muted-foreground uppercase">AWAITING_MINER — owner's rig is not connected yet.</p>
                   <p className="text-xs text-muted-foreground mt-2">Hashrate will flow to your pool once the rig connects. Polling every 5s.</p>
+                </div>
+              ) : rental.status === 'active' && live && live.minerConnected && poolAuthFailed ? (
+                <div className="text-center py-12 flex flex-col items-center justify-center border border-dashed border-red-500/20 rounded-lg bg-red-500/5">
+                  <ShieldAlert className="w-8 h-8 text-red-500 mb-4" />
+                  <p className="font-mono text-sm text-red-500 uppercase">POOL_AUTH_FAILED — credentials rejected</p>
+                  <p className="text-xs text-muted-foreground mt-2 max-w-sm">Your pool rejected the worker name or password. Go back and edit the rental pool details, or contact pool support.</p>
                 </div>
               ) : rental.status === 'active' && live && live.minerConnected && !live.upstreamConnected ? (
                 <div className="text-center py-12 flex flex-col items-center justify-center border border-dashed border-border/50 rounded-lg bg-muted/10">

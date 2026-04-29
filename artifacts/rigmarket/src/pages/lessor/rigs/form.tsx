@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Copy, Waves, Wifi } from "lucide-react";
+import { ArrowLeft, Copy, Waves, Wifi, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 
 function parseStratumUrl(url: string): { host: string; port: string } {
   try {
@@ -423,6 +423,22 @@ export default function RigForm() {
             <CardTitle className="text-lg flex items-center gap-2">
               <Waves className="w-4 h-4 text-muted-foreground" />
               Fallback Pool <span className="text-sm font-normal text-muted-foreground ml-1">(optional)</span>
+              {/* Live pool connection status — only visible when rig is online and in fallback mode */}
+              {isEditing && rig?.isOnline && rig.hasFallbackPool && rig.fallbackPoolConnected === true && (
+                <span className="ml-auto flex items-center gap-1.5 text-xs font-normal text-green-500">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Connected
+                </span>
+              )}
+              {isEditing && rig?.isOnline && rig.hasFallbackPool && rig.fallbackPoolAuthFailed === true && (
+                <span className="ml-auto flex items-center gap-1.5 text-xs font-normal text-red-500">
+                  <XCircle className="w-3.5 h-3.5" /> Pool rejected credentials
+                </span>
+              )}
+              {isEditing && rig?.isOnline && rig.hasFallbackPool && rig.fallbackPoolConnected === false && rig.fallbackPoolAuthFailed === false && (
+                <span className="ml-auto flex items-center gap-1.5 text-xs font-normal text-yellow-500">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Connecting...
+                </span>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -431,6 +447,18 @@ export default function RigForm() {
               hashrate to this personal pool so your hardware is never idle.
               Leave empty to keep the miner idle between rentals.
             </p>
+            {isEditing && rig?.isOnline && rig.hasFallbackPool && rig.fallbackPoolAuthFailed === true && (
+              <div className="flex items-start gap-2 p-3 rounded-md bg-red-500/10 border border-red-500/20 text-red-500">
+                <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <p className="text-xs">Your pool is rejecting the worker credentials. Check the worker name and password below, then save.</p>
+              </div>
+            )}
+            {isEditing && rig?.isOnline && rig.hasFallbackPool && rig.fallbackPoolConnected === true && (
+              <div className="flex items-start gap-2 p-3 rounded-md bg-green-500/10 border border-green-500/20 text-green-500">
+                <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+                <p className="text-xs">Pool connection verified — your miner's hashrate is being forwarded successfully.</p>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2 md:col-span-2">

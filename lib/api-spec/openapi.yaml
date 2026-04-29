@@ -1587,6 +1587,14 @@ components:
           type: string
           nullable: true
           description: "Worker name component in the `username.rigname` format. Null for legacy/web-created rigs not yet connected via new-style auth."
+        fallbackPoolConnected:
+          type: boolean
+          description: "True when the miner is connected and the fallback pool connection is verified (mining.authorize accepted). Null when the miner is not connected."
+          nullable: true
+        fallbackPoolAuthFailed:
+          type: boolean
+          description: "True when the fallback pool rejected the worker credentials (wrong worker name or password). Null when the miner is not connected."
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -1620,6 +1628,8 @@ components:
         - fallbackPoolUser
         - fallbackPoolPassword
         - stratumName
+        - fallbackPoolConnected
+        - fallbackPoolAuthFailed
         - createdAt
 
     CreateRigBody:
@@ -2057,6 +2067,9 @@ components:
         upstreamConnected:
           type: boolean
           description: Whether the proxy has an active connection to the renter's pool
+        poolAuthFailed:
+          type: boolean
+          description: True when the pool rejected the worker credentials (wrong worker name or password)
       required:
         - rentalId
         - currentHashrate
@@ -2070,6 +2083,7 @@ components:
         - message
         - minerConnected
         - upstreamConnected
+        - poolAuthFailed
 
     RentalLive:
       type: object
@@ -2083,6 +2097,9 @@ components:
           type: boolean
         upstreamConnected:
           type: boolean
+        poolAuthFailed:
+          type: boolean
+          description: True when the pool rejected the worker credentials (wrong worker name or password)
         currentHashrateH:
           type: number
           description: Effective hashrate in H/s computed from shares in the current flush window
@@ -2108,6 +2125,7 @@ components:
         - status
         - minerConnected
         - upstreamConnected
+        - poolAuthFailed
         - currentHashrateH
         - currentHashrate
         - sharesAccepted
