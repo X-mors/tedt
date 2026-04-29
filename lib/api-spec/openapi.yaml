@@ -1628,8 +1628,6 @@ components:
         - fallbackPoolUser
         - fallbackPoolPassword
         - stratumName
-        - fallbackPoolConnected
-        - fallbackPoolAuthFailed
         - createdAt
 
     CreateRigBody:

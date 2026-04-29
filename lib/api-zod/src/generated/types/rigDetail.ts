@@ -60,8 +60,8 @@ export interface RigDetail {
   /** Worker name component in the `username.rigname` format. Null for legacy/web-created rigs not yet connected via new-style auth. */
   stratumName: string | null;
   /** True when the miner is connected and the fallback pool connection is verified (mining.authorize accepted). Null when the miner is not connected. */
-  fallbackPoolConnected: boolean | null;
+  fallbackPoolConnected?: boolean | null;
   /** True when the fallback pool rejected the worker credentials (wrong worker name or password). Null when the miner is not connected. */
-  fallbackPoolAuthFailed: boolean | null;
+  fallbackPoolAuthFailed?: boolean | null;
   createdAt: Date;
 }

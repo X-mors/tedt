@@ -440,13 +440,13 @@ export const GetRigResponse = zod.object({
     ),
   fallbackPoolConnected: zod
     .boolean()
-    .nullable()
+    .nullish()
     .describe(
       "True when the miner is connected and the fallback pool connection is verified (mining.authorize accepted). Null when the miner is not connected.",
     ),
   fallbackPoolAuthFailed: zod
     .boolean()
-    .nullable()
+    .nullish()
     .describe(
       "True when the fallback pool rejected the worker credentials (wrong worker name or password). Null when the miner is not connected.",
     ),
@@ -637,13 +637,13 @@ export const GetMyRigResponse = zod.object({
     ),
   fallbackPoolConnected: zod
     .boolean()
-    .nullable()
+    .nullish()
     .describe(
       "True when the miner is connected and the fallback pool connection is verified (mining.authorize accepted). Null when the miner is not connected.",
     ),
   fallbackPoolAuthFailed: zod
     .boolean()
-    .nullable()
+    .nullish()
     .describe(
       "True when the fallback pool rejected the worker credentials (wrong worker name or password). Null when the miner is not connected.",
     ),
@@ -770,13 +770,13 @@ export const UpdateMyRigResponse = zod.object({
     ),
   fallbackPoolConnected: zod
     .boolean()
-    .nullable()
+    .nullish()
     .describe(
       "True when the miner is connected and the fallback pool connection is verified (mining.authorize accepted). Null when the miner is not connected.",
     ),
   fallbackPoolAuthFailed: zod
     .boolean()
-    .nullable()
+    .nullish()
     .describe(
       "True when the fallback pool rejected the worker credentials (wrong worker name or password). Null when the miner is not connected.",
     ),
