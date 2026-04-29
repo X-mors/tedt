@@ -23,11 +23,19 @@ import { randomBytes } from "node:crypto";
 const PROXY_HOST = process.env["STRATUM_PROXY_HOST"] ?? "proxy.rigmarket.dev";
 const PROXY_PORT = process.env["STRATUM_PROXY_PORT"] ?? "3333";
 
-function ownerStratumFields(rigId: number, proxyToken: string) {
+function ownerStratumFields(
+  stratumUsername: string | null,
+  stratumName: string | null,
+  stratumToken: string | null,
+) {
+  const worker =
+    stratumUsername && stratumName
+      ? `${stratumUsername}.${stratumName}`
+      : null;
   return {
     ownerStratumUrl: `stratum+tcp://${PROXY_HOST}:${PROXY_PORT}`,
-    ownerWorker: `rig-${rigId}`,
-    ownerPassword: proxyToken,
+    ownerWorker: worker,
+    ownerPassword: stratumToken ?? null,
   };
 }
 
@@ -109,6 +117,8 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
       description: rigsTable.description,
       ownerId: rigsTable.ownerId,
       ownerDisplayName: usersTable.displayName,
+      ownerStratumUsername: usersTable.stratumUsername,
+      ownerStratumToken: usersTable.stratumToken,
       algorithmId: algorithmsTable.id,
       algorithmName: algorithmsTable.name,
       algorithmUnit: algorithmsTable.unit,
@@ -126,7 +136,6 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
       stratumUser: rigsTable.stratumUser,
       stratumPassword: rigsTable.stratumPassword,
       stratumName: rigsTable.stratumName,
-      proxyToken: rigsTable.proxyToken,
       createdAt: rigsTable.createdAt,
       averageRating: sql<string | null>`AVG(${reviewsTable.rating})`,
       reviewCount: sql<string>`COUNT(DISTINCT ${reviewsTable.id})`,
@@ -176,7 +185,11 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
     reviewCount: Number(row.reviewCount),
     totalRentals: Number(rentals?.c ?? 0),
     createdAt: row.createdAt.toISOString(),
-    ...ownerStratumFields(row.id, row.proxyToken),
+    ...ownerStratumFields(
+      row.ownerStratumUsername ?? null,
+      row.stratumName ?? null,
+      row.ownerStratumToken ?? null,
+    ),
   };
 }
 
