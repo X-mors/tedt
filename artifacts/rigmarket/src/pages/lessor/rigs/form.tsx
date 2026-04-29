@@ -7,7 +7,6 @@ import {
   useListAlgorithms,
   useGetMe,
   useUpdateMe,
-  useResetStratumToken,
   getListMyRigsQueryKey,
   getGetMyRigQueryKey,
   getGetRigQueryKey,
@@ -21,11 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Copy, RefreshCw, Waves, Wifi } from "lucide-react";
-
-function maskToken(token: string): string {
-  return "••••••••••••••••••••" + token.slice(-6);
-}
+import { ArrowLeft, Copy, Waves, Wifi } from "lucide-react";
 
 function parseStratumUrl(url: string): { host: string; port: string } {
   try {
@@ -64,18 +59,6 @@ export default function RigForm() {
       },
       onError: (err: Error) => {
         toast({ title: "Update failed", description: err.message, variant: "destructive" });
-      },
-    },
-  });
-
-  const resetToken = useResetStratumToken({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-        toast({ title: "Token regenerated", description: "Update your miner's password to the new token." });
-      },
-      onError: (err: Error) => {
-        toast({ title: "Reset failed", description: err.message, variant: "destructive" });
       },
     },
   });
@@ -221,8 +204,10 @@ export default function RigForm() {
           </CardHeader>
           <CardContent className="space-y-5">
             <p className="text-sm text-muted-foreground">
-              Point your miner at the RigMarket proxy with the credentials below.
-              {isEditing ? " The worker is unique to this rig." : " After saving, you'll get a unique worker and password for this rig."}
+              Point your miner at the RigMarket proxy using the credentials below.
+              {isEditing
+                ? " Use any password you like — the proxy authenticates by username only."
+                : " After saving, you'll get a unique worker name for this rig. Use any password (e.g. x)."}
             </p>
 
             {/* Connection rows */}
@@ -234,20 +219,18 @@ export default function RigForm() {
                 const worker = isEditing && rig
                   ? (rig.ownerWorker ?? "")
                   : (me?.stratumUsername ? `${me.stratumUsername}.${rigName}` : "");
-                const password = isEditing && rig ? (rig.ownerPassword ?? "") : (me?.stratumToken ?? "");
-
                 return [
-                  { label: "Host", value: proxyHost },
-                  { label: "Port", value: proxyPort },
+                  { label: "Host", value: proxyHost, highlight: false, placeholder: "" },
+                  { label: "Port", value: proxyPort, highlight: false, placeholder: "" },
                   { label: "Worker", value: worker, highlight: true, placeholder: "set username below" },
-                  { label: "Password", value: password, masked: true, placeholder: isEditing ? "—" : "available after saving" },
-                ].map(({ label, value, highlight, masked, placeholder }) => (
+                  { label: "Password", value: "", highlight: false, placeholder: "any value (e.g. x)" },
+                ].map(({ label, value, highlight, placeholder }) => (
                   <div key={label} className="flex items-center justify-between gap-2">
                     <span className="text-xs text-muted-foreground font-mono uppercase w-20">{label}</span>
-                    <span className={`text-sm font-mono flex-1 ${highlight && value ? "text-primary" : ""} ${masked ? "text-muted-foreground select-none" : ""}`}>
+                    <span className={`text-sm font-mono flex-1 ${highlight && value ? "text-primary" : ""}`}>
                       {value
-                        ? (masked ? maskToken(value) : value)
-                        : <em className="text-muted-foreground not-italic opacity-60">{placeholder ?? "—"}</em>
+                        ? value
+                        : <em className="text-muted-foreground not-italic opacity-60">{placeholder || "—"}</em>
                       }
                     </span>
                     {value && (
@@ -311,28 +294,6 @@ export default function RigForm() {
               </p>
             </div>
 
-            {/* Token reset */}
-            <div className="flex items-center justify-between border-t border-border/50 pt-4">
-              <div>
-                <p className="text-sm font-medium">Authentication Token</p>
-                <p className="text-xs text-muted-foreground">Regenerating invalidates all active miner connections.</p>
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="gap-1.5 font-mono text-xs"
-                onClick={() => {
-                  if (confirm("Regenerate token? All connected miners will need to re-authenticate.")) {
-                    resetToken.mutate();
-                  }
-                }}
-                disabled={resetToken.isPending}
-              >
-                <RefreshCw className="w-3 h-3" />
-                {resetToken.isPending ? "Regenerating..." : "Regenerate"}
-              </Button>
-            </div>
           </CardContent>
         </Card>
 

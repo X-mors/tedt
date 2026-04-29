@@ -1,6 +1,5 @@
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
-import { randomBytes } from "node:crypto";
 import {
   db,
   rentalsTable,
@@ -10,7 +9,6 @@ import {
 } from "@workspace/db";
 import {
   GetMeResponse,
-  ResetStratumTokenResponse,
   SyncMeResponse,
   UpdateMeBody,
   UpdateMeResponse,
@@ -21,42 +19,29 @@ import { toNum } from "../lib/money";
 
 const router: IRouter = Router();
 
-async function ensureStratumToken(user: User): Promise<User> {
-  if (user.stratumToken) return user;
-  const token = randomBytes(32).toString("hex");
-  const [updated] = await db
-    .update(usersTable)
-    .set({ stratumToken: token })
-    .where(eq(usersTable.id, user.id))
-    .returning();
-  return updated ?? user;
-}
-
 async function serialize(user: User) {
-  const hydratedUser = await ensureStratumToken(user);
   const [rigs] = await db
     .select({ c: sql<string>`COUNT(*)` })
     .from(rigsTable)
-    .where(eq(rigsTable.ownerId, hydratedUser.id));
+    .where(eq(rigsTable.ownerId, user.id));
   const [rentals] = await db
     .select({ c: sql<string>`COUNT(*)` })
     .from(rentalsTable)
-    .where(eq(rentalsTable.renterId, hydratedUser.id));
+    .where(eq(rentalsTable.renterId, user.id));
   return {
-    id: hydratedUser.id,
-    clerkUserId: hydratedUser.clerkUserId,
-    email: hydratedUser.email,
-    displayName: hydratedUser.displayName,
-    role: hydratedUser.role,
-    balanceUsd: toNum(hydratedUser.balanceUsd),
-    totalDepositedUsd: toNum(hydratedUser.totalDepositedUsd),
-    totalEarnedUsd: toNum(hydratedUser.totalEarnedUsd),
-    totalSpentUsd: toNum(hydratedUser.totalSpentUsd),
+    id: user.id,
+    clerkUserId: user.clerkUserId,
+    email: user.email,
+    displayName: user.displayName,
+    role: user.role,
+    balanceUsd: toNum(user.balanceUsd),
+    totalDepositedUsd: toNum(user.totalDepositedUsd),
+    totalEarnedUsd: toNum(user.totalEarnedUsd),
+    totalSpentUsd: toNum(user.totalSpentUsd),
     rigCount: Number(rigs?.c ?? 0),
     rentalCount: Number(rentals?.c ?? 0),
-    createdAt: hydratedUser.createdAt.toISOString(),
-    stratumUsername: hydratedUser.stratumUsername ?? null,
-    stratumToken: hydratedUser.stratumToken ?? null,
+    createdAt: user.createdAt.toISOString(),
+    stratumUsername: user.stratumUsername ?? null,
   };
 }
 
@@ -122,17 +107,6 @@ router.post("/me/sync", async (req, res) => {
     return;
   }
   const data = SyncMeResponse.parse(await serialize(user));
-  res.json(data);
-});
-
-router.post("/me/stratum-token/reset", requireAuth, async (req, res) => {
-  const newToken = randomBytes(32).toString("hex");
-  const [updated] = await db
-    .update(usersTable)
-    .set({ stratumToken: newToken })
-    .where(eq(usersTable.id, req.currentUser!.id))
-    .returning();
-  const data = ResetStratumTokenResponse.parse(await serialize(updated!));
   res.json(data);
 });
 

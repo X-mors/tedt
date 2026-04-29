@@ -44,8 +44,6 @@ export interface MeProfile {
   createdAt: string;
   /** User-chosen Stratum username (prefix in `username.rigname` worker format). Null until set. */
   stratumUsername: string | null;
-  /** Stratum authentication token. Auto-generated on first profile view. Use as the miner password. */
-  stratumToken: string | null;
 }
 
 export interface UpdateMeBody {

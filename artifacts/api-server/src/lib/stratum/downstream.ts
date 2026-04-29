@@ -231,14 +231,15 @@ export class DownstreamSession extends EventEmitter {
   }
 
   /**
-   * New auth: worker = "{stratumUsername}.{rigname}", password = stratumToken.
+   * New auth: worker = "{stratumUsername}.{rigname}", password = anything.
+   * Authentication is based solely on the globally-unique stratumUsername.
    * If no rig with that stratumName exists under the user's account, one is
    * auto-created with approvalStatus=pending so the admin can configure it.
    */
   private async _authorizeByStratumToken(
     msg: JsonRpcMessage,
     workerStr: string,
-    password: string,
+    _password: string,
     firstDotIdx: number,
   ): Promise<void> {
     const stratumUsername = workerStr.slice(0, firstDotIdx).toLowerCase();
@@ -252,9 +253,10 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
 
-    // Look up user by stratumUsername.
+    // Look up user by stratumUsername. Password is not checked —
+    // the unique username is sufficient proof of identity.
     const [user] = await db
-      .select({ id: usersTable.id, stratumToken: usersTable.stratumToken })
+      .select({ id: usersTable.id })
       .from(usersTable)
       .where(eq(usersTable.stratumUsername, stratumUsername));
 
@@ -262,14 +264,6 @@ export class DownstreamSession extends EventEmitter {
       logger.warn({ stratumUsername }, "stratum:downstream new auth: username not found");
       this._recordAuthFailure(null, `Unknown stratum username: ${stratumUsername}`);
       this._reply(msg.id, false, [24, "Unknown username"]);
-      this._close();
-      return;
-    }
-
-    if (!user.stratumToken || password !== user.stratumToken) {
-      logger.warn({ stratumUsername }, "stratum:downstream new auth: bad stratumToken");
-      this._recordAuthFailure(null, "Bad stratumToken");
-      this._reply(msg.id, false, [24, "Bad credentials"]);
       this._close();
       return;
     }

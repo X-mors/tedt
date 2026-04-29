@@ -116,21 +116,6 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /me/stratum-token/reset:
-    post:
-      operationId: resetStratumToken
-      tags: [me]
-      summary: Regenerate the user's Stratum authentication token (invalidates all current rig connections)
-      responses:
-        "200":
-          description: Updated profile with new token
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MeProfile"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-
   # ========================================================================
   # Marketplace browsing
   # ========================================================================
@@ -1354,10 +1339,6 @@ components:
           type: string
           nullable: true
           description: User-chosen Stratum username (prefix in `username.rigname` worker format). Null until set.
-        stratumToken:
-          type: string
-          nullable: true
-          description: Stratum authentication token. Auto-generated on first profile view. Use as the miner password.
       required:
         - id
         - clerkUserId
@@ -1372,7 +1353,6 @@ components:
         - rentalCount
         - createdAt
         - stratumUsername
-        - stratumToken
 
     UpdateMeBody:
       type: object

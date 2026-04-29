@@ -42,12 +42,6 @@ export const GetMeResponse = zod.object({
     .describe(
       "User-chosen Stratum username (prefix in `username.rigname` worker format). Null until set.",
     ),
-  stratumToken: zod
-    .string()
-    .nullable()
-    .describe(
-      "Stratum authentication token. Auto-generated on first profile view. Use as the miner password.",
-    ),
 });
 
 /**
@@ -95,12 +89,6 @@ export const UpdateMeResponse = zod.object({
     .describe(
       "User-chosen Stratum username (prefix in `username.rigname` worker format). Null until set.",
     ),
-  stratumToken: zod
-    .string()
-    .nullable()
-    .describe(
-      "Stratum authentication token. Auto-generated on first profile view. Use as the miner password.",
-    ),
 });
 
 /**
@@ -131,12 +119,6 @@ export const UpgradeToOwnerResponse = zod.object({
     .describe(
       "User-chosen Stratum username (prefix in `username.rigname` worker format). Null until set.",
     ),
-  stratumToken: zod
-    .string()
-    .nullable()
-    .describe(
-      "Stratum authentication token. Auto-generated on first profile view. Use as the miner password.",
-    ),
 });
 
 /**
@@ -166,48 +148,6 @@ export const SyncMeResponse = zod.object({
     .nullable()
     .describe(
       "User-chosen Stratum username (prefix in `username.rigname` worker format). Null until set.",
-    ),
-  stratumToken: zod
-    .string()
-    .nullable()
-    .describe(
-      "Stratum authentication token. Auto-generated on first profile view. Use as the miner password.",
-    ),
-});
-
-/**
- * @summary Regenerate the user's Stratum authentication token (invalidates all current rig connections)
- */
-export const ResetStratumTokenResponse = zod.object({
-  id: zod.number(),
-  clerkUserId: zod.string(),
-  email: zod.string(),
-  displayName: zod.string(),
-  role: zod
-    .enum(["admin", "owner", "renter"])
-    .describe("A user can act as renter or owner; admin is the site operator."),
-  balanceUsd: zod.number().describe("Current internal balance in USD"),
-  totalDepositedUsd: zod.number(),
-  totalEarnedUsd: zod.number().describe("Lifetime earnings as a rig owner"),
-  totalSpentUsd: zod.number().describe("Lifetime spend as a renter"),
-  rigCount: zod
-    .number()
-    .describe(
-      "Number of rigs the user owns (used by the UI to show the lessor nav)",
-    ),
-  rentalCount: zod.number().describe("Number of rentals the user has placed"),
-  createdAt: zod.coerce.date(),
-  stratumUsername: zod
-    .string()
-    .nullable()
-    .describe(
-      "User-chosen Stratum username (prefix in `username.rigname` worker format). Null until set.",
-    ),
-  stratumToken: zod
-    .string()
-    .nullable()
-    .describe(
-      "Stratum authentication token. Auto-generated on first profile view. Use as the miner password.",
     ),
 });
 
