@@ -182,7 +182,7 @@ router.get("/rigs/:id", async (req, res) => {
   const data = GetRigResponse.parse({
     id: row.id,
     name: row.name,
-    description: row.description,
+    description: row.description ?? "",
     ownerId: row.ownerId,
     ownerDisplayName: row.ownerDisplayName,
     algorithmId: row.algorithmId,
@@ -208,6 +208,10 @@ router.get("/rigs/:id", async (req, res) => {
     ownerPassword: null,
     isOnline: row.isOnline,
     hasFallbackPool: false,
+    fallbackPoolHost: null,
+    fallbackPoolPort: null,
+    fallbackPoolUser: null,
+    fallbackPoolPassword: null,
     stratumName: null,
     createdAt: row.createdAt.toISOString(),
   });

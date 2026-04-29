@@ -157,7 +157,7 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
   return {
     id: row.id,
     name: row.name,
-    description: row.description,
+    description: row.description ?? "",
     ownerId: row.ownerId,
     ownerDisplayName: row.ownerDisplayName,
     algorithmId: row.algorithmId,
