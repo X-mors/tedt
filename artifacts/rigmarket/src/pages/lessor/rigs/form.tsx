@@ -7,6 +7,7 @@ import {
   useListAlgorithms,
   useGetMe,
   useUpdateMe,
+  useTestPoolConnection,
   getListMyRigsQueryKey,
   getGetMyRigQueryKey,
   getGetRigQueryKey,
@@ -46,6 +47,13 @@ export default function RigForm() {
 
   const createRig = useCreateRig();
   const updateRig = useUpdateMyRig();
+  const testPool = useTestPoolConnection();
+  const [poolTestResult, setPoolTestResult] = useState<{
+    success: boolean;
+    authFailed: boolean;
+    message: string;
+    latencyMs: number | null;
+  } | null>(null);
 
   const [stratumUsernameInput, setStratumUsernameInput] = useState("");
   const [editingStratumUsername, setEditingStratumUsername] = useState(false);
@@ -167,6 +175,30 @@ export default function RigForm() {
       return;
     }
     updateMe.mutate({ data: { stratumUsername: slug } });
+  };
+
+  const handleTestFallbackPool = () => {
+    const host = formData.fallbackPoolHost.trim();
+    const port = formData.fallbackPoolPort.trim();
+    const worker = formData.fallbackPoolUser.trim();
+    if (!host || !port || !worker) {
+      toast({ title: "Fill in pool host, port, and worker first", variant: "destructive" });
+      return;
+    }
+    setPoolTestResult(null);
+    testPool.mutate(
+      {
+        data: {
+          poolUrl: `stratum+tcp://${host}:${port}`,
+          poolWorker: worker,
+          poolPassword: formData.fallbackPoolPassword || "x",
+        },
+      },
+      {
+        onSuccess: (result) => setPoolTestResult(result),
+        onError: (err) => setPoolTestResult({ success: false, authFailed: false, message: err.message, latencyMs: null }),
+      },
+    );
   };
 
   const copyToClipboard = (text: string, label: string) => {
@@ -494,7 +526,7 @@ export default function RigForm() {
                   className="bg-background font-mono text-sm"
                   placeholder="your_wallet.worker1"
                   value={formData.fallbackPoolUser}
-                  onChange={e => set("fallbackPoolUser", e.target.value)}
+                  onChange={e => { set("fallbackPoolUser", e.target.value); setPoolTestResult(null); }}
                 />
               </div>
               <div className="space-y-2">
@@ -504,9 +536,40 @@ export default function RigForm() {
                   className="bg-background font-mono text-sm"
                   placeholder="x"
                   value={formData.fallbackPoolPassword}
-                  onChange={e => set("fallbackPoolPassword", e.target.value)}
+                  onChange={e => { set("fallbackPoolPassword", e.target.value); setPoolTestResult(null); }}
                 />
               </div>
+            </div>
+
+            {/* Test connection button + result */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="font-mono text-xs gap-2"
+                onClick={handleTestFallbackPool}
+                disabled={testPool.isPending}
+              >
+                {testPool.isPending
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Testing...</>
+                  : <><Waves className="w-3.5 h-3.5" /> Test Connection</>
+                }
+              </Button>
+
+              {poolTestResult && (
+                <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-md border ${
+                  poolTestResult.success
+                    ? "text-green-600 dark:text-green-400 bg-green-500/10 border-green-500/20"
+                    : "text-red-500 bg-red-500/10 border-red-500/20"
+                }`}>
+                  {poolTestResult.success
+                    ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    : <XCircle className="w-3.5 h-3.5 shrink-0" />
+                  }
+                  <span>{poolTestResult.message}</span>
+                </div>
+              )}
             </div>
           </CardContent>
           <CardFooter className="flex justify-end gap-2 border-t border-border/50 pt-4">

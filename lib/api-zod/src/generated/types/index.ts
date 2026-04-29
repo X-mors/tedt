@@ -54,6 +54,8 @@ export * from "./meProfile";
 export * from "./notFoundResponse";
 export * from "./nowpaymentsWebhook200";
 export * from "./ownerDashboardSummary";
+export * from "./poolTestBody";
+export * from "./poolTestResult";
 export * from "./proxyConnectedRig";
 export * from "./proxyStatus";
 export * from "./rejectWithdrawalBody";

@@ -1114,6 +1114,39 @@ export const GetMyWalletResponse = zod.object({
 });
 
 /**
+ * @summary Test a Stratum pool connection — opens a real mining.subscribe + mining.authorize handshake
+ */
+export const TestPoolConnectionBody = zod.object({
+  poolUrl: zod
+    .string()
+    .describe("Stratum URL e.g. stratum+tcp:\/\/pool.example.com:3333"),
+  poolWorker: zod
+    .string()
+    .describe("Worker \/ username as required by the pool"),
+  poolPassword: zod.string().optional().describe("Pool password (often 'x')"),
+});
+
+export const TestPoolConnectionResponse = zod
+  .object({
+    success: zod
+      .boolean()
+      .describe("True if mining.authorize was accepted by the pool"),
+    authFailed: zod
+      .boolean()
+      .describe(
+        "True if the pool specifically rejected the credentials (mining.authorize returned false)",
+      ),
+    latencyMs: zod
+      .number()
+      .nullable()
+      .describe(
+        "Round-trip time to complete the full handshake in milliseconds, null if connection failed",
+      ),
+    message: zod.string().describe("Human-readable result message"),
+  })
+  .describe("Result of a live pool connection test");
+
+/**
  * @summary Check NOWPayments processor health (no auth required)
  */
 export const GetProcessorStatusResponse = zod.object({

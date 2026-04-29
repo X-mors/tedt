@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
-import { useGetRig, useCreateRentalQuote, useCreateRental, useGetMe } from "@workspace/api-client-react";
+import { useGetRig, useCreateRentalQuote, useCreateRental, useGetMe, useTestPoolConnection } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { formatHashrate, formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
-import { Server, Activity, Clock, ShieldAlert, WifiOff, AlertTriangle } from "lucide-react";
+import { Server, Activity, Clock, ShieldAlert, WifiOff, AlertTriangle, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 export default function NewRental() {
@@ -27,6 +27,13 @@ export default function NewRental() {
 
   const createQuote = useCreateRentalQuote();
   const createRental = useCreateRental();
+  const testPool = useTestPoolConnection();
+  const [poolTestResult, setPoolTestResult] = useState<{
+    success: boolean;
+    authFailed: boolean;
+    message: string;
+    latencyMs: number | null;
+  } | null>(null);
 
   useEffect(() => {
     if (rig) {
@@ -43,6 +50,21 @@ export default function NewRental() {
     }
     return undefined;
   }, [rigId, hours, rig?.minRentalHours]);
+
+  const handleTestPool = () => {
+    if (!poolUrl || !poolWorker) {
+      toast({ title: "Enter pool URL and worker first", variant: "destructive" });
+      return;
+    }
+    setPoolTestResult(null);
+    testPool.mutate(
+      { data: { poolUrl, poolWorker, poolPassword: poolPassword || "x" } },
+      {
+        onSuccess: (result) => setPoolTestResult(result),
+        onError: (err) => setPoolTestResult({ success: false, authFailed: false, message: err.message, latencyMs: null }),
+      },
+    );
+  };
 
   const handleDeploy = () => {
     if (!poolUrl || !poolWorker) {
@@ -166,8 +188,38 @@ export default function NewRental() {
                   placeholder="x"
                   className="font-mono text-sm bg-background"
                   value={poolPassword}
-                  onChange={(e) => setPoolPassword(e.target.value)}
+                  onChange={(e) => { setPoolPassword(e.target.value); setPoolTestResult(null); }}
                 />
+              </div>
+
+              {/* Test connection */}
+              <div className="flex items-center gap-3 flex-wrap pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="font-mono text-xs gap-2"
+                  onClick={handleTestPool}
+                  disabled={testPool.isPending}
+                >
+                  {testPool.isPending
+                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Testing...</>
+                    : <><Activity className="w-3.5 h-3.5" /> Test Pool Connection</>
+                  }
+                </Button>
+                {poolTestResult && (
+                  <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-md border ${
+                    poolTestResult.success
+                      ? "text-green-600 dark:text-green-400 bg-green-500/10 border-green-500/20"
+                      : "text-red-500 bg-red-500/10 border-red-500/20"
+                  }`}>
+                    {poolTestResult.success
+                      ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      : <XCircle className="w-3.5 h-3.5 shrink-0" />
+                    }
+                    <span>{poolTestResult.message}</span>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

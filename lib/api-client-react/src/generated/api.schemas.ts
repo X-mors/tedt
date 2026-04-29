@@ -455,6 +455,32 @@ export interface RentalLive {
   secondsRemaining: number;
 }
 
+export interface PoolTestBody {
+  /** Stratum URL e.g. stratum+tcp://pool.example.com:3333 */
+  poolUrl: string;
+  /** Worker / username as required by the pool */
+  poolWorker: string;
+  /** Pool password (often 'x') */
+  poolPassword?: string;
+}
+
+/**
+ * Result of a live pool connection test
+ */
+export interface PoolTestResult {
+  /** True if mining.authorize was accepted by the pool */
+  success: boolean;
+  /** True if the pool specifically rejected the credentials (mining.authorize returned false) */
+  authFailed: boolean;
+  /**
+   * Round-trip time to complete the full handshake in milliseconds, null if connection failed
+   * @nullable
+   */
+  latencyMs: number | null;
+  /** Human-readable result message */
+  message: string;
+}
+
 export interface Review {
   id: number;
   rigId: number;

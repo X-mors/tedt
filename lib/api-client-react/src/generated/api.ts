@@ -53,6 +53,8 @@ import type {
   NotFoundResponse,
   NowpaymentsWebhook200,
   OwnerDashboardSummary,
+  PoolTestBody,
+  PoolTestResult,
   ProxyStatus,
   RejectWithdrawalBody,
   RentalDetail,
@@ -2317,6 +2319,94 @@ export function useGetMyWallet<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Test a Stratum pool connection — opens a real mining.subscribe + mining.authorize handshake
+ */
+export const getTestPoolConnectionUrl = () => {
+  return `/api/pool/test`;
+};
+
+export const testPoolConnection = async (
+  poolTestBody: PoolTestBody,
+  options?: RequestInit,
+): Promise<PoolTestResult> => {
+  return customFetch<PoolTestResult>(getTestPoolConnectionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(poolTestBody),
+  });
+};
+
+export const getTestPoolConnectionMutationOptions = <
+  TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof testPoolConnection>>,
+    TError,
+    { data: BodyType<PoolTestBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof testPoolConnection>>,
+  TError,
+  { data: BodyType<PoolTestBody> },
+  TContext
+> => {
+  const mutationKey = ["testPoolConnection"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof testPoolConnection>>,
+    { data: BodyType<PoolTestBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return testPoolConnection(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TestPoolConnectionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof testPoolConnection>>
+>;
+export type TestPoolConnectionMutationBody = BodyType<PoolTestBody>;
+export type TestPoolConnectionMutationError = ErrorType<
+  BadRequestResponse | UnauthorizedResponse
+>;
+
+/**
+ * @summary Test a Stratum pool connection — opens a real mining.subscribe + mining.authorize handshake
+ */
+export const useTestPoolConnection = <
+  TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof testPoolConnection>>,
+    TError,
+    { data: BodyType<PoolTestBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof testPoolConnection>>,
+  TError,
+  { data: BodyType<PoolTestBody> },
+  TContext
+> => {
+  return useMutation(getTestPoolConnectionMutationOptions(options));
+};
 
 /**
  * @summary Check NOWPayments processor health (no auth required)

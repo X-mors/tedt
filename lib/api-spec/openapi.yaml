@@ -555,6 +555,31 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /pool/test:
+    post:
+      operationId: testPoolConnection
+      tags: [pool]
+      summary: Test a Stratum pool connection — opens a real mining.subscribe + mining.authorize handshake
+      security:
+        - clerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PoolTestBody"
+      responses:
+        "200":
+          description: Test result (check the success field)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PoolTestResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /wallet/processor-status:
     get:
       operationId: getProcessorStatus
@@ -2132,6 +2157,44 @@ components:
         - lastShareAt
         - deliveryRatio
         - secondsRemaining
+
+    PoolTestBody:
+      type: object
+      properties:
+        poolUrl:
+          type: string
+          description: "Stratum URL e.g. stratum+tcp://pool.example.com:3333"
+        poolWorker:
+          type: string
+          description: "Worker / username as required by the pool"
+        poolPassword:
+          type: string
+          description: "Pool password (often 'x')"
+      required:
+        - poolUrl
+        - poolWorker
+
+    PoolTestResult:
+      type: object
+      description: Result of a live pool connection test
+      properties:
+        success:
+          type: boolean
+          description: True if mining.authorize was accepted by the pool
+        authFailed:
+          type: boolean
+          description: True if the pool specifically rejected the credentials (mining.authorize returned false)
+        latencyMs:
+          type: ["integer", "null"]
+          description: Round-trip time to complete the full handshake in milliseconds, null if connection failed
+        message:
+          type: string
+          description: Human-readable result message
+      required:
+        - success
+        - authFailed
+        - latencyMs
+        - message
 
     Review:
       type: object
