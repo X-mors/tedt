@@ -6,8 +6,8 @@ import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, Filter, Server, Activity, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Search, Server, Activity, Zap } from "lucide-react";
 
 export default function Marketplace() {
   const [search, setSearch] = useState("");
@@ -23,6 +23,10 @@ export default function Marketplace() {
     sort,
   });
 
+  const available = rigs?.filter(r => r.status === "available") ?? [];
+  const rented = rigs?.filter(r => r.status === "rented") ?? [];
+  const online = rigs?.filter(r => r.isOnline) ?? [];
+
   return (
     <div className="container py-8 px-4 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -35,6 +39,37 @@ export default function Marketplace() {
         </Link>
       </div>
 
+      {/* Market stats strip */}
+      {!isLoading && rigs && rigs.length > 0 && (
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-card/50 border border-border/50 rounded-lg p-3 flex items-center gap-3">
+            <Zap className="w-4 h-4 text-primary flex-shrink-0" />
+            <div>
+              <div className="font-mono font-bold text-lg">{available.length}</div>
+              <div className="text-xs text-muted-foreground uppercase">Available Rigs</div>
+            </div>
+          </div>
+          <div className="bg-card/50 border border-border/50 rounded-lg p-3 flex items-center gap-3">
+            <Activity className="w-4 h-4 text-secondary-foreground flex-shrink-0" />
+            <div>
+              <div className="font-mono font-bold text-lg">{rented.length}</div>
+              <div className="text-xs text-muted-foreground uppercase">Currently Rented</div>
+            </div>
+          </div>
+          <div className="bg-card/50 border border-border/50 rounded-lg p-3 flex items-center gap-3">
+            <span className="relative flex h-2 w-2 flex-shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+            </span>
+            <div>
+              <div className="font-mono font-bold text-lg text-green-500">{online.length}</div>
+              <div className="text-xs text-muted-foreground uppercase">Online Now</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filters */}
       <Card className="bg-card/50 border-border/50">
         <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center">
           <div className="relative flex-1 w-full">
@@ -46,7 +81,7 @@ export default function Marketplace() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          
+
           <Select value={algorithmId?.toString() || "all"} onValueChange={(v) => setAlgorithmId(v === "all" ? undefined : parseInt(v))}>
             <SelectTrigger className="w-full md:w-[200px] font-mono text-sm bg-background">
               <SelectValue placeholder="Algorithm" />
@@ -88,10 +123,10 @@ export default function Marketplace() {
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {[1,2,3,4,5,6,7,8].map(i => (
+          {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
             <Card key={i} className="animate-pulse bg-muted/20">
-              <CardHeader className="h-24"></CardHeader>
-              <CardContent className="h-20"></CardContent>
+              <CardHeader className="h-24" />
+              <CardContent className="h-20" />
             </Card>
           ))}
         </div>
@@ -113,13 +148,24 @@ export default function Marketplace() {
               <Card className="group hover:border-primary/50 transition-all cursor-pointer h-full flex flex-col bg-card/40 hover:bg-card/80">
                 <CardHeader className="pb-3 flex-none">
                   <div className="flex justify-between items-start mb-2">
-                    <Badge variant={rig.status === 'available' ? 'default' : rig.status === 'rented' ? 'secondary' : 'destructive'} 
-                           className={`font-mono text-[10px] uppercase ${rig.status === 'available' ? 'bg-primary/20 text-primary border-primary/30 hover:bg-primary/30' : ''}`}>
-                      {rig.status}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant={rig.status === "available" ? "default" : rig.status === "rented" ? "secondary" : "destructive"}
+                        className={`font-mono text-[10px] uppercase ${rig.status === "available" ? "bg-primary/20 text-primary border-primary/30 hover:bg-primary/30" : ""}`}
+                      >
+                        {rig.status}
+                      </Badge>
+                      {rig.isOnline && (
+                        <span title="Miner is online" className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                        </span>
+                      )}
+                    </div>
                     {rig.averageRating && (
-                      <span className="text-xs text-yellow-500 flex items-center font-mono">
-                        ★ {rig.averageRating.toFixed(1)} ({rig.reviewCount})
+                      <span className="text-xs text-yellow-500 flex items-center font-mono gap-0.5">
+                        ★ {rig.averageRating.toFixed(1)}
+                        <span className="text-muted-foreground">({rig.reviewCount})</span>
                       </span>
                     )}
                   </div>
@@ -140,7 +186,7 @@ export default function Marketplace() {
                     </div>
                   </div>
                   <div className="flex justify-between items-end pt-2">
-                     <div className="flex flex-col">
+                    <div className="flex flex-col">
                       <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Min/Max</span>
                       <span className="text-sm font-mono text-muted-foreground">{rig.minRentalHours}h - {rig.maxRentalHours}h</span>
                     </div>
