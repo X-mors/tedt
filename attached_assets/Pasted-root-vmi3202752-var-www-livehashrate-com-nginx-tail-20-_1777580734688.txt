@@ -1,0 +1,70 @@
+root@vmi3202752:/var/www/livehashrate.com# # شوف لوج nginx
+tail -20 /var/log/nginx/error.log
+# تأكد ملفات البيلد موجودة
+ls /var/www/livehashrate.com/artifacts/rigmarket/dist/public/
+2026/04/30 14:43:44 [error] 1807334#1807334: *549 no live upstreams while connecting to upstream, client
+: 66.249.77.6, server: livehashrate.com, request: "GET /api/marketplace/summary HTTP/1.1", upstream: "ht
+tp://localhost/api/marketplace/summary", host: "livehashrate.com", referrer: "http://livehashrate.com/"
+2026/04/30 14:46:09 [error] 1808973#1808973: *657 connect() failed (111: Connection refused) while conne
+cting to upstream, client: 75.119.159.169, server: livehashrate.com, request: "GET /api/rigs HTTP/1.1",
+upstream: "http://[::1]:3000/api/rigs", host: "livehashrate.com"
+2026/04/30 14:46:09 [error] 1808973#1808973: *657 connect() failed (111: Connection refused) while conne
+cting to upstream, client: 75.119.159.169, server: livehashrate.com, request: "GET /api/rigs HTTP/1.1",
+upstream: "http://127.0.0.1:3000/api/rigs", host: "livehashrate.com"
+2026/04/30 14:46:27 [error] 1808987#1808987: *671 connect() failed (111: Connection refused) while conne
+cting to upstream, client: 75.119.159.169, server: livehashrate.com, request: "GET /api/rigs HTTP/1.1",
+upstream: "http://[::1]:3000/api/rigs", host: "livehashrate.com"
+2026/04/30 14:46:27 [error] 1808987#1808987: *671 connect() failed (111: Connection refused) while conne
+cting to upstream, client: 75.119.159.169, server: livehashrate.com, request: "GET /api/rigs HTTP/1.1",
+upstream: "http://127.0.0.1:3000/api/rigs", host: "livehashrate.com"
+2026/04/30 14:47:43 [error] 1809020#1809020: *715 connect() failed (111: Connection refused) while conne
+cting to upstream, client: 205.169.39.17, server: livehashrate.com, request: "GET /api/marketplace/summa
+ry HTTP/1.1", upstream: "http://[::1]:3000/api/marketplace/summary", host: "livehashrate.com", referrer:
+ "https://livehashrate.com/"
+2026/04/30 14:47:43 [error] 1809020#1809020: *715 connect() failed (111: Connection refused) while conne
+cting to upstream, client: 205.169.39.17, server: livehashrate.com, request: "GET /api/marketplace/summa
+ry HTTP/1.1", upstream: "http://127.0.0.1:3000/api/marketplace/summary", host: "livehashrate.com", refer
+rer: "https://livehashrate.com/"
+2026/04/30 14:47:43 [error] 1809020#1809020: *716 no live upstreams while connecting to upstream, client
+: 34.123.170.104, server: livehashrate.com, request: "GET /api/marketplace/summary HTTP/1.1", upstream:
+"http://localhost/api/marketplace/summary", host: "livehashrate.com", referrer: "https://livehashrate.co
+m/"
+2026/04/30 14:48:04 [error] 1809019#1809019: *762 connect() failed (111: Connection refused) while conne
+cting to upstream, client: 157.245.113.227, server: livehashrate.com, request: "POST /api/graphql HTTP/1
+.1", upstream: "http://[::1]:3000/api/graphql", host: "livehashrate.com"
+2026/04/30 14:48:04 [error] 1809019#1809019: *762 connect() failed (111: Connection refused) while conne
+cting to upstream, client: 157.245.113.227, server: livehashrate.com, request: "POST /api/graphql HTTP/1
+.1", upstream: "http://127.0.0.1:3000/api/graphql", host: "livehashrate.com"
+2026/04/30 14:48:05 [error] 1809017#1809017: *769 connect() failed (111: Connection refused) while conne
+cting to upstream, client: 157.245.113.227, server: livehashrate.com, request: "POST /api/gql HTTP/1.1",
+ upstream: "http://[::1]:3000/api/gql", host: "livehashrate.com"
+2026/04/30 14:48:05 [error] 1809017#1809017: *769 connect() failed (111: Connection refused) while conne
+cting to upstream, client: 157.245.113.227, server: livehashrate.com, request: "POST /api/gql HTTP/1.1",
+ upstream: "http://127.0.0.1:3000/api/gql", host: "livehashrate.com"
+2026/04/30 14:48:07 [error] 1809017#1809017: *779 no live upstreams while connecting to upstream, client
+: 206.189.2.13, server: livehashrate.com, request: "POST /api/graphql HTTP/1.1", upstream: "http://local
+host/api/graphql", host: "www.livehashrate.com"
+2026/04/30 14:48:08 [error] 1809017#1809017: *782 no live upstreams while connecting to upstream, client
+: 206.189.2.13, server: livehashrate.com, request: "POST /api/gql HTTP/1.1", upstream: "http://localhost
+/api/gql", host: "www.livehashrate.com"
+2026/04/30 14:48:22 [error] 1809019#1809019: *864 connect() failed (111: Connection refused) while conne
+cting to upstream, client: 157.245.113.227, server: livehashrate.com, request: "GET /api/swagger.json HT
+TP/1.1", upstream: "http://127.0.0.1:3000/api/swagger.json", host: "livehashrate.com"
+2026/04/30 14:48:22 [error] 1809019#1809019: *864 connect() failed (111: Connection refused) while conne
+cting to upstream, client: 157.245.113.227, server: livehashrate.com, request: "GET /api/swagger.json HT
+TP/1.1", upstream: "http://[::1]:3000/api/swagger.json", host: "livehashrate.com"
+2026/04/30 14:48:23 [error] 1809019#1809019: *852 no live upstreams while connecting to upstream, client
+: 54.234.242.234, server: livehashrate.com, request: "GET /api/marketplace/summary HTTP/1.1", upstream:
+"http://localhost/api/marketplace/summary", host: "livehashrate.com", referrer: "https://livehashrate.co
+m/"
+2026/04/30 14:48:23 [error] 1809019#1809019: *854 no live upstreams while connecting to upstream, client
+: 3.83.24.146, server: livehashrate.com, request: "GET /api/marketplace/summary HTTP/1.1", upstream: "ht
+tp://localhost/api/marketplace/summary", host: "livehashrate.com", referrer: "https://livehashrate.com/"
+2026/04/30 14:48:25 [error] 1809017#1809017: *878 connect() failed (111: Connection refused) while conne
+cting to upstream, client: 206.189.2.13, server: livehashrate.com, request: "GET /api/swagger.json HTTP/
+1.1", upstream: "http://127.0.0.1:3000/api/swagger.json", host: "www.livehashrate.com"
+2026/04/30 14:48:25 [error] 1809017#1809017: *878 connect() failed (111: Connection refused) while conne
+cting to upstream, client: 206.189.2.13, server: livehashrate.com, request: "GET /api/swagger.json HTTP/
+1.1", upstream: "http://[::1]:3000/api/swagger.json", host: "www.livehashrate.com"
+assets  favicon.svg  index.html  logo.svg  opengraph.jpg
+root@vmi3202752:/var/www/livehashrate.com#
