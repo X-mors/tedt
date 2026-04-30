@@ -1,0 +1,13 @@
+/root/.pm2/logs/tedt-api-error.log last 10 lines:
+0|tedt-api | npm/@clerk+shared@4.8.5_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/@clerk/shared/src/keys.ts:130:13)
+0|tedt-api |     at assertValidPublishableKey (/var/www/livehashrate.com/node_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/@clerk/backend/src/util/optionsAssertions.ts:12:3)
+0|tedt-api |     at AuthenticateContext.initPublishableKeyValues (/var/www/livehashrate.com/node_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/@clerk/backend/src/tokens/authenticateContext.ts:256:5)
+0|tedt-api |     at new AuthenticateContext (/var/www/livehashrate.com/node_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/@clerk/backend/src/tokens/authenticateContext.ts:80:12)
+0|tedt-api |     at createAuthenticateContext (/var/www/livehashrate.com/node_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/@clerk/backend/src/tokens/authenticateContext.ts:396:10)
+0|tedt-api |     at authenticateRequest (/var/www/livehashrate.com/node_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/@clerk/backend/src/tokens/request.ts:151:37)0|tedt-api |     at Proxy.authenticateRequest22 (/var/www/livehashrate.com/node_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/@clerk/backend/src/tokens/factory.ts:55:12)
+0|tedt-api |     at authenticateRequest (/var/www/livehashrate.com/node_modules/.pnpm/@clerk+express@2.1.9_express@5.2.1_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/@clerk/express/src/authenticateRequest.ts:52:22)
+0|tedt-api |     at middleware (/var/www/livehashrate.com/node_modules/.pnpm/@clerk+express@2.1.9_express@5.2.1_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/@clerk/express/src/authenticateRequest.ts:183:34)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/@clerk+express@2.1.9_express@5.2.1_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/@clerk/express/src/clerkMiddleware.ts:40:7)
+0|tedt-api  | {"level":30,"time":1777554207329,"pid":1810395,"hostname":"vmi3202752","msg":"Starting deposit worker"}
+0|tedt-api  | {"level":30,"time":1777554207336,"pid":1810395,"hostname":"vmi3202752","port":3000,"msg":"Server listening"}
+0|tedt-api  | {"level":30,"time":1777554207336,"pid":1810395,"hostname":"vmi3202752","port":3333,"msg":"stratum:server listening"}

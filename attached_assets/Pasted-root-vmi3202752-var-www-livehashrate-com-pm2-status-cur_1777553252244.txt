@@ -1,0 +1,43 @@
+root@vmi3202752:/var/www/livehashrate.com# pm2 status
+curl http://localhost:3000/api/rigs
+pm2 logs tedt-api --lines 30
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ rigmarket-api      │ fork     │ 15   │ errored   │ 0%       │ 0b       │
+│ 1  │ tedt-api           │ fork     │ 15   │ errored   │ 0%       │ 0b       │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+curl: (7) Failed to connect to localhost port 3000 after 0 ms: Couldn't connect to server
+[TAILING] Tailing last 30 lines for [tedt-api] process (change the value with --lines option)
+/root/.pm2/logs/tedt-api-out.log last 30 lines:
+/root/.pm2/logs/tedt-api-error.log last 30 lines:
+1|tedt-api |     at ModuleJob.run (node:internal/modules/esm/module_job:437:25)
+1|tedt-api |     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+1|tedt-api |     at async node:internal/modules/esm/loader:639:26
+1|tedt-api |     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+1|tedt-api |
+1|tedt-api | Node.js v24.15.0
+1|tedt-api | /var/www/livehashrate.com/lib/db/src/index.ts:8
+1|tedt-api |   throw new Error(
+1|tedt-api |         ^
+1|tedt-api |
+1|tedt-api | Error: DATABASE_URL must be set. Did you forget to provision a database?
+1|tedt-api |     at <anonymous> (/var/www/livehashrate.com/lib/db/src/index.ts:8:9)
+1|tedt-api |     at ModuleJob.run (node:internal/modules/esm/module_job:437:25)
+1|tedt-api |     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+1|tedt-api |     at async node:internal/modules/esm/loader:639:26
+1|tedt-api |     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+1|tedt-api |
+1|tedt-api | Node.js v24.15.0
+1|tedt-api | /var/www/livehashrate.com/lib/db/src/index.ts:8
+1|tedt-api |   throw new Error(
+1|tedt-api |         ^
+1|tedt-api |
+1|tedt-api | Error: DATABASE_URL must be set. Did you forget to provision a database?
+1|tedt-api |     at <anonymous> (/var/www/livehashrate.com/lib/db/src/index.ts:8:9)
+1|tedt-api |     at ModuleJob.run (node:internal/modules/esm/module_job:437:25)
+1|tedt-api |     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+1|tedt-api |     at async node:internal/modules/esm/loader:639:26
+1|tedt-api |     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+1|tedt-api |
+1|tedt-api | Node.js v24.15.0

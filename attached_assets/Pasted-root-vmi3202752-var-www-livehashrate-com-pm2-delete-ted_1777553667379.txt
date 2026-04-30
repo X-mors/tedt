@@ -1,0 +1,57 @@
+root@vmi3202752:/var/www/livehashrate.com# pm2 delete tedt-api
+pm2 delete rigmarket-api
+pm2 start /var/www/livehashrate.com/ecosystem.config.cjs
+pm2 logs tedt-api --lines 20
+[PM2] Applying action deleteProcessId on app [tedt-api](ids: [ 1 ])
+[PM2] [tedt-api](1) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ rigmarket-api      │ fork     │ 15   │ errored   │ 0%       │ 0b       │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+[PM2] Applying action deleteProcessId on app [rigmarket-api](ids: [ 0 ])
+[PM2] [rigmarket-api](0) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+[PM2][WARN] Applications tedt-api not running, starting...
+[PM2] App [tedt-api] launched (1 instances)
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ tedt-api           │ fork     │ 0    │ online    │ 0%       │ 25.0mb   │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+[TAILING] Tailing last 20 lines for [tedt-api] process (change the value with --lines option)
+/root/.pm2/logs/tedt-api-out.log last 20 lines:
+/root/.pm2/logs/tedt-api-error.log last 20 lines:
+0|tedt-api | Error: DATABASE_URL must be set. Did you forget to provision a database?
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/lib/db/src/index.ts:8:9)
+0|tedt-api |     at ModuleJob.run (node:internal/modules/esm/module_job:437:25)
+0|tedt-api |     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+0|tedt-api |     at async node:internal/modules/esm/loader:639:26
+0|tedt-api |     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+0|tedt-api |
+0|tedt-api | Node.js v24.15.0
+0|tedt-api | /var/www/livehashrate.com/lib/db/src/index.ts:8
+0|tedt-api |   throw new Error(
+0|tedt-api |         ^
+0|tedt-api |
+0|tedt-api | Error: DATABASE_URL must be set. Did you forget to provision a database?
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/lib/db/src/index.ts:8:9)
+0|tedt-api |     at ModuleJob.run (node:internal/modules/esm/module_job:437:25)
+0|tedt-api |     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+0|tedt-api |     at async node:internal/modules/esm/loader:639:26
+0|tedt-api |     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+0|tedt-api |
+0|tedt-api | Node.js v24.15.0
+0|tedt-api  | {"level":30,"time":1777553563761,"pid":1809517,"hostname":"vmi3202752","msg":"Seeding default algorithms"}
+0|tedt-api  | {"level":30,"time":1777553563776,"pid":1809517,"hostname":"vmi3202752","msg":"Seeding default commission config (3% renter / 5% owner)"}
+0|tedt-api  | {"level":30,"time":1777553563782,"pid":1809517,"hostname":"vmi3202752","msg":"Seeding demo users and rigs"}
+0|tedt-api  | {"level":30,"time":1777553563804,"pid":1809517,"hostname":"vmi3202752","count":5,"msg":"backfill: assigning proxyToken to existing rigs"}
+0|tedt-api  | {"level":30,"time":1777553563838,"pid":1809517,"hostname":"vmi3202752","count":5,"msg":"backfill: proxyToken assignment complete"}
+0|tedt-api  | {"level":30,"time":1777553563839,"pid":1809517,"hostname":"vmi3202752","msg":"Starting deposit worker"}
+0|tedt-api  | {"level":30,"time":1777553563841,"pid":1809517,"hostname":"vmi3202752","port":3000,"msg":"Server listening"}
+0|tedt-api  | {"level":30,"time":1777553563841,"pid":1809517,"hostname":"vmi3202752","port":3333,"msg":"stratum:server listening"}
+^C
+root@vmi3202752:/var/www/livehashrate.com# nano /var/www/livehashrate.com/ecosystem.config.cjs
+root@vmi3202752:/var/www/livehashrate.com#

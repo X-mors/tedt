@@ -1,0 +1,107 @@
+ode_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__reac
+t@19.1.0/node_modules/@clerk/backend/src/util/optionsAssertions.ts:12:3)
+0|tedt-api |     at AuthenticateContext.initPublishableKeyValues (/var/www
+/livehashrate.com/node_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0
+_react@19.1.0__react@19.1.0/node_modules/@clerk/backend/src/tokens/authent
+icateContext.ts:256:5)
+0|tedt-api |     at new AuthenticateContext (/var/www/livehashrate.com/nod
+e_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__react@
+19.1.0/node_modules/@clerk/backend/src/tokens/authenticateContext.ts:80:12
+)
+0|tedt-api |     at createAuthenticateContext (/var/www/livehashrate.com/n
+ode_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__reac
+t@19.1.0/node_modules/@clerk/backend/src/tokens/authenticateContext.ts:396
+:10)
+0|tedt-api |     at authenticateRequest (/var/www/livehashrate.com/node_mo
+dules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__react@19.1
+.0/node_modules/@clerk/backend/src/tokens/request.ts:151:37)
+0|tedt-api |     at Proxy.authenticateRequest22 (/var/www/livehashrate.com
+/node_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__re
+act@19.1.0/node_modules/@clerk/backend/src/tokens/factory.ts:55:12)
+0|tedt-api |     at authenticateRequest (/var/www/livehashrate.com/node_mo
+dules/.pnpm/@clerk+express@2.1.9_express@5.2.1_react-dom@19.1.0_react@19.1
+.0__react@19.1.0/node_modules/@clerk/express/src/authenticateRequest.ts:52
+:22)
+0|tedt-api |     at middleware (/var/www/livehashrate.com/node_modules/.pn
+pm/@clerk+express@2.1.9_express@5.2.1_react-dom@19.1.0_react@19.1.0__react
+@19.1.0/node_modules/@clerk/express/src/authenticateRequest.ts:183:34)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.p
+npm/@clerk+express@2.1.9_express@5.2.1_react-dom@19.1.0_react@19.1.0__reac
+t@19.1.0/node_modules/@clerk/express/src/clerkMiddleware.ts:40:7)
+0|tedt-api | Error: Publishable key is missing. Ensure that your publishab
+le key is correctly configured. Double-check your environment configuratio
+n for your keys, or access them here: https://dashboard.clerk.com/last-act
+ive?path=api-keys
+0|tedt-api |     at parsePublishableKey (/var/www/livehashrate.com/node_mo
+dules/.pnpm/@clerk+shared@4.8.5_react-dom@19.1.0_react@19.1.0__react@19.1.
+0/node_modules/@clerk/shared/src/keys.ts:130:13)
+0|tedt-api |     at assertValidPublishableKey (/var/www/livehashrate.com/n
+ode_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__reac
+t@19.1.0/node_modules/@clerk/backend/src/util/optionsAssertions.ts:12:3)
+0|tedt-api |     at AuthenticateContext.initPublishableKeyValues (/var/www
+/livehashrate.com/node_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0
+_react@19.1.0__react@19.1.0/node_modules/@clerk/backend/src/tokens/authent
+icateContext.ts:256:5)
+0|tedt-api |     at new AuthenticateContext (/var/www/livehashrate.com/nod
+e_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__react@
+19.1.0/node_modules/@clerk/backend/src/tokens/authenticateContext.ts:80:12
+)
+0|tedt-api |     at createAuthenticateContext (/var/www/livehashrate.com/n
+ode_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__reac
+t@19.1.0/node_modules/@clerk/backend/src/tokens/authenticateContext.ts:396
+:10)
+0|tedt-api |     at authenticateRequest (/var/www/livehashrate.com/node_mo
+dules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__react@19.1
+.0/node_modules/@clerk/backend/src/tokens/request.ts:151:37)
+0|tedt-api |     at Proxy.authenticateRequest22 (/var/www/livehashrate.com
+/node_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__re
+act@19.1.0/node_modules/@clerk/backend/src/tokens/factory.ts:55:12)
+0|tedt-api |     at authenticateRequest (/var/www/livehashrate.com/node_mo
+dules/.pnpm/@clerk+express@2.1.9_express@5.2.1_react-dom@19.1.0_react@19.1
+.0__react@19.1.0/node_modules/@clerk/express/src/authenticateRequest.ts:52
+:22)
+0|tedt-api |     at middleware (/var/www/livehashrate.com/node_modules/.pn
+pm/@clerk+express@2.1.9_express@5.2.1_react-dom@19.1.0_react@19.1.0__react
+@19.1.0/node_modules/@clerk/express/src/authenticateRequest.ts:183:34)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.p
+npm/@clerk+express@2.1.9_express@5.2.1_react-dom@19.1.0_react@19.1.0__reac
+t@19.1.0/node_modules/@clerk/express/src/clerkMiddleware.ts:40:7)
+0|tedt-api | Error: Publishable key is missing. Ensure that your publishab
+le key is correctly configured. Double-check your environment configuratio
+n for your keys, or access them here: https://dashboard.clerk.com/last-act
+ive?path=api-keys
+0|tedt-api |     at parsePublishableKey (/var/www/livehashrate.com/node_mo
+dules/.pnpm/@clerk+shared@4.8.5_react-dom@19.1.0_react@19.1.0__react@19.1.
+0/node_modules/@clerk/shared/src/keys.ts:130:13)
+0|tedt-api |     at assertValidPublishableKey (/var/www/livehashrate.com/n
+ode_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__reac
+t@19.1.0/node_modules/@clerk/backend/src/util/optionsAssertions.ts:12:3)
+0|tedt-api |     at AuthenticateContext.initPublishableKeyValues (/var/www
+/livehashrate.com/node_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0
+_react@19.1.0__react@19.1.0/node_modules/@clerk/backend/src/tokens/authent
+icateContext.ts:256:5)
+0|tedt-api |     at new AuthenticateContext (/var/www/livehashrate.com/nod
+e_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__react@
+19.1.0/node_modules/@clerk/backend/src/tokens/authenticateContext.ts:80:12
+)
+0|tedt-api |     at createAuthenticateContext (/var/www/livehashrate.com/n
+ode_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__reac
+t@19.1.0/node_modules/@clerk/backend/src/tokens/authenticateContext.ts:396
+:10)
+0|tedt-api |     at authenticateRequest (/var/www/livehashrate.com/node_mo
+dules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__react@19.1
+.0/node_modules/@clerk/backend/src/tokens/request.ts:151:37)
+0|tedt-api |     at Proxy.authenticateRequest22 (/var/www/livehashrate.com
+/node_modules/.pnpm/@clerk+backend@3.4.1_react-dom@19.1.0_react@19.1.0__re
+act@19.1.0/node_modules/@clerk/backend/src/tokens/factory.ts:55:12)
+0|tedt-api |     at authenticateRequest (/var/www/livehashrate.com/node_mo
+dules/.pnpm/@clerk+express@2.1.9_express@5.2.1_react-dom@19.1.0_react@19.1
+.0__react@19.1.0/node_modules/@clerk/express/src/authenticateRequest.ts:52
+:22)
+0|tedt-api |     at middleware (/var/www/livehashrate.com/node_modules/.pn
+pm/@clerk+express@2.1.9_express@5.2.1_react-dom@19.1.0_react@19.1.0__react
+@19.1.0/node_modules/@clerk/express/src/authenticateRequest.ts:183:34)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.p
+npm/@clerk+express@2.1.9_express@5.2.1_react-dom@19.1.0_react@19.1.0__reac
+t@19.1.0/node_modules/@clerk/express/src/clerkMiddleware.ts:40:7)
+root@vmi3202752:/var/www/livehashrate.com#

@@ -1,0 +1,50 @@
+s-enabled/livehashrate.com:12
+nginx: configuration file /etc/nginx/nginx.conf test failed
+The nginx plugin is not working; there may be problems with your existing configuration.
+The error was: MisconfigurationError('Error while running nginx -c /etc/nginx/nginx.conf -t.\n\n2026/04/
+30 15:58:08 [emerg] 1814780#1814780: "location" directive is not allowed here in /etc/nginx/sites-enable
+d/livehashrate.com:12\nnginx: configuration file /etc/nginx/nginx.conf test failed\n')
+root@vmi3202752:/var/www/livehashrate.com# cat /etc/nginx/sites-enabled/livehashrate.com
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name www.livehashrate.com;
+    return 301 https://livehashrate.com$request_uri;
+}
+    # Frontend (static files)
+    root /var/www/livehashrate.com/artifacts/rigmarket/dist/public;
+    index index.html;
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    # API
+    location /api/ {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+    # Stratum WebSocket
+    location /stratum {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/livehashrate.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/livehashrate.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+}
+server {
+    if ($host = www.livehashrate.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+    if ($host = livehashrate.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+    listen 80;
+    server_name livehashrate.com www.livehashrate.com;
+    return 404; # managed by Certbot
+}
+root@vmi3202752:/var/www/livehashrate.com#

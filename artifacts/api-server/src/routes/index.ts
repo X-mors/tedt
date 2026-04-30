@@ -20,10 +20,10 @@ router.use(rigsRouter);
 router.use(meRigsRouter);
 router.use(rentalsRouter);
 router.use(walletRouter);
+router.use(poolTestRouter);
 router.use(adminRouter);
 router.use(dashboardRouter);
 router.use(cryptoWebhookRouter);
-router.use(poolTestRouter);
 
 // Translate Zod validation errors into 400s and other thrown errors into 500s.
 router.use((err: unknown, req: import("express").Request, res: import("express").Response, _next: import("express").NextFunction) => {
