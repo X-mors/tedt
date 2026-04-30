@@ -1,0 +1,65 @@
+root@vmi3202752:/var/www/livehashrate.com# # شوف الـ index.html المبني
+cat /var/www/livehashrate.com/artifacts/rigmarket/dist/public/index.html
+# اختبر الـ API شغال
+curl -s https://livehashrate.com/api/marketplace/summary | head -50
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximu
+m-scale=1" />
+    <title>RigMarket</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;
+700&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="/assets/index-C8XkwtYm.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CM-cQWjO.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+{"availableRigs":7,"activeRentals":0,"totalLessors":3,"totalRenters":1,"algorith
+msOnline":5,"breakdown":[{"algorithmId":1,"algorithmName":"SHA-256","unit":"TH/s
+","rigCount":3,"totalHashrate":416,"averagePricePerUnitPerHour":0.01212},{"algor
+ithmId":4,"algorithmName":"RandomX","unit":"kH/s","rigCount":1,"totalHashrate":3
+20,"averagePricePerUnitPerHour":0.0004545},{"algorithmId":2,"algorithmName":"Scr
+ypt","unit":"GH/s","rigCount":1,"totalHashrate":29,"averagePricePerUnitPerHour":
+0.000808},{"algorithmId":3,"algorithmName":"Ethash","unit":"MH/s","rigCount":1,"
+totalHashrate":2080,"averagePricePerUnitPerHour":0.0001818},{"algorithmId":5,"al
+gorithmName":"kHeavyHash","unit":"GH/s","rigCount":1,"totalHashrate":144,"averag
+ePricePerUnitPerHour":0.001111}],"topRigs":[{"id":2,"name":"RTX 4090 Stack","own
+erId":1,"ownerDisplayName":"Alpha Hashworks","algorithmId":3,"algorithmName":"Et
+hash","algorithmUnit":"MH/s","hashrate":2080,"pricePerUnitPerHour":0.0001818,"mi
+nRentalHours":1,"maxRentalHours":72,"status":"available","approvalStatus":"appro
+ved","averageRating":null,"reviewCount":0,"isOnline":false,"hasFallbackPool":fal
+se,"stratumName":null,"createdAt":"2026-04-30T12:52:43.797Z"},{"id":4,"name":"EP
+YC RandomX Pod","ownerId":2,"ownerDisplayName":"Beta Compute Co","algorithmId":4
+,"algorithmName":"RandomX","algorithmUnit":"kH/s","hashrate":320,"pricePerUnitPe
+rHour":0.0004545,"minRentalHours":1,"maxRentalHours":168,"status":"available","a
+pprovalStatus":"approved","averageRating":null,"reviewCount":0,"isOnline":false,
+"hasFallbackPool":false,"stratumName":null,"createdAt":"2026-04-30T12:52:43.797Z
+"},{"id":1,"name":"Antminer S21 Cluster","ownerId":1,"ownerDisplayName":"Alpha H
+ashworks","algorithmId":1,"algorithmName":"SHA-256","algorithmUnit":"TH/s","hash
+rate":200,"pricePerUnitPerHour":0.01212,"minRentalHours":1,"maxRentalHours":168,
+"status":"available","approvalStatus":"approved","averageRating":null,"reviewCou
+nt":0,"isOnline":false,"hasFallbackPool":false,"stratumName":null,"createdAt":"2
+026-04-30T12:52:43.797Z"},{"id":5,"name":"Kaspa Heatwave 12","ownerId":1,"ownerD
+isplayName":"Alpha Hashworks","algorithmId":5,"algorithmName":"kHeavyHash","algo
+rithmUnit":"GH/s","hashrate":144,"pricePerUnitPerHour":0.001111,"minRentalHours"
+:1,"maxRentalHours":168,"status":"available","approvalStatus":"approved","averag
+eRating":null,"reviewCount":0,"isOnline":false,"hasFallbackPool":false,"stratumN
+ame":null,"createdAt":"2026-04-30T12:52:43.797Z"},{"id":6,"name":"m30","ownerId"
+:3,"ownerDisplayName":"egy","algorithmId":1,"algorithmName":"SHA-256","algorithm
+Unit":"TH/s","hashrate":108,"pricePerUnitPerHour":0.01212,"minRentalHours":1,"ma
+xRentalHours":2400,"status":"available","approvalStatus":"approved","averageRati
+ng":null,"reviewCount":0,"isOnline":false,"hasFallbackPool":false,"stratumName":
+null,"createdAt":"2026-04-30T18:18:52.831Z"},{"id":8,"name":"m30","ownerId":3,"o
+wnerDisplayName":"egy","algorithmId":1,"algorithmName":"SHA-256","algorithmUnit"
+:"TH/s","hashrate":108,"pricePerUnitPerHour":0.01212,"minRentalHours":1,"maxRent
+alHours":24,"status":"available","approvalStatus":"approved","averageRating":nul
+l,"reviewCount":0,"isOnline":false,"hasFallbackPool":false,"stratumName":null,"c
+reatedAt":"2026-04-30T19:49:47.573Z"}]}root@vmi3202752:/var/www/livehashrate.com
+root@vmi3202752:/var/www/livehashrate.com#
