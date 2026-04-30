@@ -121,6 +121,9 @@ export class DownstreamSession extends EventEmitter {
       case "mining.submit":
         await this._handleSubmit(msg);
         break;
+      case "mining.configure":
+        this._handleConfigure(msg);
+        break;
       case "mining.suggest_difficulty":
         break;
       case "mining.extranonce.subscribe":
@@ -132,6 +135,33 @@ export class DownstreamSession extends EventEmitter {
           "stratum:downstream unknown method",
         );
     }
+  }
+
+  /**
+   * Handle mining.configure (BIP310 / Stratum extensions).
+   * ASICBoost miners send this before subscribe to negotiate version-rolling.
+   * We acknowledge each extension — version-rolling is passed through to the
+   * upstream pool once the miner authenticates; until then we respond with
+   * a zeroed mask so the miner can still connect without ASICBoost.
+   */
+  private _handleConfigure(msg: JsonRpcMessage): void {
+    const extensions = (Array.isArray(msg.params?.[0]) ? msg.params[0] : []) as string[];
+    const result: Record<string, unknown> = {};
+    for (const ext of extensions) {
+      if (ext === "version-rolling") {
+        result["version-rolling"] = true;
+        result["version-rolling.mask"] = "1fffe000";
+        result["version-rolling.min-bit-count"] = 2;
+      } else if (ext === "minimum-difficulty") {
+        result["minimum-difficulty"] = true;
+      } else if (ext === "subscribe-extranonce") {
+        result["subscribe-extranonce"] = true;
+      } else {
+        result[ext] = false;
+      }
+    }
+    logger.debug({ rigId: this.rigId, extensions }, "stratum:downstream mining.configure");
+    this._reply(msg.id, result);
   }
 
   private async _handleSubscribe(msg: JsonRpcMessage): Promise<void> {
