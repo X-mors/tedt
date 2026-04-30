@@ -1,0 +1,33 @@
+(END)...skipping...
+                                           Table "public.users"
+       Column        |           Type           | Collation | Nullable |              Default
+---------------------+--------------------------+-----------+----------+-----------------------------------
+ id                  | integer                  |           | not null | nextval('users_id_seq'::regclass)
+ clerk_user_id       | text                     |           | not null |
+ email               | text                     |           | not null |
+ display_name        | text                     |           | not null |
+ role                | text                     |           | not null | 'renter'::text
+ balance_usd         | numeric(18,6)            |           | not null | '0'::numeric
+ total_deposited_usd | numeric(18,6)            |           | not null | '0'::numeric
+ total_earned_usd    | numeric(18,6)            |           | not null | '0'::numeric
+ total_spent_usd     | numeric(18,6)            |           | not null | '0'::numeric
+ stratum_username    | text                     |           |          |
+ stratum_token       | text                     |           |          |
+ created_at          | timestamp with time zone |           | not null | now()
+ updated_at          | timestamp with time zone |           | not null | now()
+Indexes:
+    "users_pkey" PRIMARY KEY, btree (id)
+    "users_clerk_user_id_unique" UNIQUE, btree (clerk_user_id)
+    "users_stratum_username_unique" UNIQUE, btree (stratum_username)
+Referenced by:
+    TABLE "crypto_deposits" CONSTRAINT "crypto_deposits_user_id_users_id_fk" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    TABLE "deposit_addresses" CONSTRAINT "deposit_addresses_user_id_users_id_fk" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    TABLE "rentals" CONSTRAINT "rentals_owner_id_users_id_fk" FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT
+    TABLE "rentals" CONSTRAINT "rentals_renter_id_users_id_fk" FOREIGN KEY (renter_id) REFERENCES users(id) ON DELETE RESTRICT
+    TABLE "reviews" CONSTRAINT "reviews_renter_id_users_id_fk" FOREIGN KEY (renter_id) REFERENCES users(id) ON DELETE CASCADE
+    TABLE "rigs" CONSTRAINT "rigs_owner_id_users_id_fk" FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+    TABLE "wallet_transactions" CONSTRAINT "wallet_transactions_user_id_users_id_fk" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    TABLE "withdrawals" CONSTRAINT "withdrawals_user_id_users_id_fk" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+~
+~
+~
