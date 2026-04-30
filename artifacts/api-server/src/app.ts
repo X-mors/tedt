@@ -44,7 +44,11 @@ const allowedOrigins = new Set<string>(
     process.env["REPLIT_DEPLOYMENT_DOMAIN"]
       ? `https://${process.env["REPLIT_DEPLOYMENT_DOMAIN"]}`
       : null,
-    process.env["FRONTEND_ORIGIN"] ?? null,
+    // FRONTEND_ORIGIN supports comma-separated list, e.g.:
+    // "https://livehashrate.com,https://www.livehashrate.com"
+    ...(process.env["FRONTEND_ORIGIN"]
+      ? process.env["FRONTEND_ORIGIN"].split(",").map((s) => s.trim())
+      : []),
     "http://localhost:5173",
     "http://localhost:3000",
   ].filter((s): s is string => Boolean(s)),
