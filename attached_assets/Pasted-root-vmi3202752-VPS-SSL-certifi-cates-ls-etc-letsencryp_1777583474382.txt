@@ -1,0 +1,36 @@
+root@vmi3202752:~# # على الـ VPS — شوف أين الـ SSL certifi
+cates
+ls /etc/letsencrypt/live/livehashrate.com/
+README  cert.pem  chain.pem  fullchain.pem  privkey.pem
+root@vmi3202752:~# # شوف إذا nginx عنده stream module
+nginx -V 2>&1 | grep stream
+configure arguments: --with-cc-opt='-g -O2 -fno-omit-frame-po
+inter -mno-omit-leaf-frame-pointer -ffile-prefix-map=/build/n
+ginx-bQEgMt/nginx-1.24.0=. -flto=auto -ffat-lto-objects -fsta
+ck-protector-strong -fstack-clash-protection -Wformat -Werror
+=format-security -fcf-protection -fdebug-prefix-map=/build/ng
+inx-bQEgMt/nginx-1.24.0=/usr/src/nginx-1.24.0-2ubuntu7.7 -fPI
+C -Wdate-time -D_FORTIFY_SOURCE=3' --with-ld-opt='-Wl,-Bsymbo
+lic-functions -flto=auto -ffat-lto-objects -Wl,-z,relro -Wl,-
+z,now -fPIC' --prefix=/usr/share/nginx --conf-path=/etc/nginx
+/nginx.conf --http-log-path=/var/log/nginx/access.log --error
+-log-path=stderr --lock-path=/var/lock/nginx.lock --pid-path=
+/run/nginx.pid --modules-path=/usr/lib/nginx/modules --http-c
+lient-body-temp-path=/var/lib/nginx/body --http-fastcgi-temp-
+path=/var/lib/nginx/fastcgi --http-proxy-temp-path=/var/lib/n
+ginx/proxy --http-scgi-temp-path=/var/lib/nginx/scgi --http-u
+wsgi-temp-path=/var/lib/nginx/uwsgi --with-compat --with-debu
+g --with-pcre-jit --with-http_ssl_module --with-http_stub_sta
+tus_module --with-http_realip_module --with-http_auth_request
+_module --with-http_v2_module --with-http_dav_module --with-h
+ttp_slice_module --with-threads --with-http_addition_module -
+-with-http_flv_module --with-http_gunzip_module --with-http_g
+zip_static_module --with-http_mp4_module --with-http_random_i
+ndex_module --with-http_secure_link_module --with-http_sub_mo
+dule --with-mail_ssl_module --with-stream_ssl_module --with-s
+tream_ssl_preread_module --with-stream_realip_module --with-h
+ttp_geoip_module=dynamic --with-http_image_filter_module=dyna
+mic --with-http_perl_module=dynamic --with-http_xslt_module=d
+ynamic --with-mail=dynamic --with-stream=dynamic --with-strea
+m_geoip_module=dynamic
+root@vmi3202752:~#
