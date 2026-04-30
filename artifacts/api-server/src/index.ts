@@ -2,7 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { seedDatabase } from "./lib/seed";
 import { StratumServer } from "./lib/stratum/server";
-import { backfillRigTokens } from "./lib/backfill";
+import { backfillRigTokens, backfillStratumNames } from "./lib/backfill";
 import { startDepositWorker } from "./lib/depositWorker";
 
 const rawPort = process.env["PORT"];
@@ -31,6 +31,7 @@ if (!process.env["NOWPAYMENTS_IPN_SECRET"]) {
 
 seedDatabase()
   .then(() => backfillRigTokens())
+  .then(() => backfillStratumNames())
   .then(() => {
     stratumServer.start();
     startDepositWorker();

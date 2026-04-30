@@ -24,6 +24,26 @@ import { randomBytes } from "node:crypto";
 const PROXY_HOST = process.env["STRATUM_PROXY_HOST"] ?? "proxy.rigmarket.dev";
 const PROXY_PORT = process.env["STRATUM_PROXY_PORT"] ?? "3333";
 
+function slugifyRigName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 24) || "rig";
+}
+
+async function uniqueStratumName(ownerId: number, base: string): Promise<string> {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const candidate = attempt === 0 ? base : `${base.slice(0, 21)}-${attempt + 1}`;
+    const [existing] = await db
+      .select({ id: rigsTable.id })
+      .from(rigsTable)
+      .where(and(eq(rigsTable.ownerId, ownerId), eq(rigsTable.stratumName, candidate)));
+    if (!existing) return candidate;
+  }
+  return `${base.slice(0, 18)}-${randomBytes(3).toString("hex")}`;
+}
+
 function ownerStratumFields(
   stratumUsername: string | null,
   stratumName: string | null,
@@ -217,6 +237,10 @@ router.post("/me/rigs", async (req, res) => {
   }
   // Newly listed rigs always start in `pending` and require admin approval.
   const proxyToken = randomBytes(32).toString("hex");
+  const stratumName = await uniqueStratumName(
+    req.currentUser!.id,
+    slugifyRigName(body.name),
+  );
   const [created] = await db
     .insert(rigsTable)
     .values({
@@ -230,6 +254,7 @@ router.post("/me/rigs", async (req, res) => {
       region: body.region,
       approvalStatus: "pending",
       proxyToken,
+      stratumName,
       ...(body.fallbackPoolHost !== undefined && { stratumHost: body.fallbackPoolHost }),
       ...(body.fallbackPoolPort !== undefined && { stratumPort: body.fallbackPoolPort }),
       ...(body.fallbackPoolUser !== undefined && { stratumUser: body.fallbackPoolUser }),

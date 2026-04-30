@@ -286,7 +286,12 @@ export default function RigForm() {
               <Label className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
                 Mining Username
               </Label>
-              {editingStratumUsername ? (
+              {me?.stratumUsername ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-mono text-primary">{me.stratumUsername}</span>
+                  <span className="text-xs text-muted-foreground">(permanent — cannot be changed)</span>
+                </div>
+              ) : editingStratumUsername ? (
                 <div className="flex gap-2">
                   <Input
                     value={stratumUsernameInput}
@@ -304,25 +309,23 @@ export default function RigForm() {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-mono">
-                    {me?.stratumUsername ?? <em className="text-muted-foreground">Not set</em>}
-                  </span>
+                  <em className="text-sm text-muted-foreground">Not set yet</em>
                   <Button
                     type="button"
                     size="sm"
                     variant="ghost"
                     className="text-xs h-7"
                     onClick={() => {
-                      setStratumUsernameInput(me?.stratumUsername ?? "");
+                      setStratumUsernameInput("");
                       setEditingStratumUsername(true);
                     }}
                   >
-                    {me?.stratumUsername ? "Change" : "Set Username"}
+                    Set Username
                   </Button>
                 </div>
               )}
               <p className="text-xs text-muted-foreground">
-                Lowercase letters, digits, hyphens only · 3–24 chars · globally unique.
+                Lowercase letters, digits, hyphens only · 3–24 chars · globally unique · permanent.
               </p>
             </div>
 
@@ -350,16 +353,25 @@ export default function RigForm() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="algorithm">Algorithm</Label>
-                <Select value={formData.algorithmId} onValueChange={v => set("algorithmId", v)} disabled={isEditing}>
-                  <SelectTrigger className="bg-background font-mono text-sm" id="algorithm">
-                    <SelectValue placeholder="Select algorithm" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {algorithms?.map(a => (
-                      <SelectItem key={a.id} value={a.id.toString()}>{a.name} ({a.unit})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {isEditing ? (
+                  <div className="flex items-center h-9 rounded-md border border-input bg-muted px-3 font-mono text-sm text-muted-foreground">
+                    {algorithms?.find(a => a.id.toString() === formData.algorithmId)?.name
+                      ? `${algorithms!.find(a => a.id.toString() === formData.algorithmId)!.name} (${algorithms!.find(a => a.id.toString() === formData.algorithmId)!.unit})`
+                      : (formData.algorithmId ? `Algorithm #${formData.algorithmId}` : "—")}
+                    <span className="ml-auto text-xs opacity-50">fixed</span>
+                  </div>
+                ) : (
+                  <Select value={formData.algorithmId} onValueChange={v => set("algorithmId", v)}>
+                    <SelectTrigger className="bg-background font-mono text-sm" id="algorithm">
+                      <SelectValue placeholder="Select algorithm" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {algorithms?.map(a => (
+                        <SelectItem key={a.id} value={a.id.toString()}>{a.name} ({a.unit})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="hashrate">Advertised Hashrate</Label>
