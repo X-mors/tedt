@@ -1,0 +1,88 @@
+Welcome!
+This server is hosted by Contabo. If you have any questions or need help,
+please raise a support ticket from your customer control panel.
+Last login: Thu Apr 30 22:55:05 2026 from 196.157.9.229
+root@vmi3202752:~# pm2 logs tedt-api --lines 200 --nostream 2>&1 | grep -E "auth
+|worker|username|authorize|Bad|Unknown|rejected" | tail -20
+0|tedt-api | {"level":30,"time":1777582263962,"pid":1855558,"hostname":"vmi32027
+52","userId":3,"poolUrl":"stratum+tcp://eu-de02.miningrigrentals.com:51665","wor
+ker":"Xmors.374070","msg":"pool:test starting"}
+0|tedt-api | {"level":30,"time":1777582264282,"pid":1855558,"hostname":"vmi32027
+52","rentalId":0,"worker":"Xmors.374070","msg":"stratum:upstream pool auth OK"}
+0|tedt-api | {"level":30,"time":1777582356552,"pid":1855558,"hostname":"vmi32027
+52","userId":3,"poolUrl":"stratum+tcp://eu-de02.miningrigrentals.com:51665","wor
+ker":"Xmors.374070","msg":"pool:test starting"}
+0|tedt-api | {"level":30,"time":1777582357455,"pid":1855558,"hostname":"vmi32027
+52","rentalId":0,"worker":"Xmors.374070","msg":"stratum:upstream pool auth OK"}
+root@vmi3202752:~# pm2 logs tedt-api --lines 300 --nostream 2>&1 | grep -E "down
+stream|new connection|stratum:server|workerStr|Bad worker" | tail -30
+0|tedt-api | {"level":30,"time":1777582680694,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777582735693,"pid":1855558,"hostname":"vmi32027
+52","remoteAddress":"172.28.12.2","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777582740694,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777582749804,"pid":1855558,"hostname":"vmi32027
+52","remoteAddress":"127.0.0.1","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777582752808,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777582795692,"pid":1855558,"hostname":"vmi32027
+52","remoteAddress":"172.28.12.2","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777582800693,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777582855704,"pid":1855558,"hostname":"vmi32027
+52","remoteAddress":"172.28.12.2","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777582860047,"pid":1855558,"hostname":"vmi32027
+52","remoteAddress":"165.227.153.169","msg":"stratum:server new connection"}
+0|tedt-api | {"level":40,"time":1777582860053,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"line":"\u0016\u0003\u0001\u0001 \u0001\u0000\u0001\u001c\u0003
+\u0003ۭ3\u0011=ly/\b\u0018;\"V~ J\u0014 \u000e2r\u0004'9,xR\u0003߂\u0015qT\u00
+06/\u0007l\u0010\u0000>\u0013\u0002\u0013\u0003\u0013\u0001,0\u0000̨̩̪+/\u0000$(
+\u0000k#'\u0000g","msg":"stratum:downstream bad JSON"}
+0|tedt-api | {"level":40,"time":1777582860054,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"line":"\u0014\u00009\t\u0013\u00003\u0000\u0000\u0000=\u0000<\
+u00005\u0000/\u0000\u0001\u0000\u0000\u0000\u000b\u0000\u0004\u0003\u0000\u0001\
+u0002\u0000","msg":"stratum:downstream bad JSON"}
+0|tedt-api | {"level":40,"time":1777582860054,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"line":"\u0000\u0016\u0000\u0014\u0000\u001d\u0000\u0017\u0000\
+u001e\u0000\u0019\u0000\u0018\u0001\u0000\u0001\u0001\u0001\u0002\u0001\u0003\u0
+001\u0004\u0000#\u0000\u0000\u0000\u0016\u0000\u0000\u0000\u0017\u0000\u0000\u00
+00\r\u0000*\u0000(\u0004\u0003\u0005\u0003\u0006\u0003\b\u0007\b\b\b\t\b","msg":
+"stratum:downstream bad JSON"}
+0|tedt-api | {"level":30,"time":1777582860706,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777582866073,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777582866080,"pid":1855558,"hostname":"vmi32027
+52","remoteAddress":"165.227.153.169","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777582866090,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777582915691,"pid":1855558,"hostname":"vmi32027
+52","remoteAddress":"172.28.12.2","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777582920694,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777582975696,"pid":1855558,"hostname":"vmi32027
+52","remoteAddress":"172.28.12.2","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777582980694,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777583035729,"pid":1855558,"hostname":"vmi32027
+52","remoteAddress":"172.28.12.2","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777583040731,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777583095693,"pid":1855558,"hostname":"vmi32027
+52","remoteAddress":"172.28.12.2","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777583100698,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777583155710,"pid":1855558,"hostname":"vmi32027
+52","remoteAddress":"172.28.12.2","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777583160716,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777583215703,"pid":1855558,"hostname":"vmi32027
+52","remoteAddress":"172.28.12.2","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777583220719,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777583275693,"pid":1855558,"hostname":"vmi32027
+52","remoteAddress":"172.28.12.2","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777583280695,"pid":1855558,"hostname":"vmi32027
+52","rigId":null,"msg":"stratum:downstream closed"}
+root@vmi3202752:~#
