@@ -1,0 +1,68 @@
+root@vmi3202752:/var/www/livehashrate.com# pm2 logs tedt-api --lines 50 --nostream 2>&1 | grep
+-E "backfill|stratumName|Starting|listening|error" | head -20
+/root/.pm2/logs/tedt-api-error.log last 50 lines:
+0|tedt-api | {"level":30,"time":1777586147573,"pid":1868523,"hostname":"vmi3202752","msg":"Star
+ting deposit worker"}
+0|tedt-api | {"level":30,"time":1777586147575,"pid":1868523,"hostname":"vmi3202752","port":3000
+,"msg":"Server listening"}
+0|tedt-api | {"level":30,"time":1777586147575,"pid":1868523,"hostname":"vmi3202752","port":3333
+,"msg":"stratum:server listening"}
+root@vmi3202752:/var/www/livehashrate.com# cd /var/www/livehashrate.com && node -e "
+const { execSync } = require('child_process');
+const result = execSync('psql \$DATABASE_URL -c \"SELECT id, name, \\\"stratumName\\\" FROM rig
+s;\"').toString();
+console.log(result);
+"
+psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:
+ role "root" does not exist
+node:child_process:1000
+    throw err;
+    ^
+Error: Command failed: psql $DATABASE_URL -c "SELECT id, name, "stratumName" FROM rigs;"
+psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:
+ role "root" does not exist
+    at genericNodeError (node:internal/errors:985:15)
+    at wrappedFn (node:internal/errors:539:14)
+    at checkExecSyncError (node:child_process:925:11)
+    at execSync (node:child_process:997:15)
+    at [eval]:3:16
+    at runScriptInThisContext (node:internal/vm:219:10)
+    at node:internal/process/execution:451:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:449:60)
+    at evalFunction (node:internal/process/execution:283:30) {
+  status: 2,
+  signal: null,
+  output: [
+    null,
+    Buffer(0) [Uint8Array] [],
+    Buffer(123) [Uint8Array] [
+      112, 115, 113, 108,  58,  32, 101, 114, 114, 111, 114,  58,
+       32,  99, 111, 110, 110, 101,  99, 116, 105, 111, 110,  32,
+      116, 111,  32, 115, 101, 114, 118, 101, 114,  32, 111, 110,
+       32, 115, 111,  99, 107, 101, 116,  32,  34,  47, 118,  97,
+      114,  47, 114, 117, 110,  47, 112, 111, 115, 116, 103, 114,
+      101, 115, 113, 108,  47,  46, 115,  46,  80,  71,  83,  81,
+       76,  46,  53,  52,  51,  50,  34,  32, 102,  97, 105, 108,
+      101, 100,  58,  32,  70,  65,  84,  65,  76,  58,  32,  32,
+      114, 111, 108, 101,
+      ... 23 more items
+    ]
+  ],
+  pid: 1868798,
+  stdout: Buffer(0) [Uint8Array] [],
+  stderr: Buffer(123) [Uint8Array] [
+    112, 115, 113, 108,  58,  32, 101, 114, 114, 111, 114,  58,
+     32,  99, 111, 110, 110, 101,  99, 116, 105, 111, 110,  32,
+    116, 111,  32, 115, 101, 114, 118, 101, 114,  32, 111, 110,
+     32, 115, 111,  99, 107, 101, 116,  32,  34,  47, 118,  97,
+    114,  47, 114, 117, 110,  47, 112, 111, 115, 116, 103, 114,
+    101, 115, 113, 108,  47,  46, 115,  46,  80,  71,  83,  81,
+     76,  46,  53,  52,  51,  50,  34,  32, 102,  97, 105, 108,
+    101, 100,  58,  32,  70,  65,  84,  65,  76,  58,  32,  32,
+    114, 111, 108, 101,
+    ... 23 more items
+  ]
+}
+Node.js v24.15.0
+root@vmi3202752:/var/www/livehashrate.com#
