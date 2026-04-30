@@ -1,0 +1,22 @@
+root@vmi3202752:/var/www/livehashrate.com# # تأكد PM2 شغال وما فيش crashes
+pm2 list
+pm2 logs tedt-api --lines 5 --nostream
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ tedt-api           │ fork     │ 5    │ online    │ 0%       │ 112.5mb  │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+[TAILING] Tailing last 5 lines for [tedt-api] process (change the value with --lines option)
+/root/.pm2/logs/tedt-api-error.log last 5 lines:
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+/root/.pm2/logs/tedt-api-out.log last 5 lines:
+0|tedt-api | {"level":30,"time":1777581276163,"pid":1853974,"hostname":"vmi3202752","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777581331151,"pid":1853974,"hostname":"vmi3202752","remoteAddress":"172.28.12.4","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777581336153,"pid":1853974,"hostname":"vmi3202752","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777581391162,"pid":1853974,"hostname":"vmi3202752","remoteAddress":"172.28.12.4","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777581396163,"pid":1853974,"hostname":"vmi3202752","rigId":null,"msg":"stratum:downstream closed"}
+root@vmi3202752:/var/www/livehashrate.com#
