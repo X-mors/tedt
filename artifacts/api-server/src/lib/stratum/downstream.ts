@@ -61,6 +61,9 @@ export class DownstreamSession extends EventEmitter {
     super();
     socket.setEncoding("utf8");
     socket.setTimeout(300_000);
+    // Detect dead connections (e.g. power cut) via OS-level keepalive probes.
+    // After 60 s of inactivity the OS sends probes; if no ACK the socket errors.
+    socket.setKeepAlive(true, 60_000);
 
     socket.on("data", (chunk: string) => {
       this.buffer += chunk;
