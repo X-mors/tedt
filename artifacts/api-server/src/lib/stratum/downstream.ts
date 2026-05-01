@@ -56,6 +56,8 @@ export class DownstreamSession extends EventEmitter {
   private submitBuffer: BufferedSubmit[] = [];
   /** Tracks the last time we wrote lastSeenAt to DB to avoid per-share writes. */
   private lastSeenAtWrittenMs = 0;
+  /** Timestamp of last data received FROM the miner (read side). */
+  private lastReceivedMs = Date.now();
 
   constructor(private readonly socket: net.Socket) {
     super();
@@ -65,7 +67,22 @@ export class DownstreamSession extends EventEmitter {
     // After 60 s of inactivity the OS sends probes; if no ACK the socket errors.
     socket.setKeepAlive(true, 60_000);
 
+    // Detect dead connections (e.g. power cut): if the miner sends no data for
+    // 5 minutes we consider it gone. Miners submit shares regularly; even slow
+    // rigs typically produce at least one share every few minutes.
+    const INACTIVITY_MS = 5 * 60_000; // 5 minutes
+    const _inactivityCheck = setInterval(() => {
+      if (socket.destroyed) { clearInterval(_inactivityCheck); return; }
+      if (Date.now() - this.lastReceivedMs > INACTIVITY_MS) {
+        logger.info({ rigId: this.rigId }, "stratum:downstream miner inactivity timeout — closing dead connection");
+        clearInterval(_inactivityCheck);
+        this._close();
+      }
+    }, 60_000);
+    socket.once("close", () => clearInterval(_inactivityCheck));
+
     socket.on("data", (chunk: string) => {
+      this.lastReceivedMs = Date.now();
       this.buffer += chunk;
       const lines = this.buffer.split("\n");
       this.buffer = lines.pop() ?? "";
