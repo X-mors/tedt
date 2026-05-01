@@ -5,6 +5,8 @@ import { StratumServer } from "./lib/stratum/server";
 import { backfillRigTokens, backfillStratumNames } from "./lib/backfill";
 import { startDepositWorker } from "./lib/depositWorker";
 import { db, rigsTable } from "@workspace/db";
+import { eq, notInArray, inArray } from "drizzle-orm";
+import { proxyState } from "./lib/stratum/state";
 
 const rawPort = process.env["PORT"];
 
@@ -38,6 +40,24 @@ seedDatabase()
   .then(() => {
     stratumServer.start();
     startDepositWorker();
+
+    // Sync isOnline in DB with actual proxy connections every 5 minutes.
+    // This corrects any drift (e.g. unclean shutdown, missed _onClose).
+    const SYNC_INTERVAL_MS = 5 * 60_000;
+    setInterval(async () => {
+      try {
+        const connectedIds = proxyState.getConnectedRigIds();
+        if (connectedIds.length > 0) {
+          await db.update(rigsTable).set({ isOnline: true }).where(inArray(rigsTable.id, connectedIds));
+          await db.update(rigsTable).set({ isOnline: false }).where(notInArray(rigsTable.id, connectedIds));
+        } else {
+          await db.update(rigsTable).set({ isOnline: false });
+        }
+        logger.debug({ connectedIds }, "online-sync: DB synced with proxy state");
+      } catch (err) {
+        logger.warn({ err }, "online-sync: failed");
+      }
+    }, SYNC_INTERVAL_MS).unref();
 
     app.listen(port, (err) => {
       if (err) {

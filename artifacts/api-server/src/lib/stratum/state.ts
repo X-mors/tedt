@@ -269,6 +269,10 @@ class ProxyState {
     };
   }
 
+  getConnectedRigIds(): number[] {
+    return Array.from(this.rigConnections.keys());
+  }
+
   forceDisconnect(rigId: number): boolean {
     const conn = this.rigConnections.get(rigId);
     if (!conn) return false;
