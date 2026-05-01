@@ -4,6 +4,7 @@ import { seedDatabase } from "./lib/seed";
 import { StratumServer } from "./lib/stratum/server";
 import { backfillRigTokens, backfillStratumNames } from "./lib/backfill";
 import { startDepositWorker } from "./lib/depositWorker";
+import { db, rigsTable } from "@workspace/db";
 
 const rawPort = process.env["PORT"];
 
@@ -32,6 +33,8 @@ if (!process.env["NOWPAYMENTS_IPN_SECRET"]) {
 seedDatabase()
   .then(() => backfillRigTokens())
   .then(() => backfillStratumNames())
+  .then(() => db.update(rigsTable).set({ isOnline: false }))
+  .then(() => logger.info("startup: reset all rigs to offline"))
   .then(() => {
     stratumServer.start();
     startDepositWorker();
