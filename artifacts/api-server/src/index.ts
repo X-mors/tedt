@@ -2,7 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { seedDatabase } from "./lib/seed";
 import { StratumServer } from "./lib/stratum/server";
-import { backfillRigTokens, backfillStratumNames } from "./lib/backfill";
+import { backfillApprovedRigStatus, backfillRigTokens, backfillStratumNames } from "./lib/backfill";
 import { startDepositWorker } from "./lib/depositWorker";
 import { db, rigsTable } from "@workspace/db";
 import { eq, notInArray, inArray } from "drizzle-orm";
@@ -35,6 +35,7 @@ if (!process.env["NOWPAYMENTS_IPN_SECRET"]) {
 seedDatabase()
   .then(() => backfillRigTokens())
   .then(() => backfillStratumNames())
+  .then(() => backfillApprovedRigStatus())
   .then(() => db.update(rigsTable).set({ isOnline: false }))
   .then(() => logger.info("startup: reset all rigs to offline"))
   .then(() => {

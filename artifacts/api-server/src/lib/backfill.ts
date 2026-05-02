@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { and, eq, isNull, or } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { rigsTable } from "@workspace/db/schema";
+import { platformSettingsTable, rigsTable } from "@workspace/db/schema";
 import { logger } from "./logger";
 
 function slugify(name: string): string {
@@ -47,6 +47,66 @@ export async function backfillStratumNames(): Promise<void> {
   }
 
   logger.info({ count: rigs.length }, "backfill: stratumName assignment complete");
+}
+
+/**
+ * Historical fix: earlier versions of the admin-approval endpoint set
+ * `approvalStatus = "approved"` but did NOT also set `status = "available"`,
+ * leaving approved rigs stuck at the auto-create default `status = "offline"`.
+ * Such rigs were visible on the marketplace (because `approvalStatus` is the
+ * gating filter) but un-rentable — and showed a confusing "OFFLINE" badge
+ * even when the miner was actively connected.
+ *
+ * The approval route now sets both fields atomically, but pre-existing rows
+ * still need a one-time correction.
+ *
+ * IMPORTANT: this is a strictly one-time fix. `offline` is also a legitimate
+ * intentional state set by owners (PATCH /me/rigs/:id) and admins
+ * (PATCH /admin/rigs/:id/status). Re-running on every restart would
+ * silently relist any rig the owner intentionally took offline. We use a
+ * persisted marker in `platform_settings` so the bulk update runs at most
+ * once per environment, regardless of restarts.
+ */
+const APPROVED_RIG_STATUS_BACKFILL_KEY = "backfill:approved_rig_status_v1";
+
+export async function backfillApprovedRigStatus(): Promise<void> {
+  const [marker] = await db
+    .select({ key: platformSettingsTable.key })
+    .from(platformSettingsTable)
+    .where(eq(platformSettingsTable.key, APPROVED_RIG_STATUS_BACKFILL_KEY));
+
+  if (marker) return;
+
+  const result = await db
+    .update(rigsTable)
+    .set({ status: "available" })
+    .where(
+      and(
+        eq(rigsTable.approvalStatus, "approved"),
+        eq(rigsTable.status, "offline"),
+      ),
+    )
+    .returning({ id: rigsTable.id, name: rigsTable.name });
+
+  await db
+    .insert(platformSettingsTable)
+    .values({
+      key: APPROVED_RIG_STATUS_BACKFILL_KEY,
+      value: new Date().toISOString(),
+    })
+    .onConflictDoNothing({ target: platformSettingsTable.key });
+
+  if (result.length === 0) {
+    logger.info(
+      "backfill: approved-rig-status marker set; no rows needed correction",
+    );
+    return;
+  }
+
+  logger.info(
+    { count: result.length, rigs: result },
+    "backfill: set status=available for approved rigs stuck at offline (one-time)",
+  );
 }
 
 /**
