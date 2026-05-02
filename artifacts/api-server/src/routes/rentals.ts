@@ -205,6 +205,7 @@ router.post("/rentals", async (req, res) => {
       maxRentalHours: rigsTable.maxRentalHours,
       status: rigsTable.status,
       approvalStatus: rigsTable.approvalStatus,
+      lastSeenAt: rigsTable.lastSeenAt,
       basePrice: algorithmsTable.basePricePerUnitPerHour,
     })
     .from(rigsTable)
@@ -226,15 +227,23 @@ router.post("/rentals", async (req, res) => {
 
   // Effective availability check: rig.status is the persisted DB column
   // (refreshed every 5 min by the online-sync interval), but the proxy
-  // always knows the truth right now. Treat an "offline" rig as rentable
-  // if the owner has any live miner session — otherwise the rent button
-  // worked, but the API returned 400 "Rig is not available" while the
-  // miner was clearly connected. "rented" and "paused" still block.
+  // knows the truth right now. Three signals make a rig rentable:
+  //   1. status === "available" (DB says ready), OR
+  //   2. owner has a live proxy session right now (miner is connected), OR
+  //   3. lastSeenAt is recent (≤5 min) — covers stratum-proxy aggregators
+  //      that open/close TCP connections every ~30-120s, so getAnySessionForOwner
+  //      sees null in the gaps even though the rig is actively mining.
+  // "rented" and "paused" still block (handled in the tx below).
   const ownerHasLiveSession =
     proxyState.getAnySessionForOwner(rigRow.ownerId) != null;
+  const recentlySeen =
+    rigRow.lastSeenAt != null &&
+    Date.now() - new Date(rigRow.lastSeenAt).getTime() < 5 * 60 * 1000;
   const isMineable =
     rigRow.status === "available" ||
-    (rigRow.status === "offline" && ownerHasLiveSession);
+    (rigRow.status !== "rented" &&
+      rigRow.status !== "paused" &&
+      (ownerHasLiveSession || recentlySeen));
   if (!isMineable) {
     res.status(400).json({ error: "Rig is not available" });
     return;
@@ -289,11 +298,12 @@ router.post("/rentals", async (req, res) => {
         .update(rigsTable)
         .set({ status: "rented" })
         .where(
-          // Accept "offline" too — the pre-tx isMineable check above already
-          // confirmed the owner's miner is live. "rented" and "paused" remain
-          // blocked, so race conditions can't double-rent or override an
-          // owner's pause.
-          sql`${rigsTable.id} = ${body.rigId} AND ${rigsTable.status} IN ('available', 'offline') AND ${rigsTable.approvalStatus} = 'approved'`,
+          // Accept any status except "rented"/"paused" — the pre-tx
+          // isMineable check above already confirmed the rig is genuinely
+          // mineable (live session or recent lastSeenAt). "rented" and
+          // "paused" remain blocked, so race conditions can't double-rent
+          // or override an owner's pause.
+          sql`${rigsTable.id} = ${body.rigId} AND ${rigsTable.status} NOT IN ('rented', 'paused') AND ${rigsTable.approvalStatus} = 'approved'`,
         )
         .returning({ id: rigsTable.id });
       if (!reserved) throw new TxError("unavailable");
