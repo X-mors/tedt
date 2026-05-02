@@ -468,6 +468,27 @@ export class DownstreamSession extends EventEmitter {
     this.rentalId = activeRental?.id ?? null;
     proxyState.setRigAuthorized(rig.id, this.rentalId);
 
+    // ── Subscribe response MUST be sent before the authorize response ──────
+    // The Antminer M30+ (and similar) waits for the subscribe reply before
+    // sending authorize; if we delay subscribe until after authorize the miner
+    // never completes auth and the rig appears offline.
+    //
+    // Strategy: if a parked upstream exists for this rental we already know the
+    // pool's extranonce — use it directly so the miner gets the correct
+    // extranonce in the subscribe response and never needs set_extranonce.
+    // If there is no parked upstream we reply with our random placeholder; the
+    // upstream will emit "subscribed" shortly and send set_extranonce once.
+    if (this.pendingSubscribeMsg) {
+      if (activeRental) {
+        const peeked = proxyState.peekParkedExtranonce(activeRental.id);
+        if (peeked) {
+          this.extranonce1 = peeked.extranonce1;
+          this.extranonce2Size = peeked.extranonce2Size;
+        }
+      }
+      this._replySubscribe(this.pendingSubscribeMsg);
+    }
+
     this._reply(msg.id, true);
     logger.info({ rigId: rig.id, rentalId: this.rentalId }, "stratum:downstream authorized");
 
@@ -477,11 +498,6 @@ export class DownstreamSession extends EventEmitter {
     } else if (rig.stratumHost && rig.stratumPort > 0) {
       await this._startFallbackUpstream(rig);
     } else {
-      // No rental and no fallback pool — reply to any pending subscribe immediately
-      // with the proxy-generated placeholder extranonce so the miner doesn't time out.
-      if (this.pendingSubscribeMsg) {
-        this._replySubscribe(this.pendingSubscribeMsg);
-      }
       this._notify("mining.set_difficulty", [1]);
       logger.info({ rigId: rig.id }, "stratum:downstream no active rental, miner idle");
     }
