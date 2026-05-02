@@ -449,6 +449,8 @@ router.get("/rentals/:id/stats", async (req, res) => {
   const algMultiplier = unitMultiplier(rental.algorithmUnit);
   const advertisedH = toNum(rental.hashrate) * algMultiplier;
 
+  // Fetch up to 1 hour of 60-s samples (60 samples × 60 s = 1 h).
+  // Ordered newest-first so slicing gives the most-recent N easily.
   const dbSamples = await db
     .select({
       sampledAt: rentalHashSamplesTable.sampledAt,
@@ -457,21 +459,31 @@ router.get("/rentals/:id/stats", async (req, res) => {
     .from(rentalHashSamplesTable)
     .where(eq(rentalHashSamplesTable.rentalId, id))
     .orderBy(desc(rentalHashSamplesTable.sampledAt))
-    .limit(30);
+    .limit(60);
 
-  const samples = dbSamples.reverse().map((s) => ({
-    timestamp: s.sampledAt.toISOString(),
-    hashrate: toNum(s.effectiveHashrateH ?? "0"),
-  }));
-
-  const avgDeliveredH =
-    samples.length > 0
-      ? samples.reduce((sum, s) => sum + s.hashrate, 0) / samples.length
+  // Helper: average over a slice, returns H/s
+  const avgH = (slice: typeof dbSamples) =>
+    slice.length > 0
+      ? slice.reduce((s, x) => s + toNum(x.effectiveHashrateH ?? "0"), 0) / slice.length
       : 0;
+
+  const hashrate10mH = avgH(dbSamples.slice(0, 10));   // last 10 min
+  const hashrate1hH  = avgH(dbSamples.slice(0, 60));   // last 60 min
+  const avgDeliveredH = hashrate1hH;                    // delivery uses 1-h avg
+
+  const hashrate10m = hashrate10mH / algMultiplier;
+  const hashrate1h  = hashrate1hH  / algMultiplier;
+
   const deliveryRatio =
     advertisedH > 0 && avgDeliveredH > 0
       ? Math.min(1.05, avgDeliveredH / advertisedH)
       : 0;
+
+  // Chart: last 60 samples in chronological order (newest-first → reverse)
+  const samples = dbSamples.slice().reverse().map((s) => ({
+    timestamp: s.sampledAt.toISOString(),
+    hashrate: toNum(s.effectiveHashrateH ?? "0") / algMultiplier,
+  }));
 
   let message: string | null = null;
   if (rental.status === "active" && !live.minerConnected) {
@@ -488,6 +500,8 @@ router.get("/rentals/:id/stats", async (req, res) => {
     rentalId: rental.id,
     currentHashrate: live.effectiveHashrateH / algMultiplier,
     averageHashrate: avgDeliveredH / algMultiplier,
+    hashrate10m,
+    hashrate1h,
     deliveryRatio,
     sharesAccepted: live.sharesAccepted,
     sharesRejected: live.sharesRejected,

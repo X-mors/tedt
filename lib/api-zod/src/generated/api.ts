@@ -920,6 +920,10 @@ export const GetRentalStatsResponse = zod.object({
   rentalId: zod.number(),
   currentHashrate: zod.number(),
   averageHashrate: zod.number(),
+  /** 10-minute average hashrate in algorithm units */
+  hashrate10m: zod.number(),
+  /** 1-hour average hashrate in algorithm units */
+  hashrate1h: zod.number(),
   deliveryRatio: zod
     .number()
     .describe(
