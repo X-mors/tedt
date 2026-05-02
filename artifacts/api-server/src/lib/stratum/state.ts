@@ -287,32 +287,6 @@ class ProxyState {
     return Array.from(this.rigConnections.keys());
   }
 
-  /** Return the distinct set of ownerIds for all currently-connected miners. */
-  getConnectedOwnerIds(): number[] {
-    const ownerIds = new Set<number>();
-    for (const conn of this.rigConnections.values()) {
-      ownerIds.add(conn.entry.ownerId);
-    }
-    return Array.from(ownerIds);
-  }
-
-  /**
-   * Fallback for getFallbackPoolStatus when the miner connected as a shadow rig
-   * (different ID than the listed rig).  Returns the status for the first
-   * connected session owned by `ownerId` that is NOT in an active rental.
-   */
-  getFallbackPoolStatusByOwner(ownerId: number): { connected: boolean; authFailed: boolean } | null {
-    for (const conn of this.rigConnections.values()) {
-      if (conn.entry.ownerId !== ownerId) continue;
-      if (conn.entry.rentalId !== null) continue;
-      return {
-        connected: conn.entry.upstreamConnected,
-        authFailed: conn.entry.upstreamAuthFailed,
-      };
-    }
-    return null;
-  }
-
   forceDisconnect(rigId: number): boolean {
     const conn = this.rigConnections.get(rigId);
     if (!conn) return false;
