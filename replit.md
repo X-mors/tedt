@@ -217,6 +217,20 @@ average — averaging silent periods sank the display to 0) → cumulative
 A periodic GC (`_gcSweep`, every 5 min) prunes expired snapshots and idle
 fallback buffers; `forgetRig(rigId)` is called on rig delete.
 
+**Optimistic share recording (downstream truth, DO NOT REVERT).** `_handleSubmit`
+records the share in the rolling buffer the moment the miner submits it, BEFORE
+awaiting the upstream pool's reply. The pool reply can lag seconds or never
+arrive (mining.submit timeout = 30 s in `upstream._request`); waiting for it
+meant a healthy ASIC's shares trickled into the buffer late or not at all,
+producing the user-reported "6 shares in 10 minutes for a rig the pool says is
+hashing fine" / "stats start dropping" symptom. `recordShare` /
+`recordFallbackShare` return the `ShareSample` reference; if the pool actually
+rejects, we call `markShareRejected` / `markFallbackShareRejected` which mutate
+the same sample in place (so the rolling-buffer hashrate calc immediately stops
+counting its difficulty contribution and the rejected counter increments).
+Real-world reject rate is <1 %, so the optimistic bias is negligible.
+The same pattern applies in `_flushSubmitBuffer`.
+
 ### PATCH /me/rigs/:id (DO NOT REMOVE)
 
 The endpoint uses `safeParse` (NOT `.parse()`) for both request body and

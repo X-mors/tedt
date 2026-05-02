@@ -3,6 +3,7 @@ import type {
   ShareWindow,
   ProxyRigEntry,
   ProxyAdminStatus,
+  RecordedShare,
 } from "./types";
 import type { DownstreamSession } from "./downstream";
 import type { UpstreamClient } from "./upstream";
@@ -198,8 +199,9 @@ class ProxyState {
     accepted: boolean,
     difficulty: number,
     nowMs: number,
-  ): void {
-    window.recentSamples.push({ tsMs: nowMs, difficulty, accepted });
+  ): ShareSample {
+    const sample: ShareSample = { tsMs: nowMs, difficulty, accepted };
+    window.recentSamples.push(sample);
     this._pruneSamples(window.recentSamples, nowMs);
     if (accepted) {
       window.sharesAcceptedLifetime++;
@@ -208,6 +210,7 @@ class ProxyState {
       window.sharesRejectedLifetime++;
     }
     window.currentDifficulty = difficulty;
+    return sample;
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -348,9 +351,21 @@ class ProxyState {
   // Share recording — rental and fallback
   // ──────────────────────────────────────────────────────────────────────────
 
-  recordShare(rigId: number, accepted: boolean, difficulty: number): void {
+  /**
+   * Record a share for an active rental. Returns a `RecordedShare` handle
+   * that captures the rentalId/rigId at record time so a later
+   * `markShareRejected` correction routes to the SAME window/connection
+   * even if the rig disconnects, the rental ends, or the mode flips while
+   * the upstream pool reply is still in flight. Returns null only when the
+   * rig connection has gone away entirely.
+   */
+  recordShare(
+    rigId: number,
+    accepted: boolean,
+    difficulty: number,
+  ): RecordedShare | null {
     const conn = this.rigConnections.get(rigId);
-    if (!conn) return;
+    if (!conn) return null;
     const nowMs = Date.now();
     if (accepted) {
       conn.entry.sharesAccepted++;
@@ -360,14 +375,63 @@ class ProxyState {
     }
 
     const rentalId = conn.entry.rentalId;
-    if (rentalId == null) return;
+    if (rentalId == null) {
+      // No rental window yet (rare auth race); still return a handle so the
+      // caller can roll back the conn.entry increment if the pool rejects.
+      // The orphan sample isn't in any buffer — mutating its `accepted` flag
+      // is a no-op for hashrate, which is the desired behaviour.
+      return {
+        sample: { tsMs: nowMs, difficulty, accepted },
+        rigId,
+        rentalId: null,
+        appended: false,
+      };
+    }
 
     let window = this.shareWindows.get(rentalId);
     if (!window) {
       window = this._newWindow(rentalId, rigId);
       this.shareWindows.set(rentalId, window);
     }
-    this._appendSample(window, accepted, difficulty, nowMs);
+    const sample = this._appendSample(window, accepted, difficulty, nowMs);
+    return { sample, rigId, rentalId, appended: true };
+  }
+
+  /**
+   * Downgrade a previously-recorded accepted share to rejected. Used when we
+   * optimistically credit a share at submit time (downstream truth) but the
+   * upstream pool eventually returns a rejection.
+   *
+   * Routing uses the IMMUTABLE scope captured in the handle, NOT the rig's
+   * current rental/mode state — so a correction that lands after the rental
+   * ended or after the rig flipped to fallback still adjusts the original
+   * window, never the wrong one.
+   */
+  markShareRejected(handle: RecordedShare): void {
+    if (!handle.sample.accepted) return;
+    handle.sample.accepted = false;
+
+    const conn = this.rigConnections.get(handle.rigId);
+    if (conn) {
+      if (conn.entry.sharesAccepted > 0) conn.entry.sharesAccepted--;
+      conn.entry.sharesRejected++;
+    }
+
+    if (!handle.appended) return;
+
+    if (handle.rentalId != null) {
+      const window = this.shareWindows.get(handle.rentalId);
+      if (window) {
+        if (window.sharesAcceptedLifetime > 0) window.sharesAcceptedLifetime--;
+        window.sharesRejectedLifetime++;
+      }
+    } else {
+      const window = this.fallbackWindows.get(handle.rigId);
+      if (window) {
+        if (window.sharesAcceptedLifetime > 0) window.sharesAcceptedLifetime--;
+        window.sharesRejectedLifetime++;
+      }
+    }
   }
 
   /**
@@ -376,7 +440,11 @@ class ProxyState {
    * rental accounting, but we still buffer them so the owner UI can show
    * a meaningful "current hashrate" for an idle rig.
    */
-  recordFallbackShare(rigId: number, accepted: boolean, difficulty: number): void {
+  recordFallbackShare(
+    rigId: number,
+    accepted: boolean,
+    difficulty: number,
+  ): RecordedShare | null {
     const conn = this.rigConnections.get(rigId);
     const nowMs = Date.now();
     if (conn) {
@@ -392,7 +460,8 @@ class ProxyState {
       window = this._newWindow(0, rigId);
       this.fallbackWindows.set(rigId, window);
     }
-    this._appendSample(window, accepted, difficulty, nowMs);
+    const sample = this._appendSample(window, accepted, difficulty, nowMs);
+    return { sample, rigId, rentalId: null, appended: true };
   }
 
   setCurrentDifficulty(rentalId: number, difficulty: number): void {

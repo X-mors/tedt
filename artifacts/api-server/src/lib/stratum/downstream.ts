@@ -890,18 +890,25 @@ export class DownstreamSession extends EventEmitter {
     );
     for (const { jobId, extranonce2, ntime, nonce, versionBits, diff } of buffered) {
       if (!this.upstream) break; // Upstream went away again
+      // Optimistically record the share as accepted using DOWNSTREAM truth
+      // (the miner did submit it). If the pool eventually rejects, the same
+      // handle is downgraded below — see _handleSubmit for the rationale.
+      // The handle captures rental/fallback scope at record time so the
+      // correction routes correctly even if mode flips during the await.
+      let handle = null;
+      if (this.rigId != null && !this.isFallback) {
+        handle = proxyState.recordShare(this.rigId, true, diff);
+      } else if (this.rigId != null && this.isFallback) {
+        handle = proxyState.recordFallbackShare(this.rigId, true, diff);
+      }
       let accepted = false;
       try {
         accepted = await this.upstream.submitShare(jobId, extranonce2, ntime, nonce, versionBits);
       } catch {
         accepted = false;
       }
-      // Track rental shares in rental accounting; fallback shares feed the
-      // per-rig fallback buffer (display only — no settlement).
-      if (this.rigId != null && !this.isFallback) {
-        proxyState.recordShare(this.rigId, accepted, diff);
-      } else if (this.rigId != null && this.isFallback) {
-        proxyState.recordFallbackShare(this.rigId, accepted, diff);
+      if (!accepted && handle) {
+        proxyState.markShareRejected(handle);
       }
     }
   }
@@ -965,6 +972,29 @@ export class DownstreamSession extends EventEmitter {
       upstreamCurrentDiff > 1
         ? upstreamCurrentDiff
         : this.upstream.getJobDifficulty(jobId) || this.currentDifficulty;
+
+    // OPTIMISTIC RECORDING — credit the share to the rolling buffer the
+    // moment the miner submits it (downstream truth), not when the pool
+    // eventually replies. Why:
+    //   • The pool reply can lag by seconds (network) or never arrive
+    //     (mining.submit timeout = 30s in upstream._request). Waiting for
+    //     the reply meant a freshly-mining ASIC's shares appeared in the
+    //     rolling buffer late or not at all, so getLiveStats() saw 6 shares
+    //     in 10 minutes for a rig the pool was happily ingesting at full
+    //     hashrate — yielding the "stats stuck low while pool is fine"
+    //     symptom the user reported.
+    //   • Real-world reject rates are <1% on a healthy ASIC, so optimistic
+    //     accept introduces negligible bias; the rare rejection is corrected
+    //     in-place via markShareRejected when the pool replies, which
+    //     mutates the same sample so the hashrate calc immediately stops
+    //     counting its difficulty contribution.
+    let handle = null;
+    if (this.rigId != null && !this.isFallback) {
+      handle = proxyState.recordShare(this.rigId, true, diff);
+    } else if (this.rigId != null && this.isFallback) {
+      handle = proxyState.recordFallbackShare(this.rigId, true, diff);
+    }
+
     let accepted = false;
     try {
       accepted = await this.upstream.submitShare(
@@ -980,12 +1010,13 @@ export class DownstreamSession extends EventEmitter {
 
     this._reply(msg.id, accepted, accepted ? null : [23, "Low difficulty share"]);
 
-    // Track rental shares in rental accounting; fallback shares feed the
-    // per-rig fallback buffer (display-only — no settlement, no DB samples).
-    if (this.rigId != null && !this.isFallback) {
-      proxyState.recordShare(this.rigId, accepted, diff);
-    } else if (this.rigId != null && this.isFallback) {
-      proxyState.recordFallbackShare(this.rigId, accepted, diff);
+    // Pool actually rejected — downgrade the optimistic sample so the
+    // rejected counter increments and the rolling-buffer hashrate calc
+    // immediately stops counting that sample's difficulty. The handle
+    // carries the rental/fallback scope captured at record time, so the
+    // correction lands on the original window even if rental/mode changed.
+    if (!accepted && handle) {
+      proxyState.markShareRejected(handle);
     }
     // Refresh lastSeenAt heartbeat at most once per minute (both modes).
     if (this.rigId != null) {

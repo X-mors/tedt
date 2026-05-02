@@ -17,6 +17,27 @@ export interface ShareSample {
 }
 
 /**
+ * Handle returned by `recordShare` / `recordFallbackShare`. Captures the
+ * scope at record time so a later `markShareRejected` correction routes to
+ * the SAME window the sample was appended to, even if the rig's
+ * rental/mode/connection has changed during the in-flight pool reply.
+ *
+ * `rentalId` is the immutable scope tag:
+ *   • number  → sample is in the rental window for that rentalId
+ *   • null    → sample is in the rig's fallback window
+ */
+export interface RecordedShare {
+  sample: ShareSample;
+  rigId: number;
+  rentalId: number | null;
+  /** True if the sample was actually appended to a buffer. False means the
+   *  conn.entry display counter was incremented but no rental window existed
+   *  at record time (rare teardown race) — markShareRejected then only
+   *  rolls back the conn.entry increment. */
+  appended: boolean;
+}
+
+/**
  * Per-rental share tracking, redesigned around a rolling buffer of recent
  * shares. Effective hashrate is computed from samples within a configurable
  * lookback window (default 2 min for live display, 60 s for DB snapshots).
