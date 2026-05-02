@@ -25,7 +25,7 @@ export async function settleExpiredRentals(): Promise<number> {
   const now = new Date();
 
   const expired = await db
-    .select({ id: rentalsTable.id, rigId: rentalsTable.rigId, ownerId: rentalsTable.ownerId })
+    .select({ id: rentalsTable.id, rigId: rentalsTable.rigId })
     .from(rentalsTable)
     .where(
       and(
@@ -38,7 +38,7 @@ export async function settleExpiredRentals(): Promise<number> {
 
   let settled = 0;
 
-  for (const { id, rigId, ownerId } of expired) {
+  for (const { id, rigId } of expired) {
     const ok = await db.transaction(async (tx) => {
       // Re-check inside the transaction — only the first concurrent caller wins.
       const [claimed] = await tx
@@ -130,16 +130,10 @@ export async function settleExpiredRentals(): Promise<number> {
     // Tear down any live proxy routing now that the rental is done.
     // deactivateRental() also removes the share window from proxyState so
     // the flush loop stops inserting samples for this finished rental.
-    //
-    // The miner may have connected under a different stratumName (shadow rig),
-    // so we fall back to an owner-level session lookup when rigId doesn't match.
-    const expiredSession =
-      proxyState.getRigSession(rigId) ??
-      proxyState.getAnySessionForOwner(ownerId);
-    if (expiredSession) {
-      expiredSession.deactivateRental();
-    } else {
-      // Rig is offline at settlement time — just clean up the share window.
+    proxyState.getRigSession(rigId)?.deactivateRental();
+    // If no active session exists, remove the window directly (rig offline
+    // at time of settlement).
+    if (!proxyState.getRigSession(rigId)) {
       proxyState.removeShareWindow(id);
     }
   }

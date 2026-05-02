@@ -196,16 +196,6 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
     this.subscribed = true;
-
-    // Always generate a fresh random extranonce on subscribe.
-    // The pool's actual extranonce will be synced to the miner via
-    // mining.set_extranonce once the upstream connects (see _wireUpstreamEvents
-    // and _startUpstream). This matches the behaviour of commit 027ed1c
-    // ("Force miner to reconnect for clean rental transitions") which was
-    // confirmed working. The previous approach of seeding with a parked
-    // upstream's extranonce was removed because it could return a stale
-    // extranonce from a previous rental/session, causing the miner to cycle
-    // through reconnect loops and ultimately fall back to the owner's pool.
     this.extranonce1 = makeExtranonce1();
     this.extranonce2Size = 4;
 
@@ -336,11 +326,7 @@ export class DownstreamSession extends EventEmitter {
     }
 
     // Find or auto-create the rig for this (ownerId, stratumName) pair.
-    // IMPORTANT: if multiple rigs share the same stratumName (e.g. an approved
-    // rig and a shadow auto-created rig), prefer the APPROVED one so that
-    // _findActiveRental can match the rental by rigId directly — rentals are
-    // stored against the approved rig's ID, not the shadow rig's ID.
-    const existingRigs = await db
+    const [existingRig] = await db
       .select({
         id: rigsTable.id,
         name: rigsTable.name,
@@ -349,20 +335,12 @@ export class DownstreamSession extends EventEmitter {
         stratumPort: rigsTable.stratumPort,
         stratumUser: rigsTable.stratumUser,
         stratumPassword: rigsTable.stratumPassword,
-        approvalStatus: rigsTable.approvalStatus,
       })
       .from(rigsTable)
       .where(and(eq(rigsTable.ownerId, user.id), eq(rigsTable.stratumName, rigname)));
 
-    // Prefer approved rig over pending/shadow rig so rental lookup by rigId works.
-    const existingRig = existingRigs.find(r => r.approvalStatus === "approved") ?? existingRigs[0];
-
     if (existingRig) {
-      logger.info(
-        { rigId: existingRig.id, ownerId: user.id, stratumName: rigname, approvalStatus: existingRig.approvalStatus },
-        "stratum:downstream auth — found existing rig",
-      );
-      await this._completeAuth(msg, { ...existingRig, ownerId: user.id }, rigname);
+      await this._completeAuth(msg, { ...existingRig, ownerId: user.id });
       return;
     }
 
@@ -424,7 +402,7 @@ export class DownstreamSession extends EventEmitter {
       "stratum:downstream auto-created rig on first connect",
     );
 
-    await this._completeAuth(msg, { ...autoRig, ownerId: user.id }, rigname);
+    await this._completeAuth(msg, { ...autoRig, ownerId: user.id });
   }
 
   /** Shared post-authentication logic for both legacy and new auth paths. */
@@ -436,7 +414,7 @@ export class DownstreamSession extends EventEmitter {
     stratumPort: number;
     stratumUser: string;
     stratumPassword: string;
-  }, stratumName?: string): Promise<void> {
+  }): Promise<void> {
     this.rigId = rig.id;
     this.ownerId = rig.ownerId;
     this.authorized = true;
@@ -448,36 +426,25 @@ export class DownstreamSession extends EventEmitter {
       .set({ isOnline: true, lastSeenAt: new Date() })
       .where(eq(rigsTable.id, rig.id));
 
-    const activeRental = await this._findActiveRental(rig.id, rig.ownerId, stratumName);
+    const activeRental = await this._findActiveRental(rig.id, rig.ownerId);
     this.rentalId = activeRental?.id ?? null;
     proxyState.setRigAuthorized(rig.id, this.rentalId);
 
     this._reply(msg.id, true);
-    logger.info(
-      { rigId: rig.id, ownerId: rig.ownerId, rentalId: this.rentalId },
-      "stratum:downstream authorized",
-    );
+    logger.info({ rigId: rig.id, rentalId: this.rentalId }, "stratum:downstream authorized");
 
     if (activeRental) {
       this.isFallback = false;
-      logger.info(
-        { rigId: rig.id, rentalId: activeRental.id, poolUrl: activeRental.poolUrl },
-        "stratum:downstream ROUTING → RENTER POOL",
-      );
       await this._startUpstream(activeRental);
     } else if (rig.stratumHost && rig.stratumPort > 0) {
-      logger.info(
-        { rigId: rig.id, stratumHost: rig.stratumHost, stratumPort: rig.stratumPort },
-        "stratum:downstream ROUTING → OWNER FALLBACK POOL (no active rental)",
-      );
       await this._startFallbackUpstream(rig);
     } else {
       this._notify("mining.set_difficulty", [1]);
-      logger.info({ rigId: rig.id }, "stratum:downstream ROUTING → IDLE (no rental, no fallback pool configured)");
+      logger.info({ rigId: rig.id }, "stratum:downstream no active rental, miner idle");
     }
   }
 
-  private async _findActiveRental(rigId: number, ownerId: number, stratumName?: string) {
+  private async _findActiveRental(rigId: number, ownerId: number) {
     const now = new Date();
 
     // Primary: look up by the exact rigId registered in the marketplace.
@@ -496,70 +463,11 @@ export class DownstreamSession extends EventEmitter {
           eq(rentalsTable.status, "active"),
         ),
       );
+    if (rental && rental.endsAt >= now) return rental;
 
-    if (rental) {
-      if (rental.endsAt >= now) {
-        logger.info(
-          { rigId, rentalId: rental.id, poolUrl: rental.poolUrl, endsAt: rental.endsAt },
-          "stratum:_findActiveRental PRIMARY HIT — routing to renter pool",
-        );
-        return rental;
-      }
-      logger.warn(
-        { rigId, rentalId: rental.id, endsAt: rental.endsAt, now },
-        "stratum:_findActiveRental primary found rental but endsAt is PAST — not routing",
-      );
-    } else {
-      logger.info(
-        { rigId, ownerId, stratumName },
-        "stratum:_findActiveRental primary miss — no active rental for rigId, trying stratumName fallback",
-      );
-    }
-
-    // Secondary fallback: if we know the miner's stratumName (rigname), find
-    // the rig that owns that stratumName and look up its rental. This handles
-    // the case where an owner has multiple rigs — we can pinpoint the correct
-    // rental rather than returning an arbitrary one via the ownerId fallback.
-    if (stratumName) {
-      const [byStratumName] = await db
-        .select({
-          id: rentalsTable.id,
-          poolUrl: rentalsTable.poolUrl,
-          poolWorker: rentalsTable.poolWorker,
-          poolPassword: rentalsTable.poolPassword,
-          endsAt: rentalsTable.endsAt,
-          matchedRigId: rigsTable.id,
-        })
-        .from(rentalsTable)
-        .innerJoin(rigsTable, eq(rigsTable.id, rentalsTable.rigId))
-        .where(
-          and(
-            eq(rigsTable.ownerId, ownerId),
-            eq(rigsTable.stratumName, stratumName),
-            eq(rentalsTable.status, "active"),
-          ),
-        );
-
-      if (byStratumName) {
-        if (byStratumName.endsAt >= now) {
-          logger.warn(
-            { shadowRigId: rigId, ownerId, stratumName, rentalId: byStratumName.id, matchedRigId: byStratumName.matchedRigId },
-            "stratum:_findActiveRental STRATUMNAME FALLBACK HIT — shadow rig matched by stratumName",
-          );
-          return byStratumName;
-        }
-        logger.warn(
-          { rigId, ownerId, stratumName, rentalId: byStratumName.id, endsAt: byStratumName.endsAt, now },
-          "stratum:_findActiveRental stratumName fallback found rental but endsAt is PAST → fallback pool",
-        );
-        return null;
-      }
-    }
-
-    // Last resort: any active rental for this owner. Only used when stratumName
-    // is unknown (legacy auth) or when the owner has a single rig.
-    // WARNING: if the owner has multiple rigs with active rentals this may
-    // return the wrong rental — prefer the stratumName path above.
+    // Fallback: miner may have connected under a stratumName that caused the
+    // proxy to auto-create a shadow rig with a different ID.  Search by ownerId
+    // so we can still route to the renter's pool when the IDs don't match.
     const [ownerRental] = await db
       .select({
         id: rentalsTable.id,
@@ -575,25 +483,11 @@ export class DownstreamSession extends EventEmitter {
           eq(rentalsTable.status, "active"),
         ),
       );
-
-    if (!ownerRental) {
-      logger.info(
-        { rigId, ownerId },
-        "stratum:_findActiveRental fallback miss — no active rental for ownerId either → fallback pool",
-      );
-      return null;
-    }
-    if (ownerRental.endsAt < now) {
-      logger.warn(
-        { rigId, ownerId, rentalId: ownerRental.id, endsAt: ownerRental.endsAt, now },
-        "stratum:_findActiveRental fallback found rental but endsAt is PAST → fallback pool",
-      );
-      return null;
-    }
+    if (!ownerRental || ownerRental.endsAt < now) return null;
 
     logger.warn(
-      { shadowRigId: rigId, ownerId, rentalId: ownerRental.id, poolUrl: ownerRental.poolUrl },
-      "stratum:_findActiveRental OWNER FALLBACK HIT — last resort ownerId lookup (shadow rig, single-rig owner)",
+      { shadowRigId: rigId, ownerId, rentalId: ownerRental.id },
+      "stratum:downstream _findActiveRental fallback via ownerId — stratumName mismatch",
     );
     return ownerRental;
   }
@@ -776,20 +670,6 @@ export class DownstreamSession extends EventEmitter {
       this._wireUpstreamEvents(rental.id);
       // Upstream is already connected — mark ready and drain any buffered shares.
       if (this.rigId != null) proxyState.setUpstreamConnected(this.rigId, true);
-      // The miner received a fresh random extranonce in the subscribe response
-      // (we no longer seed subscribe from the parked upstream). Sync the miner
-      // to the pool's extranonce now so submitted shares are valid.
-      const poolE1 = parked.getExtranonce1();
-      if (poolE1) {
-        const poolE2Size = parked.getExtranonce2Size();
-        this.extranonce1 = poolE1;
-        this.extranonce2Size = poolE2Size;
-        this._notify("mining.set_extranonce", [poolE1, poolE2Size]);
-        logger.debug(
-          { rigId: this.rigId, rentalId: rental.id, extranonce1: poolE1 },
-          "stratum:downstream synced miner extranonce from parked upstream",
-        );
-      }
       void this._flushSubmitBuffer();
       return;
     }

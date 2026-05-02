@@ -281,27 +281,19 @@ router.post("/rentals", async (req, res) => {
   // stratumName that differs from the listed rig's stratumName (e.g. the rig was listed
   // under a different name and the proxy auto-created a shadow rig entry). In that
   // scenario the session is keyed under the shadow rig's ID, not body.rigId.
-  const primarySession = proxyState.getRigSession(body.rigId);
-  const session = primarySession ?? proxyState.getAnySessionForOwner(rigRow.ownerId);
+  const session =
+    proxyState.getRigSession(body.rigId) ??
+    proxyState.getAnySessionForOwner(rigRow.ownerId);
 
   if (session) {
-    if (!primarySession) {
+    if (!proxyState.getRigSession(body.rigId)) {
+      // Fallback path used — log so admins can detect stratumName mismatches.
       logger.warn(
         { rigId: body.rigId, ownerId: rigRow.ownerId, rentalId },
-        "rental:create — activating on FALLBACK session (stratumName mismatch / shadow rig)",
-      );
-    } else {
-      logger.info(
-        { rigId: body.rigId, rentalId },
-        "rental:create — activating on PRIMARY session",
+        "rental: activating on fallback session — possible stratumName mismatch (miner connected under a different rig ID)",
       );
     }
     void session.activateRental(rentalId, body.poolUrl, body.poolWorker, body.poolPassword ?? "x");
-  } else {
-    logger.warn(
-      { rigId: body.rigId, ownerId: rigRow.ownerId, rentalId },
-      "rental:create — NO SESSION FOUND — miner is not connected to proxy — routing will happen on next miner connect",
-    );
   }
 
   res.status(201).json(newRental);
@@ -457,8 +449,6 @@ router.get("/rentals/:id/stats", async (req, res) => {
   const algMultiplier = unitMultiplier(rental.algorithmUnit);
   const advertisedH = toNum(rental.hashrate) * algMultiplier;
 
-  // Fetch up to 1 hour of 60-s samples (60 samples × 60 s = 1 h).
-  // Ordered newest-first so slicing gives the most-recent N easily.
   const dbSamples = await db
     .select({
       sampledAt: rentalHashSamplesTable.sampledAt,
@@ -467,31 +457,21 @@ router.get("/rentals/:id/stats", async (req, res) => {
     .from(rentalHashSamplesTable)
     .where(eq(rentalHashSamplesTable.rentalId, id))
     .orderBy(desc(rentalHashSamplesTable.sampledAt))
-    .limit(60);
+    .limit(30);
 
-  // Helper: average over a slice, returns H/s
-  const avgH = (slice: typeof dbSamples) =>
-    slice.length > 0
-      ? slice.reduce((s, x) => s + toNum(x.effectiveHashrateH ?? "0"), 0) / slice.length
+  const samples = dbSamples.reverse().map((s) => ({
+    timestamp: s.sampledAt.toISOString(),
+    hashrate: toNum(s.effectiveHashrateH ?? "0"),
+  }));
+
+  const avgDeliveredH =
+    samples.length > 0
+      ? samples.reduce((sum, s) => sum + s.hashrate, 0) / samples.length
       : 0;
-
-  const hashrate10mH = avgH(dbSamples.slice(0, 10));   // last 10 min
-  const hashrate1hH  = avgH(dbSamples.slice(0, 60));   // last 60 min
-  const avgDeliveredH = hashrate1hH;                    // delivery uses 1-h avg
-
-  const hashrate10m = hashrate10mH / algMultiplier;
-  const hashrate1h  = hashrate1hH  / algMultiplier;
-
   const deliveryRatio =
     advertisedH > 0 && avgDeliveredH > 0
       ? Math.min(1.05, avgDeliveredH / advertisedH)
       : 0;
-
-  // Chart: last 60 samples in chronological order (newest-first → reverse)
-  const samples = dbSamples.slice().reverse().map((s) => ({
-    timestamp: s.sampledAt.toISOString(),
-    hashrate: toNum(s.effectiveHashrateH ?? "0") / algMultiplier,
-  }));
 
   let message: string | null = null;
   if (rental.status === "active" && !live.minerConnected) {
@@ -508,8 +488,6 @@ router.get("/rentals/:id/stats", async (req, res) => {
     rentalId: rental.id,
     currentHashrate: live.effectiveHashrateH / algMultiplier,
     averageHashrate: avgDeliveredH / algMultiplier,
-    hashrate10m,
-    hashrate1h,
     deliveryRatio,
     sharesAccepted: live.sharesAccepted,
     sharesRejected: live.sharesRejected,
@@ -697,16 +675,7 @@ router.post("/rentals/:id/cancel", async (req, res) => {
   });
 
   // Tear down any live proxy routing for this rental.
-  // Fall back to owner-level session lookup in case the miner connected under
-  // a different stratumName (shadow rig with a different rigId).
-  const cancelSession =
-    proxyState.getRigSession(rental.rigId) ??
-    proxyState.getAnySessionForOwner(rental.ownerId);
-  if (cancelSession) {
-    cancelSession.deactivateRental();
-  } else {
-    proxyState.removeShareWindow(rental.id);
-  }
+  proxyState.getRigSession(rental.rigId)?.deactivateRental();
 
   const detail = await loadRentalDetail(rental.id);
   res.json(CancelRentalResponse.parse(detail));

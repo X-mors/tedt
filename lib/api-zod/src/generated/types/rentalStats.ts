@@ -12,10 +12,6 @@ export interface RentalStats {
   rentalId: number;
   currentHashrate: number;
   averageHashrate: number;
-  /** 10-minute average hashrate in algorithm units */
-  hashrate10m: number;
-  /** 1-hour average hashrate in algorithm units */
-  hashrate1h: number;
   /** Average delivered hashrate divided by advertised hashrate (0–1) */
   deliveryRatio: number;
   sharesAccepted: number;
