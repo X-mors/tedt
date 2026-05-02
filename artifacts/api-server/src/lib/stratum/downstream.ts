@@ -6,7 +6,7 @@ import { db, rigsTable, rentalsTable, proxyAuthFailuresTable, usersTable, algori
 import { logger } from "../logger";
 import { proxyState } from "./state";
 import { UpstreamClient } from "./upstream";
-import type { JsonRpcMessage } from "./types";
+import type { JsonRpcMessage, RecordedShare } from "./types";
 
 
 /** Maximum number of shares buffered while upstream is temporarily unavailable. */
@@ -16,6 +16,13 @@ const SUBMIT_BUFFER_MAX = 64;
  * Stores share parameters for replay after upstream reconnects.
  * We do NOT store the original request ID so there is no risk of sending a
  * duplicate reply to the miner — the miner already received `result: true`.
+ *
+ * `handle` is the optimistic record made AT BUFFER TIME so the rolling stats
+ * buffer continues to receive samples even while upstream is disconnected
+ * (otherwise the live hashrate decays to 0 during any pool blip even though
+ * the miner is happily producing shares). On replay, if the pool ultimately
+ * rejects, we downgrade this handle in place — we do NOT record the share
+ * again (which would double-count).
  */
 interface BufferedSubmit {
   jobId: string;
@@ -24,6 +31,7 @@ interface BufferedSubmit {
   nonce: string;
   versionBits: string | undefined;
   diff: number;
+  handle: RecordedShare | null;
 }
 
 function makeExtranonce1(): string {
@@ -539,7 +547,7 @@ export class DownstreamSession extends EventEmitter {
       this.upstream.destroy();
       this.upstream = null;
     }
-    this.submitBuffer = [];
+    this._clearSubmitBuffer();
     this.isFallback = false;
     this.rentalId = rentalId;
     if (this.rigId != null) proxyState.setRigAuthorized(this.rigId, rentalId);
@@ -591,7 +599,7 @@ export class DownstreamSession extends EventEmitter {
     // Otherwise _startUpstream on the next reconnect would claim the parked
     // OLD-pool upstream and silently keep mining to the previous pool.
     proxyState.removeParkedUpstream(rentalId);
-    this.submitBuffer = [];
+    this._clearSubmitBuffer();
     if (this.rigId != null) {
       proxyState.setUpstreamConnected(this.rigId, false);
       proxyState.setUpstreamAuthFailed(this.rigId, false);
@@ -609,7 +617,7 @@ export class DownstreamSession extends EventEmitter {
       this.upstream.destroy();
       this.upstream = null;
     }
-    this.submitBuffer = [];
+    this._clearSubmitBuffer();
     this.rentalId = null;
     this.isFallback = false;
     if (this.rigId != null) {
@@ -888,29 +896,51 @@ export class DownstreamSession extends EventEmitter {
       { rigId: this.rigId, count: buffered.length },
       "stratum:downstream replaying buffered shares",
     );
-    for (const { jobId, extranonce2, ntime, nonce, versionBits, diff } of buffered) {
-      if (!this.upstream) break; // Upstream went away again
-      // Optimistically record the share as accepted using DOWNSTREAM truth
-      // (the miner did submit it). If the pool eventually rejects, the same
-      // handle is downgraded below — see _handleSubmit for the rationale.
-      // The handle captures rental/fallback scope at record time so the
-      // correction routes correctly even if mode flips during the await.
-      let handle = null;
-      if (this.rigId != null && !this.isFallback) {
-        handle = proxyState.recordShare(this.rigId, true, diff);
-      } else if (this.rigId != null && this.isFallback) {
-        handle = proxyState.recordFallbackShare(this.rigId, true, diff);
+    for (const buf of buffered) {
+      if (!this.upstream) {
+        // Upstream went away again — push the unprocessed buffered share back
+        // so the next reconnect can replay it. Don't rollback the handle:
+        // the share IS still credited optimistically (downstream truth) and
+        // will be replayed soon.
+        if (this.submitBuffer.length < SUBMIT_BUFFER_MAX) {
+          this.submitBuffer.push(buf);
+        } else if (buf.handle) {
+          // Buffer is full — give up on this one. Downgrade the optimistic
+          // credit so it doesn't linger in stats forever.
+          proxyState.markShareRejected(buf.handle);
+        }
+        continue;
       }
       let accepted = false;
       try {
-        accepted = await this.upstream.submitShare(jobId, extranonce2, ntime, nonce, versionBits);
+        accepted = await this.upstream.submitShare(
+          buf.jobId, buf.extranonce2, buf.ntime, buf.nonce, buf.versionBits,
+        );
       } catch {
         accepted = false;
       }
-      if (!accepted && handle) {
-        proxyState.markShareRejected(handle);
+      // The share was already recorded optimistically at buffer time; only
+      // act on rejection. Do NOT recordShare again — that would double-count.
+      if (!accepted && buf.handle) {
+        proxyState.markShareRejected(buf.handle);
       }
     }
+  }
+
+  /**
+   * Drop the buffered submit queue and downgrade every optimistic handle.
+   * Used when the rental/upstream context fundamentally changes (rental
+   * activate/switch/deactivate) — the buffered shares are no longer valid
+   * for the new context and would be replayed against the wrong pool.
+   * Without the rejection sweep the optimistic credits would leak into
+   * stats with no corresponding upstream confirmation ever arriving.
+   */
+  private _clearSubmitBuffer(): void {
+    if (this.submitBuffer.length === 0) return;
+    for (const buf of this.submitBuffer) {
+      if (buf.handle) proxyState.markShareRejected(buf.handle);
+    }
+    this.submitBuffer = [];
   }
 
   private async _handleSubmit(msg: JsonRpcMessage): Promise<void> {
@@ -934,8 +964,21 @@ export class DownstreamSession extends EventEmitter {
         return;
       }
       // Upstream temporarily unavailable — buffer the share for replay.
+      // CRITICAL: also record optimistically NOW so the rolling stats buffer
+      // keeps receiving samples during the upstream blip. Without this the
+      // live hashrate decayed to 0 within ~2 min of any pool disconnect even
+      // though the miner was still producing shares — the user-reported
+      // "stats appear then stop updating" symptom. The handle is stored on
+      // the BufferedSubmit; if the pool later rejects on replay, we
+      // downgrade in place (no double-count).
       if (this.submitBuffer.length < SUBMIT_BUFFER_MAX) {
-        this.submitBuffer.push({ jobId, extranonce2, ntime, nonce, versionBits, diff: this.currentDifficulty });
+        let handle: RecordedShare | null = null;
+        if (this.rigId != null && !this.isFallback) {
+          handle = proxyState.recordShare(this.rigId, true, this.currentDifficulty);
+        } else if (this.rigId != null && this.isFallback) {
+          handle = proxyState.recordFallbackShare(this.rigId, true, this.currentDifficulty);
+        }
+        this.submitBuffer.push({ jobId, extranonce2, ntime, nonce, versionBits, diff: this.currentDifficulty, handle });
         logger.debug(
           { rigId: this.rigId, bufferLen: this.submitBuffer.length },
           "stratum:downstream share buffered (upstream unavailable)",
@@ -1049,17 +1092,24 @@ export class DownstreamSession extends EventEmitter {
     // Diagnostic: classify how long the connection lasted so we can spot
     // patterns like "miner reconnects every 60 s" in the logs.
     const aliveMs = Date.now() - this.lastReceivedMs;
+    const pendingBuffered = this.submitBuffer.length;
     logger.info(
       {
         rigId: this.rigId,
         rentalId: this.rentalId,
-        sharesAccepted: this.submitBuffer.length,
+        pendingBuffered,
         msSinceLastData: aliveMs,
         wasAuthorized: this.authorized,
         wasFallback: this.isFallback,
       },
       "stratum:downstream session closing",
     );
+    // Roll back any pending optimistic credits BEFORE we tear down session
+    // state — there is no replay path across socket close, so leaving these
+    // handles untouched would inflate live/lifetime stats with shares that
+    // never reached the pool. _clearSubmitBuffer() sweeps markShareRejected
+    // over each handle and empties the queue.
+    this._clearSubmitBuffer();
     if (this.rigId != null) {
       proxyState.removeRig(this.rigId);
       // Mark rig offline in DB (best-effort — do not await to avoid blocking).

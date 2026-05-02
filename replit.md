@@ -224,12 +224,24 @@ arrive (mining.submit timeout = 30 s in `upstream._request`); waiting for it
 meant a healthy ASIC's shares trickled into the buffer late or not at all,
 producing the user-reported "6 shares in 10 minutes for a rig the pool says is
 hashing fine" / "stats start dropping" symptom. `recordShare` /
-`recordFallbackShare` return the `ShareSample` reference; if the pool actually
-rejects, we call `markShareRejected` / `markFallbackShareRejected` which mutate
-the same sample in place (so the rolling-buffer hashrate calc immediately stops
-counting its difficulty contribution and the rejected counter increments).
+`recordFallbackShare` return an immutable `RecordedShare` handle (sample,
+rigId, rentalId, appended) captured at record time; if the pool actually
+rejects, we call the unified `markShareRejected(handle)` which mutates the
+original sample in place even if mode/rental flipped during the await.
 Real-world reject rate is <1 %, so the optimistic bias is negligible.
-The same pattern applies in `_flushSubmitBuffer`.
+
+The **same pattern applies in the upstream-disconnected branch** of
+`_handleSubmit` (when `!this.upstream`): we record optimistically AT BUFFER
+TIME and store the `RecordedShare` on the `BufferedSubmit`. Without this the
+rolling buffer received zero new samples during pool blips and the live
+hashrate decayed to 0 within ~2 min even though the miner was still hashing
+— the user-reported "stats appear then stop updating" symptom. On replay,
+`_flushSubmitBuffer` does NOT call `recordShare` again (would double-count);
+it only calls `markShareRejected(buf.handle)` if the pool ultimately rejects.
+Buffer-clear sites (`activateRental`, `switchRentalPool`, `deactivateRental`)
+go through `_clearSubmitBuffer()` which sweeps `markShareRejected` over every
+pending handle so optimistic credits don't leak when context fundamentally
+changes.
 
 ### PATCH /me/rigs/:id (DO NOT REMOVE)
 
