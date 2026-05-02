@@ -344,7 +344,11 @@ export class DownstreamSession extends EventEmitter {
     }
 
     // Find or auto-create the rig for this (ownerId, stratumName) pair.
-    const [existingRig] = await db
+    // IMPORTANT: if multiple rigs share the same stratumName (e.g. an approved
+    // rig and a shadow auto-created rig), prefer the APPROVED one so that
+    // _findActiveRental can match the rental by rigId directly — rentals are
+    // stored against the approved rig's ID, not the shadow rig's ID.
+    const existingRigs = await db
       .select({
         id: rigsTable.id,
         name: rigsTable.name,
@@ -353,11 +357,19 @@ export class DownstreamSession extends EventEmitter {
         stratumPort: rigsTable.stratumPort,
         stratumUser: rigsTable.stratumUser,
         stratumPassword: rigsTable.stratumPassword,
+        approvalStatus: rigsTable.approvalStatus,
       })
       .from(rigsTable)
       .where(and(eq(rigsTable.ownerId, user.id), eq(rigsTable.stratumName, rigname)));
 
+    // Prefer approved rig over pending/shadow rig so rental lookup by rigId works.
+    const existingRig = existingRigs.find(r => r.approvalStatus === "approved") ?? existingRigs[0];
+
     if (existingRig) {
+      logger.info(
+        { rigId: existingRig.id, ownerId: user.id, stratumName: rigname, approvalStatus: existingRig.approvalStatus },
+        "stratum:downstream auth — found existing rig",
+      );
       await this._completeAuth(msg, { ...existingRig, ownerId: user.id }, rigname);
       return;
     }
