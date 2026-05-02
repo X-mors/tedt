@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import {
   db,
   rigsTable,
@@ -32,6 +32,55 @@ import { validatePoolUrl } from "../lib/ssrf";
 import { randomBytes } from "node:crypto";
 
 const router: IRouter = Router();
+
+/**
+ * Display-stability constants for rental live/stats endpoints.
+ *
+ * Real ASIC firmwares routinely close and re-open the stratum TCP socket
+ * (every 1-2 minutes) for keepalive / job rotation reasons even while mining
+ * normally. The raw in-memory state flips minerConnected=false and
+ * effectiveHashrateH=0 during these brief gaps, which makes the renter UI
+ * flap to "OFFLINE / 0 H/s" even though the rental is healthy.
+ *
+ * To smooth this for display only, we:
+ *  - keep the connection flags "true" if a share was received within
+ *    SOFT_CONNECT_GRACE_MS (covers normal reconnect cycles);
+ *  - fall back to the average of recent DB samples (one per minute,
+ *    persisted by the stratum flush loop) when the live window happens
+ *    to be empty.
+ *
+ * These constants ONLY affect the values returned by /live and /stats.
+ * The underlying proxy state, sample persistence, settlement math, and
+ * low-delivery auto-cancel logic are unchanged.
+ */
+const SOFT_CONNECT_GRACE_MS = 3 * 60_000;
+const RECENT_SAMPLE_WINDOW_MS = 5 * 60_000;
+
+async function getRecentAvgHashrateH(rentalId: number): Promise<number> {
+  const cutoff = new Date(Date.now() - RECENT_SAMPLE_WINDOW_MS);
+  const rows = await db
+    .select({ effectiveHashrateH: rentalHashSamplesTable.effectiveHashrateH })
+    .from(rentalHashSamplesTable)
+    .where(
+      and(
+        eq(rentalHashSamplesTable.rentalId, rentalId),
+        gte(rentalHashSamplesTable.sampledAt, cutoff),
+      ),
+    );
+  if (rows.length === 0) return 0;
+  const nonZero = rows
+    .map((r) => toNum(r.effectiveHashrateH ?? "0"))
+    .filter((h) => h > 0);
+  if (nonZero.length === 0) return 0;
+  return nonZero.reduce((sum, h) => sum + h, 0) / nonZero.length;
+}
+
+function withinGrace(lastShareAt: Date | null): boolean {
+  return (
+    lastShareAt != null &&
+    Date.now() - lastShareAt.getTime() < SOFT_CONNECT_GRACE_MS
+  );
+}
 
 function priceForRental(opts: {
   hashrate: number;
@@ -474,12 +523,22 @@ router.get("/rentals/:id/stats", async (req, res) => {
       ? Math.min(1.05, avgDeliveredH / advertisedH)
       : 0;
 
+  // Display-stability: smooth over normal ASIC reconnect cycles so the UI
+  // doesn't flap to OFFLINE / 0 H/s every minute. See top-of-file comment.
+  const inGrace = withinGrace(live.lastShareAt);
+  const minerConnectedDisplay = live.minerConnected || inGrace;
+  const upstreamConnectedDisplay = live.upstreamConnected || inGrace;
+  const displayHashrateH =
+    live.effectiveHashrateH > 0
+      ? live.effectiveHashrateH
+      : await getRecentAvgHashrateH(id);
+
   let message: string | null = null;
-  if (rental.status === "active" && !live.minerConnected) {
+  if (rental.status === "active" && !minerConnectedDisplay) {
     message = "Awaiting miner connection — point your rig at the proxy URL.";
-  } else if (rental.status === "active" && live.minerConnected && live.poolAuthFailed) {
+  } else if (rental.status === "active" && minerConnectedDisplay && live.poolAuthFailed) {
     message = "Pool rejected worker credentials — check your pool worker name and password.";
-  } else if (rental.status === "active" && live.minerConnected && !live.upstreamConnected) {
+  } else if (rental.status === "active" && minerConnectedDisplay && !upstreamConnectedDisplay) {
     message = "Miner connected — establishing upstream pool connection.";
   } else if (rental.status !== "active" && samples.length === 0) {
     message = "No hashrate data recorded for this rental.";
@@ -487,7 +546,7 @@ router.get("/rentals/:id/stats", async (req, res) => {
 
   const data = GetRentalStatsResponse.parse({
     rentalId: rental.id,
-    currentHashrate: live.effectiveHashrateH / algMultiplier,
+    currentHashrate: displayHashrateH / algMultiplier,
     averageHashrate: avgDeliveredH / algMultiplier,
     deliveryRatio,
     sharesAccepted: live.sharesAccepted,
@@ -496,8 +555,8 @@ router.get("/rentals/:id/stats", async (req, res) => {
     status: rental.status,
     samples,
     message,
-    minerConnected: live.minerConnected,
-    upstreamConnected: live.upstreamConnected,
+    minerConnected: minerConnectedDisplay,
+    upstreamConnected: upstreamConnectedDisplay,
     poolAuthFailed: live.poolAuthFailed,
   });
   res.json(data);
@@ -539,19 +598,28 @@ router.get("/rentals/:id/live", async (req, res) => {
   const live = proxyState.getLiveStats(id);
   const algMultiplier = unitMultiplier(rental.algorithmUnit);
   const advertisedH = toNum(rental.hashrate) * algMultiplier;
+
+  // Display-stability: smooth over normal ASIC reconnect cycles. See top-of-file comment.
+  const inGrace = withinGrace(live.lastShareAt);
+  const minerConnectedDisplay = live.minerConnected || inGrace;
+  const upstreamConnectedDisplay = live.upstreamConnected || inGrace;
+  const recentAvgH =
+    live.effectiveHashrateH > 0 ? 0 : await getRecentAvgHashrateH(id);
+  const displayHashrateH =
+    live.effectiveHashrateH > 0 ? live.effectiveHashrateH : recentAvgH;
   const deliveryRatio =
-    advertisedH > 0 && live.effectiveHashrateH > 0
-      ? Math.min(1.05, live.effectiveHashrateH / advertisedH)
+    advertisedH > 0 && displayHashrateH > 0
+      ? Math.min(1.05, displayHashrateH / advertisedH)
       : 0;
 
   res.json({
     rentalId: id,
     status: rental.status,
-    minerConnected: live.minerConnected,
-    upstreamConnected: live.upstreamConnected,
+    minerConnected: minerConnectedDisplay,
+    upstreamConnected: upstreamConnectedDisplay,
     poolAuthFailed: live.poolAuthFailed,
-    currentHashrateH: live.effectiveHashrateH,
-    currentHashrate: live.effectiveHashrateH / algMultiplier,
+    currentHashrateH: displayHashrateH,
+    currentHashrate: displayHashrateH / algMultiplier,
     sharesAccepted: live.sharesAccepted,
     sharesRejected: live.sharesRejected,
     currentDifficulty: live.currentDifficulty,
