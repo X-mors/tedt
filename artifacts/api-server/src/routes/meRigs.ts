@@ -324,9 +324,12 @@ router.patch("/me/rigs/:id", async (req, res) => {
     patch["maxRentalHours"] = body.maxRentalHours;
   if (body.region !== undefined) patch["region"] = body.region;
   if (body.status !== undefined) patch["status"] = body.status;
-  // Fallback pool settings — empty string clears the pool config.
-  if (body.fallbackPoolHost !== undefined)
+  // Fallback pool settings — empty string on host clears the whole pool config.
+  if (body.fallbackPoolHost !== undefined) {
     patch["stratumHost"] = body.fallbackPoolHost;
+    // If host is being cleared, reset port to 0 so hasFallbackPool becomes false.
+    if (body.fallbackPoolHost === "") patch["stratumPort"] = 0;
+  }
   if (body.fallbackPoolPort !== undefined)
     patch["stratumPort"] = body.fallbackPoolPort;
   if (body.fallbackPoolUser !== undefined)

@@ -109,10 +109,11 @@ export default function RigForm() {
     e.preventDefault();
 
     const fallbackHost = formData.fallbackPoolHost.trim();
-    const fallbackPort = formData.fallbackPoolPort ? parseInt(formData.fallbackPoolPort) : undefined;
+    const fallbackPortRaw = formData.fallbackPoolPort.trim();
+    const fallbackPort = fallbackPortRaw ? parseInt(fallbackPortRaw) : undefined;
 
     if (isEditing) {
-      const data = {
+      const data: Record<string, unknown> = {
         name: formData.name,
         description: formData.description,
         hashrate: parseFloat(formData.hashrate),
@@ -121,10 +122,17 @@ export default function RigForm() {
         region: formData.region,
         status: formData.status as "available" | "rented" | "offline",
         fallbackPoolHost: fallbackHost,
-        ...(fallbackPort !== undefined && !isNaN(fallbackPort) && { fallbackPoolPort: fallbackPort }),
         fallbackPoolUser: formData.fallbackPoolUser.trim(),
         fallbackPoolPassword: formData.fallbackPoolPassword || "x",
       };
+      // Only include port when host is non-empty and port parses to a valid number.
+      // When host is empty the pool is being cleared and port is irrelevant.
+      if (fallbackHost && fallbackPort !== undefined && !isNaN(fallbackPort)) {
+        data.fallbackPoolPort = fallbackPort;
+      } else if (!fallbackHost) {
+        // Clearing the pool — send a sentinel port of 0 so the backend can clear it.
+        data.fallbackPoolPort = undefined;
+      }
       updateRig.mutate({ id: rigId, data }, {
         onSuccess: () => {
           toast({ title: "Rig Updated", description: "Changes saved successfully." });

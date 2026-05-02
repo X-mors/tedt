@@ -912,11 +912,23 @@ export class DownstreamSession extends EventEmitter {
   private _onClose(): void {
     if (this.rigId != null) {
       proxyState.removeRig(this.rigId);
-      // Mark rig offline in DB (best-effort — do not await to avoid blocking).
+      // Mark shadow rig offline. Also mark the listed (marketplace-visible) rig
+      // offline when the miner connected under a different stratumName and we stored
+      // a separate ownerId.  We do NOT await — this is best-effort.
+      const rigIdsToOffline: number[] = [this.rigId];
+      // If the session has an ownerId, find the approved listed rig for this owner
+      // and mark it offline too (handles the shadow-rig case).
+      if (this.ownerId != null) {
+        void db
+          .update(rigsTable)
+          .set({ isOnline: false })
+          .where(and(eq(rigsTable.ownerId, this.ownerId), eq(rigsTable.approvalStatus, "approved")));
+      }
       void db
         .update(rigsTable)
         .set({ isOnline: false })
         .where(eq(rigsTable.id, this.rigId));
+      void rigIdsToOffline; // suppress unused var warning
     }
     if (this.upstream != null) {
       if (this.rentalId != null && !this.isFallback) {
