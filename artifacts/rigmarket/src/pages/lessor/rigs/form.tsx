@@ -8,6 +8,7 @@ import {
   useGetMe,
   useUpdateMe,
   useTestPoolConnection,
+  useListMyPools,
   getListMyRigsQueryKey,
   getGetMyRigQueryKey,
   getGetRigQueryKey,
@@ -44,6 +45,7 @@ export default function RigForm() {
   const { data: algorithms } = useListAlgorithms();
   const { data: rig, isLoading: rigLoading } = useGetMyRig(rigId);
   const { data: me } = useGetMe();
+  const { data: savedPools } = useListMyPools();
 
   const createRig = useCreateRig();
   const updateRig = useUpdateMyRig();
@@ -504,6 +506,37 @@ export default function RigForm() {
               <div className="flex items-start gap-2 p-3 rounded-md bg-green-500/10 border border-green-500/20 text-green-500">
                 <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
                 <p className="text-xs">Pool connection verified — your miner's hashrate is being forwarded successfully.</p>
+              </div>
+            )}
+
+            {savedPools && savedPools.length > 0 && (
+              <div className="space-y-2">
+                <Label>Use a Saved Pool</Label>
+                <Select
+                  value=""
+                  onValueChange={(value) => {
+                    const p = savedPools.find((x) => String(x.id) === value);
+                    if (!p) return;
+                    const { host, port } = parseStratumUrl(p.poolUrl);
+                    setFormData((prev) => ({
+                      ...prev,
+                      fallbackPoolHost: host,
+                      fallbackPoolPort: port,
+                      fallbackPoolUser: p.worker,
+                      fallbackPoolPassword: p.password || "x",
+                    }));
+                    setPoolTestResult(null);
+                  }}
+                >
+                  <SelectTrigger className="font-mono text-sm bg-background">
+                    <SelectValue placeholder="Pick from your saved pools…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {savedPools.map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>{p.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
 

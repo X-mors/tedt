@@ -305,6 +305,67 @@ export interface CreateRentalBody {
   poolPassword?: string;
 }
 
+export interface UserPool {
+  id: number;
+  label: string;
+  poolUrl: string;
+  worker: string;
+  password: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateUserPoolBody {
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  label: string;
+  /** @minLength 1 */
+  poolUrl: string;
+  /** @minLength 1 */
+  worker: string;
+  password?: string;
+}
+
+export interface UpdateUserPoolBody {
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  label?: string;
+  /** @minLength 1 */
+  poolUrl?: string;
+  /** @minLength 1 */
+  worker?: string;
+  password?: string;
+}
+
+export interface SwitchRentalPoolBody {
+  /** @minLength 1 */
+  poolUrl: string;
+  /** @minLength 1 */
+  poolWorker: string;
+  poolPassword?: string;
+}
+
+export interface OwnerRigLive {
+  rigId: number;
+  minerConnected: boolean;
+  upstreamConnected: boolean;
+  poolAuthFailed: boolean;
+  /** @nullable */
+  poolUrl: string | null;
+  /** @nullable */
+  poolWorker: string | null;
+  sharesAccepted: number;
+  sharesRejected: number;
+  currentHashrate: number;
+  /** @nullable */
+  lastShareAt: string | null;
+  rentalActive: boolean;
+}
+
 export type RentalStatus = (typeof RentalStatus)[keyof typeof RentalStatus];
 
 export const RentalStatus = {

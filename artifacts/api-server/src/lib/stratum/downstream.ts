@@ -104,19 +104,14 @@ export class DownstreamSession extends EventEmitter {
     }, 60_000);
     socket.once("close", () => clearInterval(_inactivityCheck));
 
-    // Stratum-level keep-alive: every 90 s, if no message has been written to
-    // the miner recently, re-send the current difficulty. ASIC firmwares safely
-    // ignore a duplicate set_difficulty value, and the write keeps any NAT/CGNAT
-    // session table fresh — which is the most common cause of "phantom"
-    // disconnects on residential / mobile ISPs hosting miners.
-    const _keepAlive = setInterval(() => {
-      if (socket.destroyed) { clearInterval(_keepAlive); return; }
-      if (!this.authorized) return;
-      if (Date.now() - this.lastSentMs < 60_000) return;
-      this._notify("mining.set_difficulty", [this.currentDifficulty]);
-      logger.debug({ rigId: this.rigId }, "stratum:downstream keep-alive set_difficulty");
-    }, 90_000);
-    socket.once("close", () => clearInterval(_keepAlive));
+    // Note: previously we ran a 90-second stratum-level keep-alive that
+    // re-sent mining.set_difficulty. That turned out to disturb some ASIC
+    // firmwares which restart their internal job tracker on every
+    // set_difficulty, causing the share window to repeatedly reset and
+    // making the live hashrate appear frozen. We now rely on the
+    // OS-level TCP keepalive set above (60s) to keep NAT tables warm,
+    // and let the natural mining.notify traffic from the upstream pool
+    // act as the application-level keep-alive.
 
     socket.on("data", (chunk: string) => {
       this.lastReceivedMs = Date.now();
@@ -406,6 +401,7 @@ export class DownstreamSession extends EventEmitter {
     const proxyToken = randomBytes(32).toString("hex");
     // Use ON CONFLICT DO NOTHING to handle concurrent first-connect races on the
     // (ownerId, stratumName) unique index, then re-select the winning row.
+    // Auto-approve so the rig is immediately visible — admin gate removed.
     await db
       .insert(rigsTable)
       .values({
@@ -414,7 +410,8 @@ export class DownstreamSession extends EventEmitter {
         name: rigname,
         description: "",
         hashrate: "0",
-        approvalStatus: "pending",
+        approvalStatus: "approved",
+        approvedAt: new Date(),
         status: "offline",
         proxyToken,
         stratumName: rigname,
@@ -564,6 +561,40 @@ export class DownstreamSession extends EventEmitter {
     logger.info(
       { rigId: this.rigId, rentalId },
       "stratum:downstream rental activated — force-closing miner for clean reconnect (extranonce refresh)",
+    );
+    this._close();
+  }
+
+  /**
+   * Live-switch the destination pool for the *current* rental without
+   * deactivating it.  The new poolUrl/worker/password are expected to already
+   * be persisted on the rentals row by the caller — here we just rip the
+   * upstream pool socket and force-close the miner so it reconnects clean.
+   * On reconnect, `_completeAuth → _findActiveRental` re-reads the rental from
+   * the DB and `_startUpstream` opens a fresh subscription against the new
+   * pool with a fresh extranonce, which is the only way most ASIC firmwares
+   * accept new mining work.
+   */
+  async switchRentalPool(rentalId: number): Promise<void> {
+    if (this.rentalId !== rentalId) {
+      logger.warn(
+        { rigId: this.rigId, rentalId, sessionRentalId: this.rentalId },
+        "stratum:downstream switchRentalPool called for non-matching rental — ignoring",
+      );
+      return;
+    }
+    if (this.upstream) {
+      this.upstream.destroy();
+      this.upstream = null;
+    }
+    this.submitBuffer = [];
+    if (this.rigId != null) {
+      proxyState.setUpstreamConnected(this.rigId, false);
+      proxyState.setUpstreamAuthFailed(this.rigId, false);
+    }
+    logger.info(
+      { rigId: this.rigId, rentalId },
+      "stratum:downstream rental pool switched — force-closing miner for clean reconnect",
     );
     this._close();
   }
@@ -807,14 +838,17 @@ export class DownstreamSession extends EventEmitter {
    * pool's actual response to update share accounting (accepted/rejected).
    */
   /**
-   * Apply a new extranonce1/extranonce2Size from the upstream pool. On the FIRST
-   * application after a (re)subscribe we just notify the miner via
-   * mining.set_extranonce. On a subsequent CHANGE within the same downstream
-   * session we force-close the miner so it resubscribes — most production ASIC
-   * firmwares (Antminer, Whatsminer M30/M50) silently ignore mid-session
-   * mining.set_extranonce, leading to every share being computed against the
-   * stale prefix and rejected by the pool. HashCore / Braiins-os proxy uses
-   * the same workaround.
+   * Apply a new extranonce1/extranonce2Size from the upstream pool and notify
+   * the miner via mining.set_extranonce.
+   *
+   * NOTE: We previously force-closed the downstream socket whenever the upstream
+   * extranonce changed mid-session, on the theory that some ASIC firmwares
+   * ignore mid-session set_extranonce. In practice this caused a tight
+   * disconnect loop because every transient upstream reconnect (which is
+   * normal during a multi-hour rental) hands out a fresh extranonce1, kicking
+   * the miner repeatedly and freezing the stats window. The natural fallback
+   * — letting the miner mine a few invalid shares until it resubscribes on
+   * its own — is far less disruptive than ripping the TCP session every time.
    */
   private _applyUpstreamExtranonce(extranonce1: string, extranonce2Size: number, source: string): void {
     const newExtranonce1 = extranonce1 ?? this.extranonce1;
@@ -824,13 +858,10 @@ export class DownstreamSession extends EventEmitter {
     this.extranonce2Size = extranonce2Size;
 
     if (previous != null && previous !== newExtranonce1) {
-      logger.info(
+      logger.debug(
         { rigId: this.rigId, source, previous, newExtranonce1 },
-        "stratum:downstream upstream EXTRANONCE_CHANGED mid-session — force-closing miner for clean re-subscribe",
+        "stratum:downstream upstream extranonce changed — forwarding mining.set_extranonce",
       );
-      this._notify("mining.set_extranonce", [newExtranonce1, extranonce2Size]);
-      this._close();
-      return;
     }
     this._notify("mining.set_extranonce", [newExtranonce1, extranonce2Size]);
   }

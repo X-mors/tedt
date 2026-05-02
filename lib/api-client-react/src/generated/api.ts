@@ -37,6 +37,7 @@ import type {
   CreateRentalBody,
   CreateReviewBody,
   CreateRigBody,
+  CreateUserPoolBody,
   CreateWithdrawalBody,
   CryptoDepositItem,
   DepositAddressesResponse,
@@ -54,6 +55,7 @@ import type {
   NotFoundResponse,
   NowpaymentsWebhook200,
   OwnerDashboardSummary,
+  OwnerRigLive,
   PoolTestBody,
   PoolTestResult,
   ProxyStatus,
@@ -68,13 +70,16 @@ import type {
   Review,
   RigDetail,
   RigSummary,
+  SwitchRentalPoolBody,
   UnauthorizedResponse,
   UnmatchedDepositItem,
   UpdateAlgorithmBody,
   UpdateCommissionBody,
   UpdateMeBody,
   UpdateRigBody,
+  UpdateUserPoolBody,
   UpdateWalletSettingsBody,
+  UserPool,
   Wallet,
   WalletSettingsResponse,
   WithdrawalRequest,
@@ -2961,6 +2966,526 @@ export const useCreateWithdrawal = <
 > => {
   return useMutation(getCreateWithdrawalMutationOptions(options));
 };
+
+/**
+ * @summary List the current user's saved pool credentials
+ */
+export const getListMyPoolsUrl = () => {
+  return `/api/me/pools`;
+};
+
+export const listMyPools = async (
+  options?: RequestInit,
+): Promise<UserPool[]> => {
+  return customFetch<UserPool[]>(getListMyPoolsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListMyPoolsQueryKey = () => {
+  return [`/api/me/pools`] as const;
+};
+
+export const getListMyPoolsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyPools>>,
+  TError = ErrorType<UnauthorizedResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMyPools>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMyPoolsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyPools>>> = ({
+    signal,
+  }) => listMyPools({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyPools>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListMyPoolsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyPools>>
+>;
+export type ListMyPoolsQueryError = ErrorType<UnauthorizedResponse>;
+
+/**
+ * @summary List the current user's saved pool credentials
+ */
+
+export function useListMyPools<
+  TData = Awaited<ReturnType<typeof listMyPools>>,
+  TError = ErrorType<UnauthorizedResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMyPools>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListMyPoolsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Save a new pool credential profile
+ */
+export const getCreateMyPoolUrl = () => {
+  return `/api/me/pools`;
+};
+
+export const createMyPool = async (
+  createUserPoolBody: CreateUserPoolBody,
+  options?: RequestInit,
+): Promise<UserPool> => {
+  return customFetch<UserPool>(getCreateMyPoolUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createUserPoolBody),
+  });
+};
+
+export const getCreateMyPoolMutationOptions = <
+  TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createMyPool>>,
+    TError,
+    { data: BodyType<CreateUserPoolBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createMyPool>>,
+  TError,
+  { data: BodyType<CreateUserPoolBody> },
+  TContext
+> => {
+  const mutationKey = ["createMyPool"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createMyPool>>,
+    { data: BodyType<CreateUserPoolBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createMyPool(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateMyPoolMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createMyPool>>
+>;
+export type CreateMyPoolMutationBody = BodyType<CreateUserPoolBody>;
+export type CreateMyPoolMutationError = ErrorType<
+  BadRequestResponse | UnauthorizedResponse
+>;
+
+/**
+ * @summary Save a new pool credential profile
+ */
+export const useCreateMyPool = <
+  TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createMyPool>>,
+    TError,
+    { data: BodyType<CreateUserPoolBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createMyPool>>,
+  TError,
+  { data: BodyType<CreateUserPoolBody> },
+  TContext
+> => {
+  return useMutation(getCreateMyPoolMutationOptions(options));
+};
+
+/**
+ * @summary Update a saved pool credential profile
+ */
+export const getUpdateMyPoolUrl = (id: number) => {
+  return `/api/me/pools/${id}`;
+};
+
+export const updateMyPool = async (
+  id: number,
+  updateUserPoolBody: UpdateUserPoolBody,
+  options?: RequestInit,
+): Promise<UserPool> => {
+  return customFetch<UserPool>(getUpdateMyPoolUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateUserPoolBody),
+  });
+};
+
+export const getUpdateMyPoolMutationOptions = <
+  TError = ErrorType<UnauthorizedResponse | NotFoundResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMyPool>>,
+    TError,
+    { id: number; data: BodyType<UpdateUserPoolBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateMyPool>>,
+  TError,
+  { id: number; data: BodyType<UpdateUserPoolBody> },
+  TContext
+> => {
+  const mutationKey = ["updateMyPool"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateMyPool>>,
+    { id: number; data: BodyType<UpdateUserPoolBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateMyPool(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateMyPoolMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateMyPool>>
+>;
+export type UpdateMyPoolMutationBody = BodyType<UpdateUserPoolBody>;
+export type UpdateMyPoolMutationError = ErrorType<
+  UnauthorizedResponse | NotFoundResponse
+>;
+
+/**
+ * @summary Update a saved pool credential profile
+ */
+export const useUpdateMyPool = <
+  TError = ErrorType<UnauthorizedResponse | NotFoundResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMyPool>>,
+    TError,
+    { id: number; data: BodyType<UpdateUserPoolBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateMyPool>>,
+  TError,
+  { id: number; data: BodyType<UpdateUserPoolBody> },
+  TContext
+> => {
+  return useMutation(getUpdateMyPoolMutationOptions(options));
+};
+
+/**
+ * @summary Delete a saved pool credential profile
+ */
+export const getDeleteMyPoolUrl = (id: number) => {
+  return `/api/me/pools/${id}`;
+};
+
+export const deleteMyPool = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteMyPoolUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteMyPoolMutationOptions = <
+  TError = ErrorType<UnauthorizedResponse | NotFoundResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMyPool>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteMyPool>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteMyPool"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteMyPool>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteMyPool(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteMyPoolMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteMyPool>>
+>;
+
+export type DeleteMyPoolMutationError = ErrorType<
+  UnauthorizedResponse | NotFoundResponse
+>;
+
+/**
+ * @summary Delete a saved pool credential profile
+ */
+export const useDeleteMyPool = <
+  TError = ErrorType<UnauthorizedResponse | NotFoundResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMyPool>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteMyPool>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteMyPoolMutationOptions(options));
+};
+
+/**
+ * @summary Live-switch the destination pool for an active rental without losing the session
+ */
+export const getSwitchRentalPoolUrl = (id: number) => {
+  return `/api/rentals/${id}/switch-pool`;
+};
+
+export const switchRentalPool = async (
+  id: number,
+  switchRentalPoolBody: SwitchRentalPoolBody,
+  options?: RequestInit,
+): Promise<RentalDetail> => {
+  return customFetch<RentalDetail>(getSwitchRentalPoolUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(switchRentalPoolBody),
+  });
+};
+
+export const getSwitchRentalPoolMutationOptions = <
+  TError = ErrorType<
+    BadRequestResponse | UnauthorizedResponse | NotFoundResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof switchRentalPool>>,
+    TError,
+    { id: number; data: BodyType<SwitchRentalPoolBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof switchRentalPool>>,
+  TError,
+  { id: number; data: BodyType<SwitchRentalPoolBody> },
+  TContext
+> => {
+  const mutationKey = ["switchRentalPool"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof switchRentalPool>>,
+    { id: number; data: BodyType<SwitchRentalPoolBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return switchRentalPool(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SwitchRentalPoolMutationResult = NonNullable<
+  Awaited<ReturnType<typeof switchRentalPool>>
+>;
+export type SwitchRentalPoolMutationBody = BodyType<SwitchRentalPoolBody>;
+export type SwitchRentalPoolMutationError = ErrorType<
+  BadRequestResponse | UnauthorizedResponse | NotFoundResponse
+>;
+
+/**
+ * @summary Live-switch the destination pool for an active rental without losing the session
+ */
+export const useSwitchRentalPool = <
+  TError = ErrorType<
+    BadRequestResponse | UnauthorizedResponse | NotFoundResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof switchRentalPool>>,
+    TError,
+    { id: number; data: BodyType<SwitchRentalPoolBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof switchRentalPool>>,
+  TError,
+  { id: number; data: BodyType<SwitchRentalPoolBody> },
+  TContext
+> => {
+  return useMutation(getSwitchRentalPoolMutationOptions(options));
+};
+
+/**
+ * @summary Live telemetry for an owner's rig when no rental is active (idle fallback mining)
+ */
+export const getGetMyRigLiveUrl = (id: number) => {
+  return `/api/me/rigs/${id}/live`;
+};
+
+export const getMyRigLive = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OwnerRigLive> => {
+  return customFetch<OwnerRigLive>(getGetMyRigLiveUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMyRigLiveQueryKey = (id: number) => {
+  return [`/api/me/rigs/${id}/live`] as const;
+};
+
+export const getGetMyRigLiveQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyRigLive>>,
+  TError = ErrorType<UnauthorizedResponse | NotFoundResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMyRigLive>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMyRigLiveQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyRigLive>>> = ({
+    signal,
+  }) => getMyRigLive(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyRigLive>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMyRigLiveQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyRigLive>>
+>;
+export type GetMyRigLiveQueryError = ErrorType<
+  UnauthorizedResponse | NotFoundResponse
+>;
+
+/**
+ * @summary Live telemetry for an owner's rig when no rental is active (idle fallback mining)
+ */
+
+export function useGetMyRigLive<
+  TData = Awaited<ReturnType<typeof getMyRigLive>>,
+  TError = ErrorType<UnauthorizedResponse | NotFoundResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMyRigLive>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMyRigLiveQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Owner dashboard — rig counts, total earnings, active rentals, pending payouts

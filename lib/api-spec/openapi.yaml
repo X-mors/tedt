@@ -715,6 +715,131 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
   # ========================================================================
+  # Saved pool credentials (renters & owners)
+  # ========================================================================
+  /me/pools:
+    get:
+      operationId: listMyPools
+      tags: [pools]
+      summary: List the current user's saved pool credentials
+      responses:
+        "200":
+          description: Saved pools
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserPool"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createMyPool
+      tags: [pools]
+      summary: Save a new pool credential profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserPoolBody"
+      responses:
+        "201":
+          description: Created pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPool"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/pools/{id}:
+    patch:
+      operationId: updateMyPool
+      tags: [pools]
+      summary: Update a saved pool credential profile
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserPoolBody"
+      responses:
+        "200":
+          description: Updated pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPool"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      operationId: deleteMyPool
+      tags: [pools]
+      summary: Delete a saved pool credential profile
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /rentals/{id}/switch-pool:
+    post:
+      operationId: switchRentalPool
+      tags: [rentals]
+      summary: Live-switch the destination pool for an active rental without losing the session
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SwitchRentalPoolBody"
+      responses:
+        "200":
+          description: Updated rental
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/rigs/{id}/live:
+    get:
+      operationId: getMyRigLive
+      tags: [rigs]
+      summary: Live telemetry for an owner's rig when no rental is active (idle fallback mining)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Owner-side live snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerRigLive"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ========================================================================
   # Dashboard summaries (authenticated)
   # ========================================================================
   /dashboard/owner-summary:
@@ -1842,6 +1967,114 @@ components:
           type: string
           default: "x"
       required: [rigId, hours, poolUrl, poolWorker]
+
+    UserPool:
+      type: object
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+        poolUrl:
+          type: string
+        worker:
+          type: string
+        password:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, label, poolUrl, worker, password, createdAt, updatedAt]
+
+    CreateUserPoolBody:
+      type: object
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 64
+        poolUrl:
+          type: string
+          minLength: 1
+        worker:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          default: "x"
+      required: [label, poolUrl, worker]
+
+    UpdateUserPoolBody:
+      type: object
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 64
+        poolUrl:
+          type: string
+          minLength: 1
+        worker:
+          type: string
+          minLength: 1
+        password:
+          type: string
+
+    SwitchRentalPoolBody:
+      type: object
+      properties:
+        poolUrl:
+          type: string
+          minLength: 1
+        poolWorker:
+          type: string
+          minLength: 1
+        poolPassword:
+          type: string
+          default: "x"
+      required: [poolUrl, poolWorker]
+
+    OwnerRigLive:
+      type: object
+      properties:
+        rigId:
+          type: integer
+        minerConnected:
+          type: boolean
+        upstreamConnected:
+          type: boolean
+        poolAuthFailed:
+          type: boolean
+        poolUrl:
+          type: ["string", "null"]
+        poolWorker:
+          type: ["string", "null"]
+        sharesAccepted:
+          type: integer
+        sharesRejected:
+          type: integer
+        currentHashrate:
+          type: number
+        lastShareAt:
+          type: ["string", "null"]
+          format: date-time
+        rentalActive:
+          type: boolean
+      required:
+        - rigId
+        - minerConnected
+        - upstreamConnected
+        - poolAuthFailed
+        - poolUrl
+        - poolWorker
+        - sharesAccepted
+        - sharesRejected
+        - currentHashrate
+        - lastShareAt
+        - rentalActive
 
     RentalStatus:
       type: string

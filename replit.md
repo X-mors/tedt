@@ -54,6 +54,15 @@ commissions (renter + owner) on every rental.
 - **cryptoDeposits** — per-payment deposit row tracked by the deposit worker
   and IPN webhook; statuses: `pending | confirming | credited | failed | unmatched`
 - **reviews** — renter feedback on a completed/completed rental
+- **userPools** — per-user saved mining-pool credential profiles
+  (`label`, `poolUrl`, `worker`, `password`); reusable as one-click prefill
+  for new rentals, the in-rental "switch pool" dialog, and rig fallback
+  settings. Live-switch endpoint
+  `POST /rentals/:id/switch-pool` updates the rental row and triggers a
+  clean miner reconnect (ASIC firmwares often reject mid-session
+  `set_extranonce`, so reconnect is the safest portable behavior). Owner
+  telemetry endpoint `GET /me/rigs/:id/live` exposes per-rig hashrate /
+  shares for the lessor dashboard.
 
 ## Pricing math
 

@@ -1256,6 +1256,142 @@ export const CreateWithdrawalBody = zod.object({
 });
 
 /**
+ * @summary List the current user's saved pool credentials
+ */
+export const ListMyPoolsResponseItem = zod.object({
+  id: zod.number(),
+  label: zod.string(),
+  poolUrl: zod.string(),
+  worker: zod.string(),
+  password: zod.string(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListMyPoolsResponse = zod.array(ListMyPoolsResponseItem);
+
+/**
+ * @summary Save a new pool credential profile
+ */
+export const createMyPoolBodyLabelMax = 64;
+
+export const createMyPoolBodyPasswordDefault = `x`;
+
+export const CreateMyPoolBody = zod.object({
+  label: zod.string().min(1).max(createMyPoolBodyLabelMax),
+  poolUrl: zod.string().min(1),
+  worker: zod.string().min(1),
+  password: zod.string().default(createMyPoolBodyPasswordDefault),
+});
+
+/**
+ * @summary Update a saved pool credential profile
+ */
+export const UpdateMyPoolParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const updateMyPoolBodyLabelMax = 64;
+
+export const UpdateMyPoolBody = zod.object({
+  label: zod.string().min(1).max(updateMyPoolBodyLabelMax).optional(),
+  poolUrl: zod.string().min(1).optional(),
+  worker: zod.string().min(1).optional(),
+  password: zod.string().optional(),
+});
+
+export const UpdateMyPoolResponse = zod.object({
+  id: zod.number(),
+  label: zod.string(),
+  poolUrl: zod.string(),
+  worker: zod.string(),
+  password: zod.string(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a saved pool credential profile
+ */
+export const DeleteMyPoolParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Live-switch the destination pool for an active rental without losing the session
+ */
+export const SwitchRentalPoolParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const switchRentalPoolBodyPoolPasswordDefault = `x`;
+
+export const SwitchRentalPoolBody = zod.object({
+  poolUrl: zod.string().min(1),
+  poolWorker: zod.string().min(1),
+  poolPassword: zod.string().default(switchRentalPoolBodyPoolPasswordDefault),
+});
+
+export const SwitchRentalPoolResponse = zod.object({
+  id: zod.number(),
+  rigId: zod.number(),
+  rigName: zod.string(),
+  algorithmName: zod.string(),
+  algorithmUnit: zod.string(),
+  renterId: zod.number(),
+  renterDisplayName: zod.string(),
+  ownerId: zod.number(),
+  ownerDisplayName: zod.string(),
+  hashrate: zod.number(),
+  hours: zod.number(),
+  basePricePerUnitPerHour: zod.number(),
+  renterFeePct: zod.number(),
+  ownerFeePct: zod.number(),
+  renterTotalUsd: zod.number(),
+  ownerEarningsUsd: zod.number(),
+  platformFeeUsd: zod.number(),
+  status: zod.enum(["pending", "active", "completed", "cancelled"]),
+  startedAt: zod.coerce.date(),
+  endsAt: zod.coerce.date(),
+  cancelledAt: zod.coerce.date().nullable(),
+  settledAt: zod.coerce.date().nullable(),
+  poolUrl: zod.string(),
+  poolWorker: zod.string(),
+  poolPassword: zod.string(),
+  stratumProxyUrl: zod
+    .string()
+    .describe(
+      "Where the rented rig should connect (placeholder until Stratum proxy ships)",
+    ),
+  proxyWorker: zod
+    .string()
+    .describe("Worker name to advertise to the rig (placeholder)"),
+  proxyPassword: zod.string(),
+  deliveredHashrateAvg: zod.number().nullable(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Live telemetry for an owner's rig when no rental is active (idle fallback mining)
+ */
+export const GetMyRigLiveParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetMyRigLiveResponse = zod.object({
+  rigId: zod.number(),
+  minerConnected: zod.boolean(),
+  upstreamConnected: zod.boolean(),
+  poolAuthFailed: zod.boolean(),
+  poolUrl: zod.string().nullable(),
+  poolWorker: zod.string().nullable(),
+  sharesAccepted: zod.number(),
+  sharesRejected: zod.number(),
+  currentHashrate: zod.number(),
+  lastShareAt: zod.coerce.date().nullable(),
+  rentalActive: zod.boolean(),
+});
+
+/**
  * @summary Owner dashboard — rig counts, total earnings, active rentals, pending payouts
  */
 export const GetDashboardOwnerSummaryResponse = zod.object({

@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { Show, useUser, useClerk } from "@clerk/react";
-import { Wallet, LogOut, LayoutDashboard, Server, BarChart3, ShieldAlert, User } from "lucide-react";
+import { Wallet, LogOut, LayoutDashboard, Server, BarChart3, ShieldAlert, User, Waves } from "lucide-react";
 import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -54,6 +54,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   My Rigs
                 </Link>
               ) : null}
+
+              <Link
+                href="/pools"
+                className={`transition-colors hover:text-foreground/80 ${
+                  location.startsWith("/pools") ? "text-foreground" : "text-muted-foreground"
+                }`}
+              >
+                Pools
+              </Link>
 
               {me?.role === "admin" && (
                 <Link

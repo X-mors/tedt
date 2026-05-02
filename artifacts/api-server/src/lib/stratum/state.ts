@@ -298,6 +298,15 @@ class ProxyState {
     };
   }
 
+  /**
+   * Return the live proxy entry for a rig if currently connected, otherwise
+   * null. Used by owner-side live telemetry to show share counts and
+   * connection state when no rental is active (idle fallback mining).
+   */
+  getRigEntry(rigId: number): ProxyRigEntry | null {
+    return this.rigConnections.get(rigId)?.entry ?? null;
+  }
+
   getConnectedRigIds(): number[] {
     return Array.from(this.rigConnections.keys());
   }

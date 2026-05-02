@@ -18,6 +18,7 @@ import MyRentals from "@/pages/rentals";
 import RentalCockpit from "@/pages/rentals/detail";
 import LessorDashboard from "@/pages/lessor";
 import RigForm from "@/pages/lessor/rigs/form";
+import MyPoolsPage from "@/pages/pools";
 import Wallet from "@/pages/wallet";
 import ProfilePage from "@/pages/profile";
 import AdminDashboard from "@/pages/admin";
@@ -197,6 +198,7 @@ function ClerkProviderWithRoutes() {
               <Route path="/lessor" component={LessorDashboard} />
               <Route path="/lessor/rigs/new" component={RigForm} />
               <Route path="/lessor/rigs/:id/edit" component={RigForm} />
+              <Route path="/pools" component={MyPoolsPage} />
               <Route path="/wallet" component={Wallet} />
               <Route path="/profile" component={ProfilePage} />
               <Route path="/admin" component={AdminDashboard} />

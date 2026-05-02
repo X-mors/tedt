@@ -23,6 +23,8 @@ import {
   ListRigReviewsResponseItem,
   ListMyRentalsResponse,
   ListLessorRentalsResponse,
+  SwitchRentalPoolBody,
+  SwitchRentalPoolResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
 import { getCommission } from "../lib/commission";
@@ -656,6 +658,65 @@ router.get("/rentals/:id/live", async (req, res) => {
         ? Math.max(0, Math.floor((rental.endsAt.getTime() - Date.now()) / 1000))
         : 0,
   });
+});
+
+/**
+ * Live-switch the destination pool for an active rental. Updates the rental
+ * row in place and triggers a clean miner reconnect so the new pool gets a
+ * fresh subscription with the correct extranonce.
+ */
+router.post("/rentals/:id/switch-pool", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const body = SwitchRentalPoolBody.parse(req.body);
+
+  const ssrfError = await validatePoolUrl(body.poolUrl);
+  if (ssrfError) {
+    res.status(400).json({ error: ssrfError });
+    return;
+  }
+
+  const [rental] = await db
+    .select()
+    .from(rentalsTable)
+    .where(eq(rentalsTable.id, id));
+  if (!rental) {
+    res.status(404).json({ error: "Rental not found" });
+    return;
+  }
+  if (rental.renterId !== req.currentUser!.id) {
+    res.status(403).json({ error: "Only the renter can switch pools" });
+    return;
+  }
+  if (rental.status !== "active") {
+    res
+      .status(400)
+      .json({ error: "Pool can only be switched while the rental is active" });
+    return;
+  }
+
+  await db
+    .update(rentalsTable)
+    .set({
+      poolUrl: body.poolUrl,
+      poolWorker: body.poolWorker,
+      poolPassword: body.poolPassword ?? "x",
+    })
+    .where(eq(rentalsTable.id, id));
+
+  // Find the live session — prefer rentalId lookup so shadow rigs work too.
+  const session =
+    proxyState.getSessionByRentalId(rental.id) ??
+    proxyState.getRigSession(rental.rigId);
+  if (session) {
+    void session.switchRentalPool(rental.id);
+  }
+
+  const detail = await loadRentalDetail(rental.id);
+  res.json(SwitchRentalPoolResponse.parse(detail));
 });
 
 router.post("/rentals/:id/cancel", async (req, res) => {

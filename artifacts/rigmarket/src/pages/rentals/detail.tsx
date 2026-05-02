@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { useParams } from "wouter";
-import { useGetRental, useGetRentalStats, useGetRentalLive, getGetRentalLiveQueryKey, getGetRentalStatsQueryKey, useCancelRental, useCreateRentalReview, getGetRentalQueryKey } from "@workspace/api-client-react";
+import { useGetRental, useGetRentalStats, useGetRentalLive, getGetRentalLiveQueryKey, getGetRentalStatsQueryKey, useCancelRental, useCreateRentalReview, getGetRentalQueryKey, useSwitchRentalPool, useListMyPools } from "@workspace/api-client-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Repeat } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatHashrate, formatSeconds } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +17,143 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { Star } from "lucide-react";
+
+function SwitchPoolDialog({
+  rentalId,
+  currentUrl,
+  currentWorker,
+  currentPassword,
+}: {
+  rentalId: number;
+  currentUrl: string;
+  currentWorker: string;
+  currentPassword: string;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: savedPools } = useListMyPools();
+  const switchPool = useSwitchRentalPool();
+  const [open, setOpen] = useState(false);
+  const [poolUrl, setPoolUrl] = useState(currentUrl);
+  const [poolWorker, setPoolWorker] = useState(currentWorker);
+  const [poolPassword, setPoolPassword] = useState(currentPassword);
+
+  const handleOpen = (next: boolean) => {
+    setOpen(next);
+    if (next) {
+      setPoolUrl(currentUrl);
+      setPoolWorker(currentWorker);
+      setPoolPassword(currentPassword);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = poolUrl.trim();
+    const worker = poolWorker.trim();
+    if (!url || !worker) {
+      toast({ title: "Pool URL and worker are required", variant: "destructive" });
+      return;
+    }
+    switchPool.mutate(
+      { id: rentalId, data: { poolUrl: url, poolWorker: worker, poolPassword: poolPassword || "x" } },
+      {
+        onSuccess: () => {
+          toast({ title: "Pool switched", description: "Hashrate is being redirected without dropping the session." });
+          queryClient.invalidateQueries({ queryKey: getGetRentalQueryKey(rentalId) });
+          queryClient.invalidateQueries({ queryKey: getGetRentalLiveQueryKey(rentalId) });
+          setOpen(false);
+        },
+        onError: (err) =>
+          toast({ title: "Switch failed", description: err.message, variant: "destructive" }),
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="font-mono text-xs gap-1.5 h-7">
+          <Repeat className="w-3 h-3" /> SWITCH
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Repeat className="w-4 h-4 text-cyan-400" /> Switch destination pool live
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 py-2">
+          <p className="text-xs text-muted-foreground">
+            The rental keeps running — the miner reconnects within seconds and resumes hashing into the new pool. No need to cancel.
+          </p>
+          {savedPools && savedPools.length > 0 && (
+            <div className="space-y-2">
+              <Label>Use a Saved Pool</Label>
+              <Select
+                value=""
+                onValueChange={(value) => {
+                  const p = savedPools.find((x) => String(x.id) === value);
+                  if (p) {
+                    setPoolUrl(p.poolUrl);
+                    setPoolWorker(p.worker);
+                    setPoolPassword(p.password);
+                  }
+                }}
+              >
+                <SelectTrigger className="font-mono text-sm bg-background">
+                  <SelectValue placeholder="Pick from your saved pools…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {savedPools.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label htmlFor="switch-pool-url">Stratum URL</Label>
+            <Input
+              id="switch-pool-url"
+              value={poolUrl}
+              onChange={(e) => setPoolUrl(e.target.value)}
+              className="font-mono text-sm bg-background"
+              placeholder="stratum+tcp://pool.example.com:3333"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="switch-pool-worker">Worker</Label>
+            <Input
+              id="switch-pool-worker"
+              value={poolWorker}
+              onChange={(e) => setPoolWorker(e.target.value)}
+              className="font-mono text-sm bg-background"
+              placeholder="walletAddress.workerName"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="switch-pool-password">Password</Label>
+            <Input
+              id="switch-pool-password"
+              value={poolPassword}
+              onChange={(e) => setPoolPassword(e.target.value)}
+              className="font-mono text-sm bg-background"
+              placeholder="x"
+            />
+          </div>
+          <Button
+            type="submit"
+            className="w-full font-mono text-xs bg-cyan-500 hover:bg-cyan-500/90 text-white"
+            disabled={switchPool.isPending}
+          >
+            {switchPool.isPending ? "SWITCHING..." : "SWITCH_POOL"}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function StatusDot({ connected, label, sublabel, error }: { connected: boolean; label: string; sublabel?: string; error?: boolean }) {
   return (
@@ -260,7 +400,7 @@ export default function RentalCockpit() {
                             key={i}
                             title={`${formatHashrate(s.hashrate, rental.algorithmUnit)}`}
                             style={{ height: `${h}%` }}
-                            className="flex-1 rounded-sm bg-primary/60 min-w-[2px]"
+                            className={`flex-1 rounded-sm min-w-[2px] ${rental.status === 'active' ? 'bg-cyan-400/80' : 'bg-primary/60'}`}
                           />
                         );
                       })}
@@ -304,8 +444,16 @@ export default function RentalCockpit() {
 
           {/* Renter's destination pool */}
           <Card className="bg-card/50 border-border/50">
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 flex-row items-center justify-between">
               <CardTitle className="text-sm text-muted-foreground uppercase tracking-wider">Destination Pool</CardTitle>
+              {rental.status === 'active' && (
+                <SwitchPoolDialog
+                  rentalId={rental.id}
+                  currentUrl={rental.poolUrl}
+                  currentWorker={rental.poolWorker}
+                  currentPassword={rental.poolPassword}
+                />
+              )}
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div className="flex flex-col gap-1">

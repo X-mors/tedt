@@ -14,6 +14,7 @@ import {
   ListMyRigsResponse,
   UpdateMyRigBody,
   UpdateMyRigResponse,
+  GetMyRigLiveResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
 import { getCommission } from "../lib/commission";
@@ -235,7 +236,8 @@ router.post("/me/rigs", async (req, res) => {
     res.status(400).json({ error: "Unknown algorithm" });
     return;
   }
-  // Newly listed rigs always start in `pending` and require admin approval.
+  // Auto-approve newly listed rigs — admin approval gate has been removed at
+  // the user's request. Rigs become visible in the marketplace immediately.
   const proxyToken = randomBytes(32).toString("hex");
   const stratumName = await uniqueStratumName(
     req.currentUser!.id,
@@ -252,7 +254,8 @@ router.post("/me/rigs", async (req, res) => {
       minRentalHours: body.minRentalHours,
       maxRentalHours: body.maxRentalHours,
       region: body.region,
-      approvalStatus: "pending",
+      approvalStatus: "approved",
+      approvedAt: new Date(),
       proxyToken,
       stratumName,
       ...(body.fallbackPoolHost !== undefined && { stratumHost: body.fallbackPoolHost }),
@@ -356,6 +359,68 @@ router.patch("/me/rigs/:id", async (req, res) => {
     return;
   }
   res.json(UpdateMyRigResponse.parse(detail));
+});
+
+/**
+ * Owner-side live telemetry for a rig. Returns share counts and connection
+ * status for the rig's current session — works whether the miner is in
+ * fallback mode (no rental) or routing for an active rental. Owners use this
+ * to see their rig's hashrate when no one is renting.
+ */
+router.get("/me/rigs/:id/live", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [rig] = await db
+    .select({
+      id: rigsTable.id,
+      ownerId: rigsTable.ownerId,
+      stratumHost: rigsTable.stratumHost,
+      stratumPort: rigsTable.stratumPort,
+      stratumUser: rigsTable.stratumUser,
+    })
+    .from(rigsTable)
+    .where(and(eq(rigsTable.id, id), eq(rigsTable.ownerId, req.currentUser!.id)));
+  if (!rig) {
+    res.status(404).json({ error: "Rig not found" });
+    return;
+  }
+
+  const entry = proxyState.getRigEntry(id);
+
+  // When no rental is active, surface the configured fallback pool URL so the
+  // owner can see where their idle hashrate is going.
+  const rentalActive = entry?.rentalId != null;
+  const fallbackUrl =
+    rig.stratumHost && rig.stratumPort > 0
+      ? `stratum+tcp://${rig.stratumHost}:${rig.stratumPort}`
+      : null;
+
+  // Rough current hashrate estimate from the rig's own share window — only
+  // available while a rental is active (we don't keep windows for fallback
+  // mining, since there's no settlement to drive). For owners checking idle
+  // mining, the share counts + lastShareAt are the source of truth.
+  const currentHashrate =
+    entry?.rentalId != null
+      ? proxyState.getLiveStats(entry.rentalId).effectiveHashrateH
+      : 0;
+
+  const data = GetMyRigLiveResponse.parse({
+    rigId: id,
+    minerConnected: entry != null,
+    upstreamConnected: entry?.upstreamConnected ?? false,
+    poolAuthFailed: entry?.upstreamAuthFailed ?? false,
+    poolUrl: rentalActive ? null : fallbackUrl,
+    poolWorker: rentalActive ? null : (rig.stratumUser ?? null),
+    sharesAccepted: entry?.sharesAccepted ?? 0,
+    sharesRejected: entry?.sharesRejected ?? 0,
+    currentHashrate,
+    lastShareAt: entry?.lastShareAt ? entry.lastShareAt.toISOString() : null,
+    rentalActive,
+  });
+  res.json(data);
 });
 
 router.delete("/me/rigs/:id", async (req, res) => {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
-import { useGetRig, useCreateRentalQuote, useCreateRental, useGetMe, useTestPoolConnection } from "@workspace/api-client-react";
+import { useGetRig, useCreateRentalQuote, useCreateRental, useGetMe, useTestPoolConnection, useListMyPools } from "@workspace/api-client-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { formatHashrate, formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ export default function NewRental() {
 
   const { data: rig, isLoading: rigLoading } = useGetRig(rigId);
   const { data: me } = useGetMe();
+  const { data: savedPools } = useListMyPools();
 
   const [hours, setHours] = useState(1);
   const [poolUrl, setPoolUrl] = useState("");
@@ -161,6 +163,36 @@ export default function NewRental() {
               <p className="text-xs text-muted-foreground">
                 Enter <span className="font-semibold text-foreground">your own pool</span> details — this is where the rented hashrate will be directed.
               </p>
+
+              {savedPools && savedPools.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Use a Saved Pool</Label>
+                  <Select
+                    value=""
+                    onValueChange={(value) => {
+                      const p = savedPools.find((x) => String(x.id) === value);
+                      if (p) {
+                        setPoolUrl(p.poolUrl);
+                        setPoolWorker(p.worker);
+                        setPoolPassword(p.password);
+                        setPoolTestResult(null);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="font-mono text-sm bg-background">
+                      <SelectValue placeholder="Pick from your saved pools…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {savedPools.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="poolUrl">Stratum Pool URL</Label>
                 <Input
