@@ -206,8 +206,8 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
     reviewCount: Number(row.reviewCount),
     totalRentals: Number(rentals?.c ?? 0),
     createdAt: row.createdAt.toISOString(),
-    fallbackPoolConnected: proxyState.getFallbackPoolStatus(row.id)?.connected ?? null,
-    fallbackPoolAuthFailed: proxyState.getFallbackPoolStatus(row.id)?.authFailed ?? null,
+    fallbackPoolConnected: (proxyState.getFallbackPoolStatus(row.id) ?? proxyState.getFallbackPoolStatusByOwner(row.ownerId))?.connected ?? null,
+    fallbackPoolAuthFailed: (proxyState.getFallbackPoolStatus(row.id) ?? proxyState.getFallbackPoolStatusByOwner(row.ownerId))?.authFailed ?? null,
     ...ownerStratumFields(
       row.ownerStratumUsername ?? null,
       row.stratumName ?? null,
@@ -303,7 +303,18 @@ router.patch("/me/rigs/:id", async (req, res) => {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
-  const body = UpdateMyRigBody.parse(req.body);
+
+  // Validate the request body and expose field-level errors to the client.
+  const bodyResult = UpdateMyRigBody.safeParse(req.body);
+  if (!bodyResult.success) {
+    req.log?.warn({ issues: bodyResult.error.issues, body: req.body }, "patch-rig: request body validation failed");
+    res.status(400).json({
+      error: "Invalid request",
+      details: bodyResult.error.issues,
+    });
+    return;
+  }
+  const body = bodyResult.data;
 
   const [existing] = await db
     .select()
@@ -346,7 +357,16 @@ router.patch("/me/rigs/:id", async (req, res) => {
     res.status(404).json({ error: "Rig not found" });
     return;
   }
-  res.json(UpdateMyRigResponse.parse(detail));
+
+  // Validate the response shape; fall back to raw detail if it fails so the
+  // client always gets a successful response after a successful DB update.
+  const responseResult = UpdateMyRigResponse.safeParse(detail);
+  if (!responseResult.success) {
+    req.log?.error({ issues: responseResult.error.issues, detail }, "patch-rig: response validation failed — sending raw detail");
+    res.json(detail);
+    return;
+  }
+  res.json(responseResult.data);
 });
 
 router.delete("/me/rigs/:id", async (req, res) => {
