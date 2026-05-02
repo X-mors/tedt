@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useLocation } from "wouter";
+import { useParams, useLocation, Link } from "wouter";
 import { useGetRig, useCreateRentalQuote, useCreateRental, useGetMe, useTestPoolConnection, useListMyPools } from "@workspace/api-client-react";
 import { SaveAsPoolButton } from "@/components/save-as-pool-button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -165,9 +165,17 @@ export default function NewRental() {
                 Enter <span className="font-semibold text-foreground">your own pool</span> details — this is where the rented hashrate will be directed.
               </p>
 
-              {savedPools && savedPools.length > 0 && (
-                <div className="space-y-2">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
                   <Label>Use a Saved Pool</Label>
+                  <Link
+                    href="/pools"
+                    className="text-xs text-primary hover:underline font-mono"
+                  >
+                    Manage saved pools →
+                  </Link>
+                </div>
+                {savedPools && savedPools.length > 0 ? (
                   <Select
                     value=""
                     onValueChange={(value) => {
@@ -191,8 +199,12 @@ export default function NewRental() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-              )}
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">
+                    No saved pools yet. Add one to reuse it on every rental and rig.
+                  </p>
+                )}
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="poolUrl">Stratum Pool URL</Label>

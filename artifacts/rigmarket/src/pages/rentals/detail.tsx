@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useParams } from "wouter";
+import { useParams, Link } from "wouter";
 import { useGetRental, useGetRentalStats, useGetRentalLive, getGetRentalLiveQueryKey, getGetRentalStatsQueryKey, useCancelRental, useCreateRentalReview, getGetRentalQueryKey, useSwitchRentalPool, useListMyPools, useGetMe } from "@workspace/api-client-react";
 import { SaveAsPoolButton } from "@/components/save-as-pool-button";
 import { Input } from "@/components/ui/input";
@@ -88,9 +88,17 @@ function SwitchPoolDialog({
           <p className="text-xs text-muted-foreground">
             The rental keeps running — the miner reconnects within seconds and resumes hashing into the new pool. No need to cancel.
           </p>
-          {savedPools && savedPools.length > 0 && (
-            <div className="space-y-2">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
               <Label>Use a Saved Pool</Label>
+              <Link
+                href="/pools"
+                className="text-xs text-primary hover:underline font-mono"
+              >
+                Manage saved pools →
+              </Link>
+            </div>
+            {savedPools && savedPools.length > 0 ? (
               <Select
                 value=""
                 onValueChange={(value) => {
@@ -111,8 +119,12 @@ function SwitchPoolDialog({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          )}
+            ) : (
+              <p className="text-xs text-muted-foreground italic">
+                No saved pools yet. Add one to switch in one click next time.
+              </p>
+            )}
+          </div>
           <div className="space-y-2">
             <Label htmlFor="switch-pool-url">Stratum URL</Label>
             <Input

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLocation, useParams } from "wouter";
+import { useLocation, useParams, Link } from "wouter";
 import {
   useCreateRig,
   useUpdateMyRig,
@@ -510,9 +510,17 @@ export default function RigForm() {
               </div>
             )}
 
-            {savedPools && savedPools.length > 0 && (
-              <div className="space-y-2">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
                 <Label>Use a Saved Pool</Label>
+                <Link
+                  href="/pools"
+                  className="text-xs text-primary hover:underline font-mono"
+                >
+                  Manage saved pools →
+                </Link>
+              </div>
+              {savedPools && savedPools.length > 0 ? (
                 <Select
                   value=""
                   onValueChange={(value) => {
@@ -538,8 +546,12 @@ export default function RigForm() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            )}
+              ) : (
+                <p className="text-xs text-muted-foreground italic">
+                  No saved pools yet. Add one to reuse it on every rig.
+                </p>
+              )}
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2 md:col-span-2">
