@@ -128,12 +128,20 @@ export async function settleExpiredRentals(): Promise<number> {
     if (ok) settled++;
 
     // Tear down any live proxy routing now that the rental is done.
-    // deactivateRental() also removes the share window from proxyState so
-    // the flush loop stops inserting samples for this finished rental.
-    proxyState.getRigSession(rigId)?.deactivateRental();
-    // If no active session exists, remove the window directly (rig offline
-    // at time of settlement).
-    if (!proxyState.getRigSession(rigId)) {
+    // Look up by rentalId first — works for both normal rigs AND shadow rigs
+    // (auto-created when miner connects with a non-matching stratumName).
+    // Falling back to rigId would silently miss shadow rigs, leaving the
+    // renter's pool connection alive after settlement.
+    const session =
+      proxyState.getSessionByRentalId(id) ?? proxyState.getRigSession(rigId);
+    if (session) {
+      // deactivateRental() destroys upstream, clears rentalId, force-closes
+      // miner socket (so it reconnects to the owner's fallback pool), and
+      // removes the share window.
+      session.deactivateRental();
+    } else {
+      // No live session — rig offline at time of settlement. Just remove
+      // the share window so the flush loop stops inserting samples.
       proxyState.removeShareWindow(id);
     }
   }

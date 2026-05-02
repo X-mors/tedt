@@ -762,7 +762,21 @@ router.post("/rentals/:id/cancel", async (req, res) => {
   });
 
   // Tear down any live proxy routing for this rental.
-  proxyState.getRigSession(rental.rigId)?.deactivateRental();
+  // Look up by rentalId first — works for both normal rigs AND shadow rigs
+  // (auto-created when miner connects with a stratumName that doesn't match
+  // the listed rig). Falling back to rental.rigId would silently miss shadow
+  // rigs, leaving the renter's pool connection alive — the rig would keep
+  // mining for the renter after termination instead of returning to the owner.
+  const session =
+    proxyState.getSessionByRentalId(rental.id) ??
+    proxyState.getRigSession(rental.rigId);
+  if (session) {
+    session.deactivateRental();
+  } else {
+    // No live session — clean up the share window so the flush loop stops
+    // inserting samples for this finished rental.
+    proxyState.removeShareWindow(rental.id);
+  }
 
   const detail = await loadRentalDetail(rental.id);
   res.json(CancelRentalResponse.parse(detail));

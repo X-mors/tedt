@@ -78,6 +78,21 @@ class ProxyState {
     return undefined;
   }
 
+  /**
+   * Find the session currently routing shares for `rentalId`. This is the
+   * authoritative lookup when terminating/settling a rental, because shadow
+   * rigs (auto-created when miner uses a non-matching stratumName) have a
+   * different rigId from rental.rigId — looking up by rigId would silently
+   * miss them and leave the upstream pool connection alive, continuing to
+   * mine for the renter after termination.
+   */
+  getSessionByRentalId(rentalId: number): DownstreamSession | undefined {
+    for (const conn of this.rigConnections.values()) {
+      if (conn.entry.rentalId === rentalId) return conn.session;
+    }
+    return undefined;
+  }
+
   setRigAuthorized(rigId: number, rentalId: number | null): void {
     const conn = this.rigConnections.get(rigId);
     if (conn) {
