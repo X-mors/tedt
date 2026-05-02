@@ -35,6 +35,8 @@ export class DownstreamSession extends EventEmitter {
   private msgIdCounter = 1;
   private destroyed = false;
   private rigId: number | null = null;
+  /** Database ownerId — set after auth, used as fallback key when rigId mismatches. */
+  private ownerId: number | null = null;
   private rentalId: number | null = null;
   private upstream: UpstreamClient | null = null;
   private extranonce1 = "";
@@ -414,6 +416,7 @@ export class DownstreamSession extends EventEmitter {
     stratumPassword: string;
   }): Promise<void> {
     this.rigId = rig.id;
+    this.ownerId = rig.ownerId;
     this.authorized = true;
     proxyState.addRig(rig.id, rig.ownerId, this, rig.name);
 
@@ -423,7 +426,7 @@ export class DownstreamSession extends EventEmitter {
       .set({ isOnline: true, lastSeenAt: new Date() })
       .where(eq(rigsTable.id, rig.id));
 
-    const activeRental = await this._findActiveRental(rig.id);
+    const activeRental = await this._findActiveRental(rig.id, rig.ownerId);
     this.rentalId = activeRental?.id ?? null;
     proxyState.setRigAuthorized(rig.id, this.rentalId);
 
@@ -441,8 +444,10 @@ export class DownstreamSession extends EventEmitter {
     }
   }
 
-  private async _findActiveRental(rigId: number) {
+  private async _findActiveRental(rigId: number, ownerId: number) {
     const now = new Date();
+
+    // Primary: look up by the exact rigId registered in the marketplace.
     const [rental] = await db
       .select({
         id: rentalsTable.id,
@@ -458,8 +463,33 @@ export class DownstreamSession extends EventEmitter {
           eq(rentalsTable.status, "active"),
         ),
       );
-    if (!rental || rental.endsAt < now) return null;
-    return rental;
+    if (rental && rental.endsAt >= now) return rental;
+
+    // Fallback: miner may have connected under a stratumName that caused the
+    // proxy to auto-create a shadow rig with a different ID.  Search by ownerId
+    // so we can still route to the renter's pool when the IDs don't match.
+    const [ownerRental] = await db
+      .select({
+        id: rentalsTable.id,
+        poolUrl: rentalsTable.poolUrl,
+        poolWorker: rentalsTable.poolWorker,
+        poolPassword: rentalsTable.poolPassword,
+        endsAt: rentalsTable.endsAt,
+      })
+      .from(rentalsTable)
+      .where(
+        and(
+          eq(rentalsTable.ownerId, ownerId),
+          eq(rentalsTable.status, "active"),
+        ),
+      );
+    if (!ownerRental || ownerRental.endsAt < now) return null;
+
+    logger.warn(
+      { shadowRigId: rigId, ownerId, rentalId: ownerRental.id },
+      "stratum:downstream _findActiveRental fallback via ownerId — stratumName mismatch",
+    );
+    return ownerRental;
   }
 
   async activateRental(rentalId: number, poolUrl: string, poolWorker: string, poolPassword: string): Promise<void> {
