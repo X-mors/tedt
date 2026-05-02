@@ -32,6 +32,8 @@ import {
   ApproveRigBody,
   ApproveRigResponse,
   ApproveWithdrawalBody,
+  AdminSetRigStatusBody,
+  AdminSetRigStatusResponse,
   ApproveWithdrawalResponse,
   CreateAlgorithmBody,
   GetAdminStatsResponse,
@@ -608,6 +610,7 @@ router.post("/admin/rigs/:id/approve", async (req, res) => {
       approvalStatus: "approved",
       approvalNote: body.note ?? null,
       approvedAt: new Date(),
+      status: "available",
     })
     .where(eq(rigsTable.id, id))
     .returning({ id: rigsTable.id });
@@ -641,6 +644,26 @@ router.post("/admin/rigs/:id/reject", async (req, res) => {
   }
   const detail = await loadAdminRig(updated.id);
   res.json(RejectRigResponse.parse(detail));
+});
+
+router.patch("/admin/rigs/:id/status", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const body = AdminSetRigStatusBody.parse(req.body ?? {});
+  const [updated] = await db
+    .update(rigsTable)
+    .set({ status: body.status })
+    .where(eq(rigsTable.id, id))
+    .returning({ id: rigsTable.id });
+  if (!updated) {
+    res.status(404).json({ error: "Rig not found" });
+    return;
+  }
+  const detail = await loadAdminRig(updated.id);
+  res.json(AdminSetRigStatusResponse.parse(detail));
 });
 
 // ============================================================================

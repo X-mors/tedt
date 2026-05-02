@@ -13,6 +13,7 @@ import {
   useListAdminRigs,
   useApproveRig,
   useRejectRig,
+  useSetAdminRigStatus,
   useListAdminRentals,
   useListAdminWalletTransactions,
   useListAlgorithms,
@@ -55,6 +56,7 @@ export default function AdminDashboard() {
   const { data: config } = useGetCommissionConfig();
   const { data: withdrawals, isLoading: withdrawalsLoading } = useListAdminWithdrawals();
   const { data: pendingRigs, isLoading: pendingRigsLoading } = useListAdminRigs({ approvalStatus: "pending" });
+  const { data: allRigs, isLoading: allRigsLoading } = useListAdminRigs({});
   const { data: allRentals, isLoading: rentalsLoading } = useListAdminRentals();
   const { data: ledger, isLoading: ledgerLoading } = useListAdminWalletTransactions({ limit: 200 });
   const { data: algorithms, isLoading: algosLoading } = useListAlgorithms();
@@ -109,6 +111,7 @@ export default function AdminDashboard() {
   const creditWallet = useAdminCreditWallet();
   const approveRig = useApproveRig();
   const rejectRig = useRejectRig();
+  const setRigStatus = useSetAdminRigStatus();
   const createAlgo = useCreateAlgorithm();
   const updateAlgo = useUpdateAlgorithm();
   const deleteAlgo = useDeleteAlgorithm();
@@ -268,6 +271,17 @@ export default function AdminDashboard() {
         queryClient.invalidateQueries({ queryKey: getListAdminRigsQueryKey({ approvalStatus: "pending" }) });
       },
       onError: (err: Error) => toast({ title: "Reject failed", description: err.message, variant: "destructive" })
+    });
+  };
+
+  const handleSetRigStatus = (id: number, status: "available" | "offline" | "paused") => {
+    setRigStatus.mutate({ id, status }, {
+      onSuccess: () => {
+        toast({ title: "Status Updated", description: `Rig status set to ${status}.` });
+        queryClient.invalidateQueries({ queryKey: getListAdminRigsQueryKey({}) });
+        queryClient.invalidateQueries({ queryKey: getGetAdminStatsQueryKey() });
+      },
+      onError: (err: Error) => toast({ title: "Update failed", description: err.message, variant: "destructive" })
     });
   };
 
@@ -438,6 +452,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="pending-rigs" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">
             Pending Rigs {pendingRigs && pendingRigs.length > 0 && <span className="ml-2 bg-yellow-500/20 text-yellow-500 px-1.5 rounded">{pendingRigs.length}</span>}
           </TabsTrigger>
+          <TabsTrigger value="all-rigs" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">All Rigs</TabsTrigger>
           <TabsTrigger value="withdrawals" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">Withdrawals</TabsTrigger>
           <TabsTrigger value="unmatched" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none py-3 font-mono text-xs tracking-wider uppercase">
             Unmatched Deposits {unmatchedDeposits && unmatchedDeposits.length > 0 && <span className="ml-2 bg-destructive/20 text-destructive px-1.5 rounded">{unmatchedDeposits.length}</span>}
@@ -487,6 +502,66 @@ export default function AdminDashboard() {
                           <Button size="icon" variant="outline" className="h-7 w-7 text-green-500 hover:text-green-600 hover:bg-green-500/10" onClick={() => handleApproveRig(r.id)} disabled={approveRig.isPending}><Check className="w-4 h-4" /></Button>
                           <Button size="icon" variant="outline" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleRejectRig(r.id)} disabled={rejectRig.isPending}><X className="w-4 h-4" /></Button>
                         </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="all-rigs" className="pt-6">
+          <Card className="bg-card/50 border-border/50">
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow>
+                    <TableHead className="font-mono text-xs">RIG / OWNER</TableHead>
+                    <TableHead className="font-mono text-xs">ALGORITHM</TableHead>
+                    <TableHead className="font-mono text-xs text-right">HASHRATE</TableHead>
+                    <TableHead className="font-mono text-xs">APPROVAL</TableHead>
+                    <TableHead className="font-mono text-xs">STATUS</TableHead>
+                    <TableHead className="font-mono text-xs text-right">SET STATUS</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allRigsLoading ? (
+                    <TableRow><TableCell colSpan={6} className="text-center py-8">LOADING...</TableCell></TableRow>
+                  ) : !allRigs || allRigs.length === 0 ? (
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No rigs found.</TableCell></TableRow>
+                  ) : allRigs.map(r => (
+                    <TableRow key={r.id}>
+                      <TableCell>
+                        <div className="font-medium">{r.name}</div>
+                        <div className="text-xs text-muted-foreground">{r.ownerDisplayName} ({r.ownerEmail})</div>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{r.algorithmName}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{r.hashrate} {r.algorithmUnit}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`font-mono text-[10px] uppercase ${r.approvalStatus === 'approved' ? 'bg-green-500/10 text-green-500 border-green-500/20' : r.approvalStatus === 'rejected' ? 'bg-destructive/10 text-destructive border-destructive/20' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'}`}>
+                          {r.approvalStatus}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`font-mono text-[10px] uppercase ${r.status === 'available' ? 'bg-green-500/10 text-green-500 border-green-500/20' : r.status === 'rented' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' : r.status === 'paused' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' : 'bg-muted/30 text-muted-foreground border-border/30'}`}>
+                          {r.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {r.status !== 'rented' && (
+                          <div className="flex justify-end gap-1">
+                            {r.status !== 'available' && (
+                              <Button size="sm" variant="outline" className="h-7 text-[10px] font-mono text-green-500 hover:text-green-600 hover:bg-green-500/10 border-green-500/30" onClick={() => handleSetRigStatus(r.id, 'available')} disabled={setRigStatus.isPending}>AVAILABLE</Button>
+                            )}
+                            {r.status !== 'offline' && (
+                              <Button size="sm" variant="outline" className="h-7 text-[10px] font-mono text-muted-foreground hover:bg-muted/30" onClick={() => handleSetRigStatus(r.id, 'offline')} disabled={setRigStatus.isPending}>OFFLINE</Button>
+                            )}
+                            {r.status !== 'paused' && (
+                              <Button size="sm" variant="outline" className="h-7 text-[10px] font-mono text-yellow-500 hover:text-yellow-600 hover:bg-yellow-500/10 border-yellow-500/30" onClick={() => handleSetRigStatus(r.id, 'paused')} disabled={setRigStatus.isPending}>PAUSE</Button>
+                            )}
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

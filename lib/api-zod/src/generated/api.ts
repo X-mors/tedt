@@ -1612,6 +1612,37 @@ export const RejectRigResponse = zod.object({
 });
 
 /**
+ * @summary Admin override for a rig's marketplace status
+ */
+export const AdminSetRigStatusParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminSetRigStatusBody = zod.object({
+  status: zod.enum(["available", "offline", "paused"]),
+});
+
+export const AdminSetRigStatusResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string(),
+  ownerId: zod.number(),
+  ownerEmail: zod.string(),
+  ownerDisplayName: zod.string(),
+  algorithmId: zod.number(),
+  algorithmName: zod.string(),
+  algorithmUnit: zod.string(),
+  hashrate: zod.number(),
+  pricePerUnitPerHour: zod.number(),
+  region: zod.string(),
+  status: zod.enum(["available", "rented", "offline", "paused"]),
+  approvalStatus: zod.enum(["pending", "approved", "rejected"]),
+  approvalNote: zod.string().nullable(),
+  approvedAt: zod.coerce.date().nullable(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
  * @summary List every rental on the platform with renter, owner and revenue breakdown
  */
 export const ListAdminRentalsResponseItem = zod.object({

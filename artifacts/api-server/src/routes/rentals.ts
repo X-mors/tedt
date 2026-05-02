@@ -11,6 +11,7 @@ import {
   rentalHashSamplesTable,
 } from "@workspace/db";
 import { proxyState } from "../lib/stratum/state";
+import { logger } from "../lib/logger";
 import {
   CreateRentalBody,
   CreateRentalQuoteBody,

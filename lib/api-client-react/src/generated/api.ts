@@ -4171,6 +4171,94 @@ export const useRejectRig = <
 };
 
 /**
+ * @summary Admin override for a rig's marketplace status
+ */
+export const getSetAdminRigStatusUrl = (id: number) => {
+  return `/api/admin/rigs/${id}/status`;
+};
+
+export const setAdminRigStatus = async (
+  id: number,
+  body: { status: "available" | "offline" | "paused" },
+  options?: RequestInit,
+): Promise<AdminRigRow> => {
+  return customFetch<AdminRigRow>(getSetAdminRigStatusUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(body),
+  });
+};
+
+export const getSetAdminRigStatusMutationOptions = <
+  TError = ErrorType<
+    UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setAdminRigStatus>>,
+    TError,
+    { id: number; status: "available" | "offline" | "paused" },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setAdminRigStatus>>,
+  TError,
+  { id: number; status: "available" | "offline" | "paused" },
+  TContext
+> => {
+  const mutationKey = ["setAdminRigStatus"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setAdminRigStatus>>,
+    { id: number; status: "available" | "offline" | "paused" }
+  > = (props) => {
+    const { id, status } = props ?? {};
+    return setAdminRigStatus(id, { status }, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetAdminRigStatusMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setAdminRigStatus>>
+>;
+export type SetAdminRigStatusMutationError = ErrorType<
+  UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+>;
+
+export const useSetAdminRigStatus = <
+  TError = ErrorType<
+    UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setAdminRigStatus>>,
+    TError,
+    { id: number; status: "available" | "offline" | "paused" },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setAdminRigStatus>>,
+  TError,
+  { id: number; status: "available" | "offline" | "paused" },
+  TContext
+> => {
+  return useMutation(getSetAdminRigStatusMutationOptions(options));
+};
+
+/**
  * @summary List every rental on the platform with renter, owner and revenue breakdown
  */
 export const getListAdminRentalsUrl = () => {
