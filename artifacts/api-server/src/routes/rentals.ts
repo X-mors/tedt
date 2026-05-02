@@ -53,8 +53,8 @@ const router: IRouter = Router();
  * The underlying proxy state, sample persistence, settlement math, and
  * low-delivery auto-cancel logic are unchanged.
  */
-const SOFT_CONNECT_GRACE_MS = 3 * 60_000;
-const RECENT_SAMPLE_WINDOW_MS = 5 * 60_000;
+const SOFT_CONNECT_GRACE_MS = 10 * 60_000;
+const RECENT_SAMPLE_WINDOW_MS = 10 * 60_000;
 
 async function getRecentAvgHashrateH(rentalId: number): Promise<number> {
   const cutoff = new Date(Date.now() - RECENT_SAMPLE_WINDOW_MS);

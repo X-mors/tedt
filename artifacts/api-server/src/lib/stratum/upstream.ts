@@ -335,6 +335,20 @@ export class UpstreamClient extends EventEmitter {
   }
 
   /**
+   * Forward the miner's preferred starting difficulty to the upstream pool
+   * via mining.suggest_difficulty (Stratum extension). Fire-and-forget — the
+   * pool may ignore or honour the hint. Has no effect when not yet connected.
+   */
+  suggestDifficulty(diff: number): void {
+    if (!this.socket || this.socket.destroyed) return;
+    this._send({
+      id: this._nextId(),
+      method: "mining.suggest_difficulty",
+      params: [diff],
+    });
+  }
+
+  /**
    * Return the difficulty that was active when the given job was issued.
    * Falls back to the current difficulty if the job is unknown (e.g. evicted
    * from the bounded history, or the share refers to a job from a previous

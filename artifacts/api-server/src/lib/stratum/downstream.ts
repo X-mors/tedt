@@ -63,28 +63,60 @@ export class DownstreamSession extends EventEmitter {
   private lastSeenAtWrittenMs = 0;
   /** Timestamp of last data received FROM the miner (read side). */
   private lastReceivedMs = Date.now();
+  /** Timestamp of last data written TO the miner (write side). Used by keep-alive. */
+  private lastSentMs = Date.now();
+  /** Most recent extranonce1 propagated to the miner. Used to detect mid-session changes
+   *  on upstream resubscribe — many ASIC firmwares ignore mining.set_extranonce, so on a
+   *  real change we force-close the miner socket so it picks up the new prefix from a
+   *  fresh subscribe handshake. */
+  private upstreamExtranonce1: string | null = null;
 
   constructor(private readonly socket: net.Socket) {
     super();
     socket.setEncoding("utf8");
-    socket.setTimeout(300_000);
-    // Detect dead connections (e.g. power cut) via OS-level keepalive probes.
-    // After 60 s of inactivity the OS sends probes; if no ACK the socket errors.
+    // 10-min idle timeout — tolerates high-difficulty pools that produce only
+    // a share every several minutes. Detection of truly dead sockets is handled
+    // by setKeepAlive() probes plus the inactivity check below.
+    socket.setTimeout(600_000);
+    // OS-level TCP keepalive: probes after 60 s of socket inactivity. If no ACK
+    // within the OS retry budget (~30-60 s) the socket errors and we close cleanly.
     socket.setKeepAlive(true, 60_000);
+    // setNoDelay disables Nagle's algorithm so small Stratum messages (typically
+    // <200 bytes) are sent immediately rather than batched. Reduces miner-side
+    // perceived latency, important because many ASIC firmwares time out shares
+    // they consider "old" before the pool reply arrives.
+    socket.setNoDelay(true);
 
     // Detect dead connections (e.g. power cut): if the miner sends no data for
-    // 5 minutes we consider it gone. Miners submit shares regularly; even slow
-    // rigs typically produce at least one share every few minutes.
-    const INACTIVITY_MS = 5 * 60_000; // 5 minutes
+    // 10 minutes we consider it gone. Lenient because high-difficulty pools may
+    // produce shares only every several minutes.
+    const INACTIVITY_MS = 10 * 60_000;
     const _inactivityCheck = setInterval(() => {
       if (socket.destroyed) { clearInterval(_inactivityCheck); return; }
       if (Date.now() - this.lastReceivedMs > INACTIVITY_MS) {
-        logger.info({ rigId: this.rigId }, "stratum:downstream miner inactivity timeout — closing dead connection");
+        logger.info(
+          { rigId: this.rigId, sinceLastDataMs: Date.now() - this.lastReceivedMs },
+          "stratum:downstream INACTIVITY_TIMEOUT — closing dead connection",
+        );
         clearInterval(_inactivityCheck);
         this._close();
       }
     }, 60_000);
     socket.once("close", () => clearInterval(_inactivityCheck));
+
+    // Stratum-level keep-alive: every 90 s, if no message has been written to
+    // the miner recently, re-send the current difficulty. ASIC firmwares safely
+    // ignore a duplicate set_difficulty value, and the write keeps any NAT/CGNAT
+    // session table fresh — which is the most common cause of "phantom"
+    // disconnects on residential / mobile ISPs hosting miners.
+    const _keepAlive = setInterval(() => {
+      if (socket.destroyed) { clearInterval(_keepAlive); return; }
+      if (!this.authorized) return;
+      if (Date.now() - this.lastSentMs < 60_000) return;
+      this._notify("mining.set_difficulty", [this.currentDifficulty]);
+      logger.debug({ rigId: this.rigId }, "stratum:downstream keep-alive set_difficulty");
+    }, 90_000);
+    socket.once("close", () => clearInterval(_keepAlive));
 
     socket.on("data", (chunk: string) => {
       this.lastReceivedMs = Date.now();
@@ -122,6 +154,7 @@ export class DownstreamSession extends EventEmitter {
   private _send(msg: object): void {
     if (!this.socket.destroyed) {
       this.socket.write(JSON.stringify(msg) + "\n");
+      this.lastSentMs = Date.now();
     }
   }
 
@@ -149,8 +182,19 @@ export class DownstreamSession extends EventEmitter {
       case "mining.configure":
         this._handleConfigure(msg);
         break;
-      case "mining.suggest_difficulty":
+      case "mining.suggest_difficulty": {
+        // Forward the miner's preferred starting difficulty to the upstream pool
+        // when one is available. Most pools honour this hint to avoid starting
+        // very-fast miners at vardiff=1, which would create a flood of low-diff
+        // shares and may cause the pool to throttle/disconnect the worker.
+        const params = (msg.params ?? []) as unknown[];
+        const suggested = Number(params[0]);
+        if (this.upstream && Number.isFinite(suggested) && suggested > 0) {
+          this.upstream.suggestDifficulty(suggested);
+          logger.debug({ rigId: this.rigId, suggested }, "stratum:downstream forwarded suggest_difficulty");
+        }
         break;
+      }
       case "mining.extranonce.subscribe":
         this._reply(msg.id, true);
         break;
@@ -724,15 +768,11 @@ export class DownstreamSession extends EventEmitter {
     });
 
     upstream.on("subscribed", ({ extranonce1, extranonce2Size }: { extranonce1: string; extranonce2Size: number }) => {
-      this.extranonce1 = extranonce1 ?? this.extranonce1;
-      this.extranonce2Size = extranonce2Size;
-      this._notify("mining.set_extranonce", [this.extranonce1, this.extranonce2Size]);
+      this._applyUpstreamExtranonce(extranonce1, extranonce2Size, "subscribed");
     });
 
     upstream.on("setExtranonce", ({ extranonce1, extranonce2Size }: { extranonce1: string; extranonce2Size: number }) => {
-      this.extranonce1 = extranonce1;
-      this.extranonce2Size = extranonce2Size;
-      this._notify("mining.set_extranonce", [extranonce1, extranonce2Size]);
+      this._applyUpstreamExtranonce(extranonce1, extranonce2Size, "set_extranonce");
     });
 
     upstream.on("ready", () => {
@@ -766,6 +806,35 @@ export class DownstreamSession extends EventEmitter {
    * optimistic `result: true` when the share was buffered. We only use the
    * pool's actual response to update share accounting (accepted/rejected).
    */
+  /**
+   * Apply a new extranonce1/extranonce2Size from the upstream pool. On the FIRST
+   * application after a (re)subscribe we just notify the miner via
+   * mining.set_extranonce. On a subsequent CHANGE within the same downstream
+   * session we force-close the miner so it resubscribes — most production ASIC
+   * firmwares (Antminer, Whatsminer M30/M50) silently ignore mid-session
+   * mining.set_extranonce, leading to every share being computed against the
+   * stale prefix and rejected by the pool. HashCore / Braiins-os proxy uses
+   * the same workaround.
+   */
+  private _applyUpstreamExtranonce(extranonce1: string, extranonce2Size: number, source: string): void {
+    const newExtranonce1 = extranonce1 ?? this.extranonce1;
+    const previous = this.upstreamExtranonce1;
+    this.upstreamExtranonce1 = newExtranonce1;
+    this.extranonce1 = newExtranonce1;
+    this.extranonce2Size = extranonce2Size;
+
+    if (previous != null && previous !== newExtranonce1) {
+      logger.info(
+        { rigId: this.rigId, source, previous, newExtranonce1 },
+        "stratum:downstream upstream EXTRANONCE_CHANGED mid-session — force-closing miner for clean re-subscribe",
+      );
+      this._notify("mining.set_extranonce", [newExtranonce1, extranonce2Size]);
+      this._close();
+      return;
+    }
+    this._notify("mining.set_extranonce", [newExtranonce1, extranonce2Size]);
+  }
+
   private async _flushSubmitBuffer(): Promise<void> {
     if (this.submitBuffer.length === 0) return;
     const buffered = this.submitBuffer.splice(0);
@@ -889,6 +958,20 @@ export class DownstreamSession extends EventEmitter {
   }
 
   private _onClose(): void {
+    // Diagnostic: classify how long the connection lasted so we can spot
+    // patterns like "miner reconnects every 60 s" in the logs.
+    const aliveMs = Date.now() - this.lastReceivedMs;
+    logger.info(
+      {
+        rigId: this.rigId,
+        rentalId: this.rentalId,
+        sharesAccepted: this.submitBuffer.length,
+        msSinceLastData: aliveMs,
+        wasAuthorized: this.authorized,
+        wasFallback: this.isFallback,
+      },
+      "stratum:downstream session closing",
+    );
     if (this.rigId != null) {
       proxyState.removeRig(this.rigId);
       // Mark rig offline in DB (best-effort — do not await to avoid blocking).
