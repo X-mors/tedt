@@ -21,7 +21,7 @@ export default function Marketplace() {
     algorithmId,
     status,
     sort,
-  });
+  }, { refetchInterval: 5 * 60_000 });
 
   const available = rigs?.filter(r => r.status === "available") ?? [];
   const rented = rigs?.filter(r => r.status === "rented") ?? [];
@@ -150,17 +150,21 @@ export default function Marketplace() {
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-2">
                       <Badge
-                        variant={rig.status === "available" ? "default" : rig.status === "rented" ? "secondary" : "destructive"}
-                        className={`font-mono text-[10px] uppercase ${rig.status === "available" ? "bg-primary/20 text-primary border-primary/30 hover:bg-primary/30" : ""}`}
+                        variant="outline"
+                        className={`font-mono text-[10px] uppercase ${
+                          !rig.isOnline
+                            ? "bg-destructive/20 text-destructive border-destructive/30"
+                            : rig.status === "rented"
+                            ? "bg-secondary/50 text-secondary-foreground border-secondary"
+                            : "bg-primary/20 text-primary border-primary/30"
+                        }`}
                       >
-                        {rig.status}
+                        {!rig.isOnline ? "UNAVAILABLE" : rig.status === "rented" ? "RENTED" : "AVAILABLE"}
                       </Badge>
-                      {rig.isOnline && (
-                        <span title="Miner is online" className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-                        </span>
-                      )}
+                      <span title={rig.isOnline ? "Miner online" : "Miner offline"} className="relative flex h-2 w-2">
+                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${rig.isOnline ? "bg-green-500" : "bg-red-500"}`} />
+                        <span className={`relative inline-flex rounded-full h-2 w-2 ${rig.isOnline ? "bg-green-500" : "bg-red-500"}`} />
+                      </span>
                     </div>
                     {rig.averageRating && (
                       <span className="text-xs text-yellow-500 flex items-center font-mono gap-0.5">

@@ -52,7 +52,7 @@ function DeliveryBar({ ratio }: { ratio: number }) {
 }
 
 export default function LessorDashboard() {
-  const { data: rigs, isLoading: rigsLoading } = useListMyRigs();
+  const { data: rigs, isLoading: rigsLoading } = useListMyRigs({}, { refetchInterval: 5 * 60_000 });
   const { data: rentals, isLoading: rentalsLoading } = useListLessorRentals();
   const deleteRig = useDeleteMyRig();
   const { toast } = useToast();
@@ -165,7 +165,10 @@ export default function LessorDashboard() {
                       <TableRow key={rig.id}>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
-                            <Server className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                            <span title={rig.isOnline ? "Online" : "Offline"} className="relative flex h-2 w-2 flex-shrink-0">
+                              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${rig.isOnline ? "bg-green-500" : "bg-red-500"}`} />
+                              <span className={`relative inline-flex rounded-full h-2 w-2 ${rig.isOnline ? "bg-green-500" : "bg-red-500"}`} />
+                            </span>
                             <div className="flex flex-col">
                               <Link href={`/rigs/${rig.id}`} className="hover:text-primary transition-colors">{rig.name}</Link>
                               {rig.stratumName ? (
@@ -189,10 +192,12 @@ export default function LessorDashboard() {
                               </Badge>
                             )}
                             <Badge variant="outline" className={`font-mono text-[10px] uppercase w-fit
-                              ${rig.status === "available" ? "bg-primary/20 text-primary border-primary/30" :
-                                rig.status === "rented" ? "bg-secondary/50 text-secondary-foreground border-secondary" :
-                                "bg-destructive/20 text-destructive border-destructive/30"}`}>
-                              {rig.status}
+                              ${!rig.isOnline
+                                ? "bg-destructive/20 text-destructive border-destructive/30"
+                                : rig.status === "rented"
+                                ? "bg-secondary/50 text-secondary-foreground border-secondary"
+                                : "bg-primary/20 text-primary border-primary/30"}`}>
+                              {!rig.isOnline ? "OFFLINE" : rig.status === "rented" ? "RENTED" : "AVAILABLE"}
                             </Badge>
                             {rig.isOnline && rig.status !== "rented" && rig.hasFallbackPool && (
                               <Badge variant="outline" className="font-mono text-[10px] uppercase w-fit bg-yellow-500/10 text-yellow-500 border-yellow-500/30">
