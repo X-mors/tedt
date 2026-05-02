@@ -47,16 +47,18 @@ async function uniqueStratumName(ownerId: number, base: string): Promise<string>
 function ownerStratumFields(
   stratumUsername: string | null,
   stratumName: string | null,
-  stratumToken: string | null,
 ) {
   const worker =
     stratumUsername && stratumName
       ? `${stratumUsername}.${stratumName}`
       : null;
+  // Proxy accepts any password for {username}.{rigname} auth — we no longer
+  // surface or rely on the legacy per-user stratumToken. The constant "x" is
+  // the conventional Stratum placeholder password.
   return {
     ownerStratumUrl: `stratum+tcp://${PROXY_HOST}:${PROXY_PORT}`,
     ownerWorker: worker,
-    ownerPassword: stratumToken ?? null,
+    ownerPassword: worker ? "x" : null,
   };
 }
 
@@ -139,7 +141,6 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
       ownerId: rigsTable.ownerId,
       ownerDisplayName: usersTable.displayName,
       ownerStratumUsername: usersTable.stratumUsername,
-      ownerStratumToken: usersTable.stratumToken,
       algorithmId: algorithmsTable.id,
       algorithmName: algorithmsTable.name,
       algorithmUnit: algorithmsTable.unit,
@@ -211,7 +212,6 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
     ...ownerStratumFields(
       row.ownerStratumUsername ?? null,
       row.stratumName ?? null,
-      row.ownerStratumToken ?? null,
     ),
   };
 }
