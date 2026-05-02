@@ -72,9 +72,12 @@ export class UpstreamClient extends EventEmitter {
     } catch {
       logger.error(
         { rentalId: this.rentalId, host },
-        "stratum:upstream hostname resolution failed",
+        "stratum:upstream hostname resolution failed — scheduling reconnect",
       );
       this.emit("error", new Error(`Pool hostname could not be resolved: ${host}`));
+      // Treat transient DNS failures as temporary; schedule a reconnect so the
+      // upstream recovers automatically once DNS is available again.
+      if (!this.destroyed) this._scheduleReconnect();
       return;
     }
 

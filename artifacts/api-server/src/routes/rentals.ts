@@ -56,9 +56,15 @@ function priceForRental(opts: {
 }
 
 function buildProxyCreds() {
-  const host = process.env["REPLIT_DEV_DOMAIN"] ?? "rigmarket.local";
+  // STRATUM_HOST should be set on the VPS (e.g. livehashrate.com).
+  // Falls back to REPLIT_DEV_DOMAIN for local dev, then a safe placeholder.
+  const host =
+    process.env["STRATUM_HOST"] ??
+    process.env["REPLIT_DEV_DOMAIN"] ??
+    "livehashrate.com";
+  const port = process.env["STRATUM_PORT"] ?? "3333";
   return {
-    stratumProxyUrl: `stratum+tcp://${host}:33333`,
+    stratumProxyUrl: `stratum+tcp://${host}:${port}`,
     proxyWorker: `worker.${randomBytes(4).toString("hex")}`,
     proxyPassword: randomBytes(8).toString("hex"),
   };
