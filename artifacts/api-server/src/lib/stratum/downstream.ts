@@ -78,6 +78,10 @@ export class DownstreamSession extends EventEmitter {
    *  real change we force-close the miner socket so it picks up the new prefix from a
    *  fresh subscribe handshake. */
   private upstreamExtranonce1: string | null = null;
+  /** Diagnostic: count first N messages in/out for handshake debugging. */
+  private _diagInCount = 0;
+  private _diagOutCount = 0;
+  private static readonly _DIAG_MAX = 14;
 
   constructor(private readonly socket: net.Socket) {
     super();
@@ -156,7 +160,16 @@ export class DownstreamSession extends EventEmitter {
 
   private _send(msg: object): void {
     if (!this.socket.destroyed) {
-      this.socket.write(JSON.stringify(msg) + "\n");
+      const line = JSON.stringify(msg);
+      if (this._diagOutCount < DownstreamSession._DIAG_MAX) {
+        this._diagOutCount++;
+        const preview = line.length > 240 ? line.slice(0, 240) + "…" : line;
+        logger.info(
+          { rigId: this.rigId, n: this._diagOutCount, msg: preview },
+          "stratum:diag OUT",
+        );
+      }
+      this.socket.write(line + "\n");
       this.lastSentMs = Date.now();
     }
   }
@@ -171,6 +184,15 @@ export class DownstreamSession extends EventEmitter {
 
   private async _handleMessage(msg: JsonRpcMessage): Promise<void> {
     if (!msg.method) return;
+
+    if (this._diagInCount < DownstreamSession._DIAG_MAX) {
+      this._diagInCount++;
+      const preview = JSON.stringify({ id: msg.id, method: msg.method, params: msg.params });
+      logger.info(
+        { rigId: this.rigId, n: this._diagInCount, msg: preview.length > 240 ? preview.slice(0, 240) + "…" : preview },
+        "stratum:diag IN",
+      );
+    }
 
     switch (msg.method) {
       case "mining.subscribe":
@@ -1101,6 +1123,9 @@ export class DownstreamSession extends EventEmitter {
         msSinceLastData: aliveMs,
         wasAuthorized: this.authorized,
         wasFallback: this.isFallback,
+        diagIn: this._diagInCount,
+        diagOut: this._diagOutCount,
+        upstreamReady: this.upstream != null,
       },
       "stratum:downstream session closing",
     );
