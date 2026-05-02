@@ -274,7 +274,7 @@ the response so the user can copy-paste it onto the VPS after pushing to GitHub:
 cd /var/www/livehashrate.com
 git pull
 pnpm --filter @workspace/api-server run build
-pnpm --filter @workspace/rigmarket run build
+NODE_ENV=production pnpm --filter @workspace/rigmarket run build
 pm2 restart tedt-api
 ```
 

@@ -1,0 +1,47 @@
+root@vmi3202752:/var/www/livehashrate.com# cd /var/www/livehashrate.com
+git pull
+pnpm --filter @workspace/api-server run build
+pnpm --filter @workspace/rigmarket run build
+pm2 restart tedt-api
+remote: Enumerating objects: 19, done.
+remote: Counting objects: 100% (19/19), done.
+remote: Compressing objects: 100% (2/2), done.
+remote: Total 10 (delta 7), reused 10 (delta 7), pack-reused 0 (from 0)
+Unpacking objects: 100% (10/10), 1.53 KiB | 68.00 KiB/s, done.
+From https://github.com/X-mors/tedt
+   c74864d..3dfd858  main       -> origin/main
+Updating c74864d..3dfd858
+Fast-forward
+ artifacts/rigmarket/src/pages/lessor/rigs/form.tsx | 19 +++++++++++++++----
+ replit.md                                          |  9 +++++----
+ 2 files changed, 20 insertions(+), 8 deletions(-)
+> @workspace/api-server@0.0.0 build /var/www/livehashrate.com/artifacts/api-server
+> node ./build.mjs
+  dist/index.mjs                       2.5mb ⚠️
+  dist/pino-worker.mjs               153.4kb
+  dist/pino-file.mjs                 142.1kb
+  dist/pino-pretty.mjs               114.6kb
+  dist/thread-stream-worker.mjs        7.3kb
+  dist/index.mjs.map                   4.6mb
+  dist/pino-worker.mjs.map           256.9kb
+  dist/pino-file.mjs.map             229.0kb
+  dist/pino-pretty.mjs.map           203.9kb
+  dist/thread-stream-worker.mjs.map   12.0kb
+⚡  Done in 628ms
+> @workspace/rigmarket@0.0.0 build /var/www/livehashrate.com/artifacts/rigmarket
+> vite build --config vite.config.ts
+failed to load config from /var/www/livehashrate.com/artifacts/rigmarket/vite.config.ts
+error during build:
+Error: PORT environment variable is required but was not provided.
+    at file:///var/www/livehashrate.com/artifacts/rigmarket/node_modules/.vite-temp/vite.config.ts.timestamp-1777757036862-01c3b7b1c9957.mjs:10:9
+    at ModuleJob.run (node:internal/modules/esm/module_job:437:25)
+    at async node:internal/modules/esm/loader:639:26
+    at async loadConfigFromBundledFile (file:///var/www/livehashrate.com/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/chunks/config.js:35920:12)
+    at async bundleAndLoadConfigFile (file:///var/www/livehashrate.com/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/chunks/config.js:35808:17)
+    at async loadConfigFromFile (file:///var/www/livehashrate.com/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/chunks/config.js:35775:42)
+    at async resolveConfig (file:///var/www/livehashrate.com/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/chunks/config.js:35424:22)
+    at async createBuilder (file:///var/www/livehashrate.com/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/chunks/config.js:33879:19)
+    at async CAC.<anonymous> (file:///var/www/livehashrate.com/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/cli.js:629:10)
+/var/www/livehashrate.com/artifacts/rigmarket:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/rigmarket@0.0.0 build: `vite build --config vite.config.ts`
+Exit status 1
