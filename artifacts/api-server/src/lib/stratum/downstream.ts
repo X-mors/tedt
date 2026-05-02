@@ -196,8 +196,26 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
     this.subscribed = true;
-    this.extranonce1 = makeExtranonce1();
-    this.extranonce2Size = 4;
+
+    // If a parked upstream is waiting (miner reconnected after set_extranonce),
+    // use the pool's extranonce directly so we never need to send set_extranonce
+    // mid-session.  Many ASIC firmwares (Antminer M30+, Whatsminer, …) react to
+    // set_extranonce by reconnecting — causing an infinite reconnect loop.
+    // By seeding the subscribe response with the pool's extranonce we break the
+    // loop: on the second connect the miner already has the correct extranonce
+    // and the parked upstream is reused without any extranonce change.
+    const parkedE = proxyState.getAnyParkedExtranonce();
+    if (parkedE) {
+      this.extranonce1 = parkedE.extranonce1;
+      this.extranonce2Size = parkedE.extranonce2Size;
+      logger.debug(
+        { extranonce1: this.extranonce1 },
+        "stratum:downstream subscribe — seeded with parked upstream extranonce",
+      );
+    } else {
+      this.extranonce1 = makeExtranonce1();
+      this.extranonce2Size = 4;
+    }
 
     this._reply(msg.id, [
       [["mining.set_difficulty", `sub-diff-${this.msgIdCounter}`]],
