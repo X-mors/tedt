@@ -1,0 +1,118 @@
+root@vmi3202752:/var/www/livehashrate.com# pm2 logs tedt-api --lines 200 --nostream 2>&1 | grep -E "stra
+tum:diag|session closing|set_extranonce" | tail -50
+0|tedt-api | {"level":30,"time":1777763502860,"pid":142410,"hostname":"vmi3202752","rigId":null,"n":1,"m
+sg":"{\"id\":1,\"method\":\"mining.configure\",\"params\":[[\"version-rolling\",\"minimum-difficulty\",\
+"subscribe-extranonce\"],{\"version-rolling.mask\":\"1fffe000\",\"version-rolling.min-bit-count\":16,\"m
+inimum-difficulty.value\":50000}]}","msg":"stratum:diag IN"}
+0|tedt-api | {"level":30,"time":1777763502860,"pid":142410,"hostname":"vmi3202752","rigId":null,"n":1,"m
+sg":"{\"id\":1,\"result\":{\"version-rolling\":true,\"version-rolling.mask\":\"1fffe000\",\"version-roll
+ing.min-bit-count\":2,\"minimum-difficulty\":true,\"subscribe-extranonce\":true},\"error\":null}","msg":
+"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763502869,"pid":142410,"hostname":"vmi3202752","rigId":null,"n":2,"m
+sg":"{\"id\":2,\"method\":\"mining.subscribe\",\"params\":[\"stratum-proxy/0.9.0\"]}","msg":"stratum:dia
+g IN"}
+0|tedt-api | {"level":30,"time":1777763502870,"pid":142410,"hostname":"vmi3202752","rigId":null,"n":2,"m
+sg":"{\"id\":2,\"result\":[[[\"mining.set_difficulty\",\"sub-diff-1\"]],\"b5931ba3\",4],\"error\":null}"
+,"msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763502870,"pid":142410,"hostname":"vmi3202752","rigId":null,"n":3,"m
+sg":"{\"id\":null,\"method\":\"mining.set_difficulty\",\"params\":[1]}","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763502880,"pid":142410,"hostname":"vmi3202752","rigId":null,"n":3,"m
+sg":"{\"id\":3,\"method\":\"mining.authorize\",\"params\":[\"ahmed.m30\",\"x\"]}","msg":"stratum:diag IN
+"}
+0|tedt-api | {"level":30,"time":1777763502905,"pid":142410,"hostname":"vmi3202752","rigId":6,"n":4,"msg"
+:"{\"id\":3,\"result\":true,\"error\":null}","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763502921,"pid":142410,"hostname":"vmi3202752","rigId":6,"n":5,"msg"
+:"{\"id\":null,\"method\":\"mining.set_extranonce\",\"params\":[\"645e3280\",8]}","msg":"stratum:diag OU
+T"}
+0|tedt-api | {"level":30,"time":1777763502927,"pid":142410,"hostname":"vmi3202752","rigId":6,"n":6,"msg"
+:"{\"id\":null,\"method\":\"mining.set_difficulty\",\"params\":[16384]}","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763502927,"pid":142410,"hostname":"vmi3202752","rigId":6,"n":7,"msg"
+:"{\"id\":null,\"method\":\"mining.notify\",\"params\":[\"311b\",\"531a1742f28bdb27283bd4c8aedb6232533b3
+1f50001dcd20000000000000000\",\"010000000100000000000000000000000000000000000000000000000000000000000000
+00ffffffff6303b5750e1c2f5669614254432f4d696e656…","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763503478,"pid":142410,"hostname":"vmi3202752","rigId":6,"rentalId":
+26,"pendingBuffered":0,"msSinceLastData":598,"wasAuthorized":true,"wasFallback":false,"diagIn":3,"diagOu
+t":7,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1777763621835,"pid":143078,"hostname":"vmi3202752","rigId":null,"n":1,"m
+sg":"{\"id\":1,\"method\":\"mining.configure\",\"params\":[[\"version-rolling\",\"minimum-difficulty\",\
+"subscribe-extranonce\"],{\"version-rolling.mask\":\"1fffe000\",\"version-rolling.min-bit-count\":16,\"m
+inimum-difficulty.value\":50000}]}","msg":"stratum:diag IN"}
+0|tedt-api | {"level":30,"time":1777763621835,"pid":143078,"hostname":"vmi3202752","rigId":null,"n":1,"m
+sg":"{\"id\":1,\"result\":{\"version-rolling\":true,\"version-rolling.mask\":\"1fffe000\",\"version-roll
+ing.min-bit-count\":16,\"minimum-difficulty\":true,\"subscribe-extranonce\":true},\"error\":null}","msg"
+:"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763621847,"pid":143078,"hostname":"vmi3202752","rigId":null,"n":2,"m
+sg":"{\"id\":2,\"method\":\"mining.subscribe\",\"params\":[\"stratum-proxy/0.9.0\"]}","msg":"stratum:dia
+g IN"}
+0|tedt-api | {"level":30,"time":1777763621849,"pid":143078,"hostname":"vmi3202752","rigId":null,"n":2,"m
+sg":"{\"id\":2,\"result\":[[[\"mining.set_difficulty\",\"sub-diff-1\"]],\"8e5715af7a2cc79c\",8],\"error\
+":null}","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763621849,"pid":143078,"hostname":"vmi3202752","rigId":null,"n":3,"m
+sg":"{\"id\":null,\"method\":\"mining.set_difficulty\",\"params\":[50000]}","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763621856,"pid":143078,"hostname":"vmi3202752","rigId":null,"n":3,"m
+sg":"{\"id\":3,\"method\":\"mining.authorize\",\"params\":[\"ahmed.m30\",\"x\"]}","msg":"stratum:diag IN
+"}
+0|tedt-api | {"level":30,"time":1777763621873,"pid":143078,"hostname":"vmi3202752","rigId":6,"n":4,"msg"
+:"{\"id\":3,\"result\":true,\"error\":null}","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763621919,"pid":143078,"hostname":"vmi3202752","rigId":6,"n":5,"msg"
+:"{\"id\":null,\"method\":\"mining.set_extranonce\",\"params\":[\"fbd98e42\",8]}","msg":"stratum:diag OU
+T"}
+0|tedt-api | {"level":30,"time":1777763621925,"pid":143078,"hostname":"vmi3202752","rigId":6,"n":6,"msg"
+:"{\"id\":null,\"method\":\"mining.set_difficulty\",\"params\":[50000]}","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763621927,"pid":143078,"hostname":"vmi3202752","rigId":6,"n":7,"msg"
+:"{\"id\":null,\"method\":\"mining.notify\",\"params\":[\"3123\",\"531a1742f28bdb27283bd4c8aedb6232533b3
+1f50001dcd20000000000000000\",\"010000000100000000000000000000000000000000000000000000000000000000000000
+00ffffffff6303b5750e1c2f5669614254432f4d696e656…","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763623318,"pid":143078,"hostname":"vmi3202752","rigId":6,"n":4,"msg"
+:"{\"id\":1,\"method\":\"mining.submit\",\"params\":[\"ahmed.m30\",\"3123\",\"ff63090000000000\",\"69f68
+524\",\"94f1a1d2\",\"0a000000\"]}","msg":"stratum:diag IN"}
+0|tedt-api | {"level":30,"time":1777763623325,"pid":143078,"hostname":"vmi3202752","rigId":6,"n":8,"msg"
+:"{\"id\":1,\"result\":true,\"error\":null}","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763623589,"pid":143078,"hostname":"vmi3202752","rigId":null,"n":1,"m
+sg":"{\"id\":1,\"method\":\"mining.configure\",\"params\":[[\"version-rolling\",\"minimum-difficulty\",\
+"subscribe-extranonce\"],{\"version-rolling.mask\":\"1fffe000\",\"version-rolling.min-bit-count\":16,\"m
+inimum-difficulty.value\":50000}]}","msg":"stratum:diag IN"}
+0|tedt-api | {"level":30,"time":1777763623590,"pid":143078,"hostname":"vmi3202752","rigId":null,"n":1,"m
+sg":"{\"id\":1,\"result\":{\"version-rolling\":true,\"version-rolling.mask\":\"1fffe000\",\"version-roll
+ing.min-bit-count\":16,\"minimum-difficulty\":true,\"subscribe-extranonce\":true},\"error\":null}","msg"
+:"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763623608,"pid":143078,"hostname":"vmi3202752","rigId":null,"n":2,"m
+sg":"{\"id\":2,\"method\":\"mining.subscribe\",\"params\":[\"stratum-proxy/0.9.0\"]}","msg":"stratum:dia
+g IN"}
+0|tedt-api | {"level":30,"time":1777763623608,"pid":143078,"hostname":"vmi3202752","rigId":null,"n":2,"m
+sg":"{\"id\":2,\"result\":[[[\"mining.set_difficulty\",\"sub-diff-1\"]],\"383144cc2612cddb\",8],\"error\
+":null}","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763623608,"pid":143078,"hostname":"vmi3202752","rigId":null,"n":3,"m
+sg":"{\"id\":null,\"method\":\"mining.set_difficulty\",\"params\":[50000]}","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763623625,"pid":143078,"hostname":"vmi3202752","rigId":null,"n":3,"m
+sg":"{\"id\":3,\"method\":\"mining.authorize\",\"params\":[\"ahmed.m30\",\"x\"]}","msg":"stratum:diag IN
+"}
+0|tedt-api | {"level":30,"time":1777763623640,"pid":143078,"hostname":"vmi3202752","rigId":6,"n":4,"msg"
+:"{\"id\":3,\"result\":true,\"error\":null}","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763623690,"pid":143078,"hostname":"vmi3202752","rigId":6,"n":5,"msg"
+:"{\"id\":null,\"method\":\"mining.set_extranonce\",\"params\":[\"5db69100\",8]}","msg":"stratum:diag OU
+T"}
+0|tedt-api | {"level":30,"time":1777763623708,"pid":143078,"hostname":"vmi3202752","rigId":6,"n":6,"msg"
+:"{\"id\":null,\"method\":\"mining.set_difficulty\",\"params\":[50000]}","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763623709,"pid":143078,"hostname":"vmi3202752","rigId":6,"n":7,"msg"
+:"{\"id\":null,\"method\":\"mining.notify\",\"params\":[\"3123\",\"531a1742f28bdb27283bd4c8aedb6232533b3
+1f50001dcd20000000000000000\",\"010000000100000000000000000000000000000000000000000000000000000000000000
+00ffffffff6303b5750e1c2f5669614254432f4d696e656…","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763624333,"pid":143078,"hostname":"vmi3202752","rigId":6,"rentalId":
+26,"pendingBuffered":0,"msSinceLastData":707,"wasAuthorized":true,"wasFallback":false,"diagIn":3,"diagOu
+t":7,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1777763625984,"pid":143078,"hostname":"vmi3202752","rigId":6,"n":5,"msg"
+:"{\"id\":2,\"method\":\"mining.submit\",\"params\":[\"ahmed.m30\",\"3123\",\"ffc51c0000000000\",\"69f68
+524\",\"1a02fb40\",\"08000000\"]}","msg":"stratum:diag IN"}
+0|tedt-api | {"level":30,"time":1777763625989,"pid":143078,"hostname":"vmi3202752","rigId":6,"n":9,"msg"
+:"{\"id\":2,\"result\":true,\"error\":null}","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763626598,"pid":143078,"hostname":"vmi3202752","rigId":6,"n":6,"msg"
+:"{\"id\":3,\"method\":\"mining.submit\",\"params\":[\"ahmed.m30\",\"3123\",\"ff3c210000000000\",\"69f68
+524\",\"e5a41e5d\",\"1c000000\"]}","msg":"stratum:diag IN"}
+0|tedt-api | {"level":30,"time":1777763626621,"pid":143078,"hostname":"vmi3202752","rigId":6,"n":10,"msg
+":"{\"id\":3,\"result\":true,\"error\":null}","msg":"stratum:diag OUT"}
+0|tedt-api | {"level":30,"time":1777763627386,"pid":143078,"hostname":"vmi3202752","rigId":6,"n":7,"msg"
+:"{\"id\":4,\"method\":\"mining.submit\",\"params\":[\"ahmed.m30\",\"3123\",\"ff29270000000000\",\"69f68
+524\",\"67482617\",\"1c000000\"]}","msg":"stratum:diag IN"}
+0|tedt-api | {"level":30,"time":1777763627391,"pid":143078,"hostname":"vmi3202752","rigId":6,"n":11,"msg
+":"{\"id\":4,\"result\":true,\"error\":null}","msg":"stratum:diag OUT"}
