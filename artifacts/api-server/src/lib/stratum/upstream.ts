@@ -28,6 +28,8 @@ export class UpstreamClient extends EventEmitter {
     private readonly poolWorker: string,
     private readonly poolPassword: string,
     private readonly rentalId: number,
+    /** If set, send mining.configure with version-rolling before subscribing. */
+    private readonly versionRollingMask?: string,
   ) {
     super();
   }
@@ -155,6 +157,29 @@ export class UpstreamClient extends EventEmitter {
 
   private async _subscribe(): Promise<void> {
     try {
+      // If the downstream miner negotiated version-rolling, forward the same
+      // extension negotiation to the upstream pool so it knows to include the
+      // version bits field in job notifications and to accept version-rolled submits.
+      if (this.versionRollingMask) {
+        const cfgId = this._nextId();
+        try {
+          await this._request(cfgId, "mining.configure", [
+            ["version-rolling"],
+            { "version-rolling.mask": this.versionRollingMask, "version-rolling.min-bit-count": 2 },
+          ]);
+          logger.debug(
+            { rentalId: this.rentalId, mask: this.versionRollingMask },
+            "stratum:upstream sent mining.configure (version-rolling) to pool",
+          );
+        } catch {
+          // Some pools don't support mining.configure — not fatal; proceed.
+          logger.debug(
+            { rentalId: this.rentalId },
+            "stratum:upstream pool rejected mining.configure (version-rolling not supported)",
+          );
+        }
+      }
+
       const subId = this._nextId();
       const subResult = await this._request(subId, "mining.subscribe", [
         "rigmarket-proxy/1.0",
@@ -272,15 +297,14 @@ export class UpstreamClient extends EventEmitter {
     extranonce2: string,
     ntime: string,
     nonce: string,
+    versionBits?: string,
   ): Promise<boolean> {
     const id = this._nextId();
-    return this._request(id, "mining.submit", [
-      this.poolWorker,
-      jobId,
-      extranonce2,
-      ntime,
-      nonce,
-    ]).then((result) => {
+    // Standard Stratum submit params: [worker, jobId, extranonce2, ntime, nonce]
+    // ASICBoost version-rolling appends versionBits as a 6th parameter.
+    const submitParams: string[] = [this.poolWorker, jobId, extranonce2, ntime, nonce];
+    if (versionBits) submitParams.push(versionBits);
+    return this._request(id, "mining.submit", submitParams).then((result) => {
       return result === true;
     }).catch(() => false);
   }

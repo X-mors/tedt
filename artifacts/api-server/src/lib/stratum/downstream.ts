@@ -22,6 +22,7 @@ interface BufferedSubmit {
   extranonce2: string;
   ntime: string;
   nonce: string;
+  versionBits: string | undefined;
   diff: number;
 }
 
@@ -42,6 +43,8 @@ export class DownstreamSession extends EventEmitter {
   private authorized = false;
   private currentDifficulty = 1;
   private lastJobId: string | null = null;
+  /** Version-rolling mask negotiated with the miner via mining.configure, or null if not negotiated. */
+  private versionRollingMask: string | null = null;
   /**
    * True when `this.upstream` is connected to the rig owner's fallback pool
    * (not a renter's pool). Shares submitted in this mode are forwarded to the
@@ -169,8 +172,9 @@ export class DownstreamSession extends EventEmitter {
     const result: Record<string, unknown> = {};
     for (const ext of extensions) {
       if (ext === "version-rolling") {
+        this.versionRollingMask = "1fffe000";
         result["version-rolling"] = true;
-        result["version-rolling.mask"] = "1fffe000";
+        result["version-rolling.mask"] = this.versionRollingMask;
         result["version-rolling.min-bit-count"] = 2;
       } else if (ext === "minimum-difficulty") {
         result["minimum-difficulty"] = true;
@@ -538,7 +542,7 @@ export class DownstreamSession extends EventEmitter {
     const password = rig.stratumPassword || "x";
 
     // Use 0 as a sentinel rentalId for fallback connections (no real rental).
-    const upstream = new UpstreamClient(poolUrl, worker, password, 0);
+    const upstream = new UpstreamClient(poolUrl, worker, password, 0, this.versionRollingMask ?? undefined);
     this.upstream = upstream;
     this._wireFallbackUpstreamEvents(rig.id);
     upstream.connect();
@@ -627,6 +631,7 @@ export class DownstreamSession extends EventEmitter {
       rental.poolWorker,
       rental.poolPassword,
       rental.id,
+      this.versionRollingMask ?? undefined,
     );
     this.upstream = upstream;
     this._wireUpstreamEvents(rental.id);
@@ -700,11 +705,11 @@ export class DownstreamSession extends EventEmitter {
       { rigId: this.rigId, count: buffered.length },
       "stratum:downstream replaying buffered shares",
     );
-    for (const { jobId, extranonce2, ntime, nonce, diff } of buffered) {
+    for (const { jobId, extranonce2, ntime, nonce, versionBits, diff } of buffered) {
       if (!this.upstream) break; // Upstream went away again
       let accepted = false;
       try {
-        accepted = await this.upstream.submitShare(jobId, extranonce2, ntime, nonce);
+        accepted = await this.upstream.submitShare(jobId, extranonce2, ntime, nonce, versionBits);
       } catch {
         accepted = false;
       }
@@ -727,6 +732,8 @@ export class DownstreamSession extends EventEmitter {
     const extranonce2 = params[2] ?? "";
     const ntime = params[3] ?? "";
     const nonce = params[4] ?? "";
+    // ASICBoost version-rolling: miner appends version bits as param[5]
+    const versionBits = params[5] ? params[5] : undefined;
 
     if (!this.upstream) {
       // Return error only when there is no rental AND no fallback configured.
@@ -736,7 +743,7 @@ export class DownstreamSession extends EventEmitter {
       }
       // Upstream temporarily unavailable — buffer the share for replay.
       if (this.submitBuffer.length < SUBMIT_BUFFER_MAX) {
-        this.submitBuffer.push({ jobId, extranonce2, ntime, nonce, diff: this.currentDifficulty });
+        this.submitBuffer.push({ jobId, extranonce2, ntime, nonce, versionBits, diff: this.currentDifficulty });
         logger.debug(
           { rigId: this.rigId, bufferLen: this.submitBuffer.length },
           "stratum:downstream share buffered (upstream unavailable)",
@@ -758,6 +765,7 @@ export class DownstreamSession extends EventEmitter {
         extranonce2,
         ntime,
         nonce,
+        versionBits,
       );
     } catch {
       accepted = false;
