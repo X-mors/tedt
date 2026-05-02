@@ -420,18 +420,32 @@ export class DownstreamSession extends EventEmitter {
     this.authorized = true;
     proxyState.addRig(rig.id, rig.ownerId, this, rig.name);
 
-    // Persist online state and last-seen timestamp so admin can track connectivity.
-    await db
-      .update(rigsTable)
-      .set({ isOnline: true, lastSeenAt: new Date() })
-      .where(eq(rigsTable.id, rig.id));
-
     const activeRental = await this._findActiveRental(rig.id, rig.ownerId);
     this.rentalId = activeRental?.id ?? null;
     proxyState.setRigAuthorized(rig.id, this.rentalId);
 
+    // Determine which rig ID to mark online in the DB.
+    // When the miner connected under a shadow rig (stratumName mismatch),
+    // activeRental.listedRigId points to the marketplace-visible rig.
+    // Without an active rental we fall back to the approved rig for this owner.
+    let onlineRigId = rig.id;
+    if (activeRental) {
+      onlineRigId = activeRental.listedRigId;
+    } else if (rig.id !== (await this._findListedRigForOwner(rig.ownerId) ?? rig.id)) {
+      // Shadow rig with no rental — mark the listed rig online too.
+      onlineRigId = (await this._findListedRigForOwner(rig.ownerId)) ?? rig.id;
+    }
+
+    // Persist online state and last-seen timestamp so the marketplace shows the rig as online.
+    const updateIds = onlineRigId === rig.id ? [rig.id] : [rig.id, onlineRigId];
+    await Promise.all(
+      updateIds.map((id) =>
+        db.update(rigsTable).set({ isOnline: true, lastSeenAt: new Date() }).where(eq(rigsTable.id, id)),
+      ),
+    );
+
     this._reply(msg.id, true);
-    logger.info({ rigId: rig.id, rentalId: this.rentalId }, "stratum:downstream authorized");
+    logger.info({ rigId: rig.id, onlineRigId, rentalId: this.rentalId }, "stratum:downstream authorized");
 
     if (activeRental) {
       this.isFallback = false;
@@ -444,7 +458,22 @@ export class DownstreamSession extends EventEmitter {
     }
   }
 
-  private async _findActiveRental(rigId: number, ownerId: number) {
+  /**
+   * Find an active rental for this rig session.
+   * Returns the rental row plus `listedRigId` — the DB id of the rig the
+   * rental is actually registered against (may differ from `rigId` when the
+   * miner connected under a different stratumName and the proxy auto-created
+   * a shadow rig).  Callers use `listedRigId` to update `isOnline` on the
+   * rig that renters can actually see in the marketplace.
+   */
+  private async _findActiveRental(rigId: number, ownerId: number): Promise<{
+    id: number;
+    poolUrl: string;
+    poolWorker: string;
+    poolPassword: string;
+    endsAt: Date;
+    listedRigId: number;
+  } | null> {
     const now = new Date();
 
     // Primary: look up by the exact rigId registered in the marketplace.
@@ -463,7 +492,7 @@ export class DownstreamSession extends EventEmitter {
           eq(rentalsTable.status, "active"),
         ),
       );
-    if (rental && rental.endsAt >= now) return rental;
+    if (rental && rental.endsAt >= now) return { ...rental, listedRigId: rigId };
 
     // Fallback: miner may have connected under a stratumName that caused the
     // proxy to auto-create a shadow rig with a different ID.  Search by ownerId
@@ -471,6 +500,7 @@ export class DownstreamSession extends EventEmitter {
     const [ownerRental] = await db
       .select({
         id: rentalsTable.id,
+        rigId: rentalsTable.rigId,
         poolUrl: rentalsTable.poolUrl,
         poolWorker: rentalsTable.poolWorker,
         poolPassword: rentalsTable.poolPassword,
@@ -486,10 +516,29 @@ export class DownstreamSession extends EventEmitter {
     if (!ownerRental || ownerRental.endsAt < now) return null;
 
     logger.warn(
-      { shadowRigId: rigId, ownerId, rentalId: ownerRental.id },
+      { shadowRigId: rigId, listedRigId: ownerRental.rigId, ownerId, rentalId: ownerRental.id },
       "stratum:downstream _findActiveRental fallback via ownerId — stratumName mismatch",
     );
-    return ownerRental;
+    return { ...ownerRental, listedRigId: ownerRental.rigId };
+  }
+
+  /**
+   * Find the listed (marketplace-visible) rig for this owner when there is no
+   * active rental.  Returns the rigId of the approved rig so we can mark it
+   * online even when the miner connected under a shadow rig's stratumName.
+   */
+  private async _findListedRigForOwner(ownerId: number): Promise<number | null> {
+    const [listedRig] = await db
+      .select({ id: rigsTable.id })
+      .from(rigsTable)
+      .where(
+        and(
+          eq(rigsTable.ownerId, ownerId),
+          eq(rigsTable.approvalStatus, "approved"),
+        ),
+      )
+      .limit(1);
+    return listedRig?.id ?? null;
   }
 
   async activateRental(rentalId: number, _poolUrl: string, _poolWorker: string, _poolPassword: string): Promise<void> {
