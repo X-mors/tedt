@@ -47,6 +47,16 @@ export class UpstreamClient extends EventEmitter {
     void this._connectAsync();
   }
 
+  /** Most recent extranonce1 from the pool (null until subscribe completes). */
+  get currentExtranonce1(): string | null {
+    return this.extranonce1;
+  }
+
+  /** Most recent extranonce2_size negotiated with the pool. */
+  get currentExtranonce2Size(): number {
+    return this.extranonce2Size;
+  }
+
   private async _connectAsync(): Promise<void> {
     if (this.destroyed) return;
     this._clearConnectTimer();
