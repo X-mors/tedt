@@ -48,10 +48,14 @@ export class DownstreamSession extends EventEmitter {
   private rentalId: number | null = null;
   private upstream: UpstreamClient | null = null;
   private extranonce1 = "";
-  private extranonce2Size = 4;
+  private extranonce2Size = 8;
   private subscribed = false;
   private authorized = false;
   private currentDifficulty = 1;
+  /** Miner-requested minimum difficulty from mining.configure (`minimum-difficulty.value`).
+   *  We must never push a set_difficulty below this — many proxies (stratum-proxy)
+   *  hard-disconnect when their floor is violated. */
+  private minDifficulty = 1;
   private lastJobId: string | null = null;
   /** Version-rolling mask negotiated with the miner via mining.configure, or null if not negotiated. */
   private versionRollingMask: string | null = null;
@@ -182,6 +186,17 @@ export class DownstreamSession extends EventEmitter {
     this._send({ id: null, method, params });
   }
 
+  /**
+   * Send mining.set_difficulty respecting the miner-negotiated minimum.
+   * Many proxies (e.g. stratum-proxy) hard-disconnect when the server pushes
+   * a difficulty below the floor declared in mining.configure.
+   */
+  private _setDifficulty(diff: number): void {
+    const safe = Math.max(diff, this.minDifficulty, 1);
+    this.currentDifficulty = safe;
+    this._notify("mining.set_difficulty", [safe]);
+  }
+
   private async _handleMessage(msg: JsonRpcMessage): Promise<void> {
     if (!msg.method) return;
 
@@ -240,14 +255,31 @@ export class DownstreamSession extends EventEmitter {
    */
   private _handleConfigure(msg: JsonRpcMessage): void {
     const extensions = (Array.isArray(msg.params?.[0]) ? msg.params[0] : []) as string[];
+    const params = (msg.params?.[1] ?? {}) as Record<string, unknown>;
     const result: Record<string, unknown> = {};
     for (const ext of extensions) {
       if (ext === "version-rolling") {
-        this.versionRollingMask = "1fffe000";
+        // Honor the miner's requested mask (intersected with our supported bits).
+        // Hardcoding 1fffe000 confused proxies that negotiated a smaller mask.
+        const requested = typeof params["version-rolling.mask"] === "string"
+          ? (params["version-rolling.mask"] as string)
+          : "1fffe000";
+        const requestedBits = parseInt(requested, 16);
+        const supportedBits = 0x1fffe000;
+        const negotiated = (Number.isFinite(requestedBits) ? requestedBits : supportedBits) & supportedBits;
+        this.versionRollingMask = negotiated.toString(16).padStart(8, "0");
+        const reqMinBits = params["version-rolling.min-bit-count"];
+        const minBits = typeof reqMinBits === "number" ? reqMinBits : 2;
         result["version-rolling"] = true;
         result["version-rolling.mask"] = this.versionRollingMask;
-        result["version-rolling.min-bit-count"] = 2;
+        result["version-rolling.min-bit-count"] = minBits;
       } else if (ext === "minimum-difficulty") {
+        // Capture the floor so we never push set_difficulty below it.
+        const v = params["minimum-difficulty.value"];
+        if (typeof v === "number" && v > 0) {
+          this.minDifficulty = v;
+          if (this.currentDifficulty < v) this.currentDifficulty = v;
+        }
         result["minimum-difficulty"] = true;
       } else if (ext === "subscribe-extranonce") {
         result["subscribe-extranonce"] = true;
@@ -255,7 +287,10 @@ export class DownstreamSession extends EventEmitter {
         result[ext] = false;
       }
     }
-    logger.debug({ rigId: this.rigId, extensions }, "stratum:downstream mining.configure");
+    logger.debug(
+      { rigId: this.rigId, extensions, minDifficulty: this.minDifficulty, mask: this.versionRollingMask },
+      "stratum:downstream mining.configure",
+    );
     this._reply(msg.id, result);
   }
 
@@ -265,15 +300,20 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
     this.subscribed = true;
-    this.extranonce1 = makeExtranonce1();
-    this.extranonce2Size = 4;
+    // Use 8-byte extranonce1 to match the size handed out by major upstream
+    // pools (viabtc, f2pool, antpool). This avoids a mid-session
+    // extranonce2_size change via mining.set_extranonce, which proxies like
+    // stratum-proxy/0.9.0 cannot tolerate (they pre-split nonce ranges based
+    // on the size negotiated at subscribe time and disconnect on change).
+    this.extranonce1 = randomBytes(8).toString("hex");
+    this.extranonce2Size = 8;
 
     this._reply(msg.id, [
       [["mining.set_difficulty", `sub-diff-${this.msgIdCounter}`]],
       this.extranonce1,
       this.extranonce2Size,
     ]);
-    this._notify("mining.set_difficulty", [this.currentDifficulty]);
+    this._setDifficulty(this.currentDifficulty);
   }
 
   /**
@@ -510,7 +550,7 @@ export class DownstreamSession extends EventEmitter {
     } else if (rig.stratumHost && rig.stratumPort > 0) {
       await this._startFallbackUpstream(rig);
     } else {
-      this._notify("mining.set_difficulty", [1]);
+      this._setDifficulty(1);
       logger.info({ rigId: rig.id }, "stratum:downstream no active rental, miner idle");
     }
   }
@@ -747,8 +787,7 @@ export class DownstreamSession extends EventEmitter {
     if (!upstream) return;
 
     upstream.on("setDifficulty", (diff: number) => {
-      this.currentDifficulty = diff;
-      this._notify("mining.set_difficulty", [diff]);
+      this._setDifficulty(diff);
     });
 
     upstream.on("notify", (params: unknown) => {
@@ -757,15 +796,11 @@ export class DownstreamSession extends EventEmitter {
     });
 
     upstream.on("subscribed", ({ extranonce1, extranonce2Size }: { extranonce1: string; extranonce2Size: number }) => {
-      this.extranonce1 = extranonce1 ?? this.extranonce1;
-      this.extranonce2Size = extranonce2Size;
-      this._notify("mining.set_extranonce", [this.extranonce1, this.extranonce2Size]);
+      this._applyUpstreamExtranonce(extranonce1 ?? this.extranonce1, extranonce2Size, "subscribed");
     });
 
     upstream.on("setExtranonce", ({ extranonce1, extranonce2Size }: { extranonce1: string; extranonce2Size: number }) => {
-      this.extranonce1 = extranonce1;
-      this.extranonce2Size = extranonce2Size;
-      this._notify("mining.set_extranonce", [extranonce1, extranonce2Size]);
+      this._applyUpstreamExtranonce(extranonce1, extranonce2Size, "set_extranonce");
     });
 
     upstream.on("ready", () => {
@@ -831,11 +866,10 @@ export class DownstreamSession extends EventEmitter {
     if (!upstream) return;
 
     upstream.on("setDifficulty", (diff: number) => {
-      this.currentDifficulty = diff;
       if (this.rigId != null) {
         proxyState.setCurrentDifficulty(rentalId, diff);
       }
-      this._notify("mining.set_difficulty", [diff]);
+      this._setDifficulty(diff);
     });
 
     upstream.on("notify", (params: unknown) => {
@@ -897,18 +931,43 @@ export class DownstreamSession extends EventEmitter {
    */
   private _applyUpstreamExtranonce(extranonce1: string, extranonce2Size: number, source: string): void {
     const newExtranonce1 = extranonce1 ?? this.extranonce1;
-    const previous = this.upstreamExtranonce1;
-    this.upstreamExtranonce1 = newExtranonce1;
-    this.extranonce1 = newExtranonce1;
-    this.extranonce2Size = extranonce2Size;
+    const prevExtranonce1 = this.extranonce1;
+    const prevSize = this.extranonce2Size;
 
-    if (previous != null && previous !== newExtranonce1) {
+    // No-op if nothing visible to the miner actually changed. Sending a
+    // redundant mining.set_extranonce — especially one that flips
+    // extranonce2_size — destabilizes proxy miners (stratum-proxy/0.9.0
+    // disconnects on size change). The miner's extranonce1 was assigned
+    // locally by us at subscribe time; we do NOT forward upstream's value
+    // because we splice upstream's extranonce1 ourselves on submit.
+    if (newExtranonce1 === prevExtranonce1 && extranonce2Size === prevSize) {
+      this.upstreamExtranonce1 = newExtranonce1;
       logger.debug(
-        { rigId: this.rigId, source, previous, newExtranonce1 },
-        "stratum:downstream upstream extranonce changed — forwarding mining.set_extranonce",
+        { rigId: this.rigId, source, extranonce2Size },
+        "stratum:downstream upstream extranonce unchanged — skipping set_extranonce",
+      );
+      return;
+    }
+
+    // Size mismatch is the lethal case for proxy miners: keep our negotiated
+    // size and only update extranonce1. If the upstream pool genuinely needs
+    // a different extranonce2_size, that's a configuration issue we surface
+    // via warning rather than silently breaking the miner.
+    if (extranonce2Size !== prevSize) {
+      logger.warn(
+        { rigId: this.rigId, source, prevSize, newSize: extranonce2Size },
+        "stratum:downstream upstream extranonce2_size changed — keeping miner-facing size to avoid disconnect",
       );
     }
-    this._notify("mining.set_extranonce", [newExtranonce1, extranonce2Size]);
+
+    this.upstreamExtranonce1 = newExtranonce1;
+    this.extranonce1 = newExtranonce1;
+    // Intentionally do NOT mutate this.extranonce2Size here.
+    logger.debug(
+      { rigId: this.rigId, source, prevExtranonce1, newExtranonce1 },
+      "stratum:downstream upstream extranonce changed — forwarding mining.set_extranonce",
+    );
+    this._notify("mining.set_extranonce", [newExtranonce1, this.extranonce2Size]);
   }
 
   private async _flushSubmitBuffer(): Promise<void> {
