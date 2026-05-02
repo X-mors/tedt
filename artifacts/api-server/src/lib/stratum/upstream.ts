@@ -157,27 +157,27 @@ export class UpstreamClient extends EventEmitter {
 
   private async _subscribe(): Promise<void> {
     try {
-      // If the downstream miner negotiated version-rolling, forward the same
-      // extension negotiation to the upstream pool so it knows to include the
-      // version bits field in job notifications and to accept version-rolled submits.
+      // If the downstream miner negotiated version-rolling, inform the upstream
+      // pool via mining.configure. We fire-and-forget (no await) because many
+      // pools do not implement this extension and will never reply — waiting
+      // for a response would stall the connection for 30 s before timing out.
+      // The response (if any) is intentionally left unhandled; the important
+      // thing is that the pool receives the hint so it can include version bits
+      // in its job notifications.
       if (this.versionRollingMask) {
         const cfgId = this._nextId();
-        try {
-          await this._request(cfgId, "mining.configure", [
+        this._send({
+          id: cfgId,
+          method: "mining.configure",
+          params: [
             ["version-rolling"],
             { "version-rolling.mask": this.versionRollingMask, "version-rolling.min-bit-count": 2 },
-          ]);
-          logger.debug(
-            { rentalId: this.rentalId, mask: this.versionRollingMask },
-            "stratum:upstream sent mining.configure (version-rolling) to pool",
-          );
-        } catch {
-          // Some pools don't support mining.configure — not fatal; proceed.
-          logger.debug(
-            { rentalId: this.rentalId },
-            "stratum:upstream pool rejected mining.configure (version-rolling not supported)",
-          );
-        }
+          ],
+        });
+        logger.debug(
+          { rentalId: this.rentalId, mask: this.versionRollingMask },
+          "stratum:upstream sent mining.configure (version-rolling) to pool (fire-and-forget)",
+        );
       }
 
       const subId = this._nextId();
