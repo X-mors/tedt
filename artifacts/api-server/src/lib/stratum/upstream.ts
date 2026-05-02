@@ -21,6 +21,14 @@ export class UpstreamClient extends EventEmitter {
   private extranonce1: string | null = null;
   private extranonce2Size = 4;
   private currentDifficulty = 1;
+  /**
+   * Difficulty active at the moment each job was issued by the pool. Used so
+   * that share accounting credits the correct difficulty even if `mining.set_difficulty`
+   * arrives between the job and the share submission. Capped to the most recent
+   * JOB_DIFF_HISTORY_LIMIT jobs (FIFO eviction) to bound memory.
+   */
+  private jobDifficulty = new Map<string, number>();
+  private static readonly JOB_DIFF_HISTORY_LIMIT = 256;
   private connectTimer: NodeJS.Timeout | null = null;
 
   constructor(
@@ -274,9 +282,19 @@ export class UpstreamClient extends EventEmitter {
         this.emit("setDifficulty", this.currentDifficulty);
         break;
 
-      case "mining.notify":
+      case "mining.notify": {
+        const params = msg.params as unknown[] | undefined;
+        const jobId = params && params.length > 0 ? String(params[0] ?? "") : "";
+        if (jobId) {
+          this.jobDifficulty.set(jobId, this.currentDifficulty);
+          if (this.jobDifficulty.size > UpstreamClient.JOB_DIFF_HISTORY_LIMIT) {
+            const firstKey = this.jobDifficulty.keys().next().value;
+            if (firstKey !== undefined) this.jobDifficulty.delete(firstKey);
+          }
+        }
         this.emit("notify", msg.params);
         break;
+      }
 
       case "mining.set_extranonce":
         this.extranonce1 = String((msg.params as unknown[])?.[0] ?? "");
@@ -314,6 +332,16 @@ export class UpstreamClient extends EventEmitter {
 
   getCurrentDifficulty(): number {
     return this.currentDifficulty;
+  }
+
+  /**
+   * Return the difficulty that was active when the given job was issued.
+   * Falls back to the current difficulty if the job is unknown (e.g. evicted
+   * from the bounded history, or the share refers to a job from a previous
+   * upstream connection).
+   */
+  getJobDifficulty(jobId: string): number {
+    return this.jobDifficulty.get(jobId) ?? this.currentDifficulty;
   }
 
   private _scheduleReconnect(): void {

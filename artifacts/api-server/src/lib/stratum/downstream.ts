@@ -825,7 +825,15 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
 
-    const diff = this.upstream.getCurrentDifficulty() || this.currentDifficulty;
+    // Use the difficulty active at the moment the JOB was issued — not the
+    // current one. If pool sent set_difficulty between job-issue and share-
+    // submission, using the current diff would mis-credit the share (often
+    // wildly, since vardiff steps can be 8-16x). Falls back to current diff
+    // for unknown jobs.
+    const diff =
+      this.upstream.getJobDifficulty(jobId) ||
+      this.upstream.getCurrentDifficulty() ||
+      this.currentDifficulty;
     let accepted = false;
     try {
       accepted = await this.upstream.submitShare(
