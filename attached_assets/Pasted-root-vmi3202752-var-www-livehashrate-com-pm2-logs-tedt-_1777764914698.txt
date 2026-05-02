@@ -1,0 +1,31 @@
+root@vmi3202752:/var/www/livehashrate.com# pm2 logs tedt-api --lines 200 --nostream 2>&1 | grep
+ -E "rentalId.*27|rigId|session closing|upstream|share" | tail -60
+0|tedt-api | {"level":30,"time":1777764811334,"pid":144490,"hostname":"vmi3202752","rentalId":2
+7,"msg":"stratum:upstream closed"}
+0|tedt-api | {"level":30,"time":1777764823300,"pid":144490,"hostname":"vmi3202752","rigId":6,"r
+entalId":27,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1777764823301,"pid":144490,"hostname":"vmi3202752","rentalId":2
+7,"host":"btc.viabtc.io","resolvedHost":"172.65.24.253","port":3333,"msg":"stratum:upstream con
+necting"}
+0|tedt-api | {"level":30,"time":1777764823341,"pid":144490,"hostname":"vmi3202752","rentalId":2
+7,"worker":"AhmadSamir.y","msg":"stratum:upstream pool auth OK"}
+0|tedt-api | {"level":30,"time":1777764823341,"pid":144490,"hostname":"vmi3202752","rigId":6,"r
+entalId":27,"msg":"stratum:downstream upstream ready"}
+0|tedt-api | {"level":30,"time":1777764823934,"pid":144490,"hostname":"vmi3202752","rigId":6,"r
+entalId":27,"pendingBuffered":0,"msSinceLastData":704,"wasAuthorized":true,"wasFallback":false,
+"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1777764823934,"pid":144490,"hostname":"vmi3202752","rigId":6,"m
+sg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777764883935,"pid":144490,"hostname":"vmi3202752","rentalId":2
+7,"msg":"stratum:upstream closed"}
+root@vmi3202752:/var/www/livehashrate.com# psql $DATABASE_URL -c "SELECT id, status, rig_id, started_at, ends_at, NOW() - started_at AS elapsed FROM rentals WHERE id=27;"
+psql $DATABASE_URL -c "SELECT id, name, status, is_online, last_seen_at, NOW() - last_seen_at AS since_seen FROM rigs WHERE id=(SELECT rig_id FROM rentals WHERE id=27);"
+ id | status | rig_id |         started_at         |          ends_at           |     elapsed
+----+--------+--------+----------------------------+----------------------------+-----------------
+ 27 | active |      6 | 2026-05-03 01:30:10.398+02 | 2026-05-03 02:30:10.398+02 | 00:04:45.264944
+(1 row)
+ id | name | status | is_online |        last_seen_at        |   since_seen
+----+------+--------+-----------+----------------------------+-----------------
+  6 | m30  | rented | t         | 2026-05-03 01:33:43.292+02 | 00:01:12.482499
+(1 row)
+root@vmi3202752:/var/www/livehashrate.com#
