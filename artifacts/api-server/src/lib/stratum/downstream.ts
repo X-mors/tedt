@@ -197,25 +197,17 @@ export class DownstreamSession extends EventEmitter {
     }
     this.subscribed = true;
 
-    // If a parked upstream is waiting (miner reconnected after set_extranonce),
-    // use the pool's extranonce directly so we never need to send set_extranonce
-    // mid-session.  Many ASIC firmwares (Antminer M30+, Whatsminer, …) react to
-    // set_extranonce by reconnecting — causing an infinite reconnect loop.
-    // By seeding the subscribe response with the pool's extranonce we break the
-    // loop: on the second connect the miner already has the correct extranonce
-    // and the parked upstream is reused without any extranonce change.
-    const parkedE = proxyState.getAnyParkedExtranonce();
-    if (parkedE) {
-      this.extranonce1 = parkedE.extranonce1;
-      this.extranonce2Size = parkedE.extranonce2Size;
-      logger.debug(
-        { extranonce1: this.extranonce1 },
-        "stratum:downstream subscribe — seeded with parked upstream extranonce",
-      );
-    } else {
-      this.extranonce1 = makeExtranonce1();
-      this.extranonce2Size = 4;
-    }
+    // Always generate a fresh random extranonce on subscribe.
+    // The pool's actual extranonce will be synced to the miner via
+    // mining.set_extranonce once the upstream connects (see _wireUpstreamEvents
+    // and _startUpstream). This matches the behaviour of commit 027ed1c
+    // ("Force miner to reconnect for clean rental transitions") which was
+    // confirmed working. The previous approach of seeding with a parked
+    // upstream's extranonce was removed because it could return a stale
+    // extranonce from a previous rental/session, causing the miner to cycle
+    // through reconnect loops and ultimately fall back to the owner's pool.
+    this.extranonce1 = makeExtranonce1();
+    this.extranonce2Size = 4;
 
     this._reply(msg.id, [
       [["mining.set_difficulty", `sub-diff-${this.msgIdCounter}`]],
@@ -784,6 +776,20 @@ export class DownstreamSession extends EventEmitter {
       this._wireUpstreamEvents(rental.id);
       // Upstream is already connected — mark ready and drain any buffered shares.
       if (this.rigId != null) proxyState.setUpstreamConnected(this.rigId, true);
+      // The miner received a fresh random extranonce in the subscribe response
+      // (we no longer seed subscribe from the parked upstream). Sync the miner
+      // to the pool's extranonce now so submitted shares are valid.
+      const poolE1 = parked.getExtranonce1();
+      if (poolE1) {
+        const poolE2Size = parked.getExtranonce2Size();
+        this.extranonce1 = poolE1;
+        this.extranonce2Size = poolE2Size;
+        this._notify("mining.set_extranonce", [poolE1, poolE2Size]);
+        logger.debug(
+          { rigId: this.rigId, rentalId: rental.id, extranonce1: poolE1 },
+          "stratum:downstream synced miner extranonce from parked upstream",
+        );
+      }
       void this._flushSubmitBuffer();
       return;
     }

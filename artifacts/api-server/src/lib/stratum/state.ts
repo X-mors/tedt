@@ -319,22 +319,6 @@ class ProxyState {
   }
 
   /**
-   * Return the extranonce of any currently-parked upstream WITHOUT claiming it.
-   * Called from _handleSubscribe so the miner gets the pool's extranonce
-   * directly in the subscribe response — preventing the need to send
-   * mining.set_extranonce mid-session (which triggers ASIC reconnects).
-   * When there are multiple parked upstreams (multi-rig) we cannot reliably
-   * pick the right one, so we return null and let the normal flow handle it.
-   */
-  getAnyParkedExtranonce(): { extranonce1: string; extranonce2Size: number } | null {
-    if (this.parkedUpstreams.size !== 1) return null;
-    const parked = Array.from(this.parkedUpstreams.values())[0];
-    const e1 = parked.upstream.getExtranonce1();
-    if (!e1) return null;
-    return { extranonce1: e1, extranonce2Size: parked.upstream.getExtranonce2Size() };
-  }
-
-  /**
    * Claim a parked upstream for reuse when the miner reconnects within the
    * grace window. Returns null if no parked upstream exists.
    */
