@@ -57,12 +57,22 @@ commissions (renter + owner) on every rental.
 - **userPools** — per-user saved mining-pool credential profiles
   (`label`, `poolUrl`, `worker`, `password`); reusable as one-click prefill
   for new rentals, the in-rental "switch pool" dialog, and rig fallback
-  settings. Live-switch endpoint
+  settings. Inline `SaveAsPoolButton` (in
+  `artifacts/rigmarket/src/components/save-as-pool-button.tsx`) lets the
+  user save the currently-typed pool credentials into their list from any
+  of those three forms without leaving the page. Live-switch endpoint
   `POST /rentals/:id/switch-pool` updates the rental row and triggers a
   clean miner reconnect (ASIC firmwares often reject mid-session
   `set_extranonce`, so reconnect is the safest portable behavior). Owner
   telemetry endpoint `GET /me/rigs/:id/live` exposes per-rig hashrate /
   shares for the lessor dashboard.
+
+  **Privacy:** the renter's destination pool credentials
+  (`poolUrl/poolWorker/poolPassword`) are renter-only secrets. `GET
+  /rentals/:id` redacts them to empty strings for any caller that isn't
+  the renter (owner / admin still see all stats but no credentials), and
+  the React `RentalCockpit` page hides the entire "Destination Pool"
+  card + Switch button for non-renters via `useGetMe()` comparison.
 
 ## Pricing math
 

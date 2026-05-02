@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Copy, Waves, Wifi, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { SaveAsPoolButton } from "@/components/save-as-pool-button";
 
 function parseStratumUrl(url: string): { host: string; port: string } {
   try {
@@ -604,6 +605,16 @@ export default function RigForm() {
                   : <><Waves className="w-3.5 h-3.5" /> Test Connection</>
                 }
               </Button>
+
+              <SaveAsPoolButton
+                poolUrl={
+                  formData.fallbackPoolHost && formData.fallbackPoolPort
+                    ? `stratum+tcp://${formData.fallbackPoolHost}:${formData.fallbackPoolPort}`
+                    : ""
+                }
+                worker={formData.fallbackPoolUser}
+                password={formData.fallbackPoolPassword}
+              />
 
               {poolTestResult && (
                 <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-md border ${

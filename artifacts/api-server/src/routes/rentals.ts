@@ -452,6 +452,14 @@ router.get("/rentals/:id", async (req, res) => {
     res.status(403).json({ error: "Not allowed" });
     return;
   }
+  // Privacy: never leak the renter's destination pool credentials to anyone
+  // who isn't the renter themselves. Owners and admins still see all stats,
+  // but the pool URL/worker/password are renter-only secrets.
+  if (detail.renterId !== req.currentUser!.id) {
+    detail.poolUrl = "";
+    detail.poolWorker = "";
+    detail.poolPassword = "";
+  }
   res.json(detail);
 });
 

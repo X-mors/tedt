@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useGetRig, useCreateRentalQuote, useCreateRental, useGetMe, useTestPoolConnection, useListMyPools } from "@workspace/api-client-react";
+import { SaveAsPoolButton } from "@/components/save-as-pool-button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { formatHashrate, formatMoney } from "@/lib/format";
@@ -239,6 +240,11 @@ export default function NewRental() {
                     : <><Activity className="w-3.5 h-3.5" /> Test Pool Connection</>
                   }
                 </Button>
+                <SaveAsPoolButton
+                  poolUrl={poolUrl}
+                  worker={poolWorker}
+                  password={poolPassword}
+                />
                 {poolTestResult && (
                   <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-md border ${
                     poolTestResult.success

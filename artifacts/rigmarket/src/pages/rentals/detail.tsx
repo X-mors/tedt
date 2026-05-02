@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useParams } from "wouter";
-import { useGetRental, useGetRentalStats, useGetRentalLive, getGetRentalLiveQueryKey, getGetRentalStatsQueryKey, useCancelRental, useCreateRentalReview, getGetRentalQueryKey, useSwitchRentalPool, useListMyPools } from "@workspace/api-client-react";
+import { useGetRental, useGetRentalStats, useGetRentalLive, getGetRentalLiveQueryKey, getGetRentalStatsQueryKey, useCancelRental, useCreateRentalReview, getGetRentalQueryKey, useSwitchRentalPool, useListMyPools, useGetMe } from "@workspace/api-client-react";
+import { SaveAsPoolButton } from "@/components/save-as-pool-button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Repeat } from "lucide-react";
@@ -142,13 +143,20 @@ function SwitchPoolDialog({
               placeholder="x"
             />
           </div>
-          <Button
-            type="submit"
-            className="w-full font-mono text-xs bg-cyan-500 hover:bg-cyan-500/90 text-white"
-            disabled={switchPool.isPending}
-          >
-            {switchPool.isPending ? "SWITCHING..." : "SWITCH_POOL"}
-          </Button>
+          <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+            <SaveAsPoolButton
+              poolUrl={poolUrl}
+              worker={poolWorker}
+              password={poolPassword}
+            />
+            <Button
+              type="submit"
+              className="font-mono text-xs bg-cyan-500 hover:bg-cyan-500/90 text-white flex-1 min-w-[140px]"
+              disabled={switchPool.isPending}
+            >
+              {switchPool.isPending ? "SWITCHING..." : "SWITCH_POOL"}
+            </Button>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
@@ -179,12 +187,28 @@ export default function RentalCockpit() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: rental, isLoading: rentalLoading } = useGetRental(rentalId);
+  const { data: me } = useGetMe();
+  const { data: rental, isLoading: rentalLoading } = useGetRental(rentalId, {
+    query: {
+      // Auto-refresh the rental record so status transitions (auto-cancel,
+      // settle, complete) propagate without a manual reload — otherwise the
+      // page is stuck thinking the rental is still active and the live/stats
+      // pollers eventually go stale (matches user-reported "stats stop").
+      refetchInterval: 30000,
+      refetchIntervalInBackground: true,
+      queryKey: getGetRentalQueryKey(rentalId),
+    },
+  });
+
+  const isRenter = !!me && !!rental && me.id === rental.renterId;
 
   const { data: live } = useGetRentalLive(rentalId, {
     query: {
       enabled: !!rentalId && rental?.status === 'active',
       refetchInterval: 5000,
+      // Keep polling even when the tab is in the background so reopening
+      // doesn't show a flat-lined chart.
+      refetchIntervalInBackground: true,
       queryKey: getGetRentalLiveQueryKey(rentalId),
     },
   });
@@ -193,6 +217,7 @@ export default function RentalCockpit() {
     query: {
       enabled: !!rentalId && rental?.status === 'active',
       refetchInterval: 30000,
+      refetchIntervalInBackground: true,
       queryKey: getGetRentalStatsQueryKey(rentalId),
     },
   });
@@ -442,42 +467,45 @@ export default function RentalCockpit() {
         {/* Right: Pool config + Rental summary */}
         <div className="space-y-6">
 
-          {/* Renter's destination pool */}
-          <Card className="bg-card/50 border-border/50">
-            <CardHeader className="pb-3 flex-row items-center justify-between">
-              <CardTitle className="text-sm text-muted-foreground uppercase tracking-wider">Destination Pool</CardTitle>
-              {rental.status === 'active' && (
-                <SwitchPoolDialog
-                  rentalId={rental.id}
-                  currentUrl={rental.poolUrl}
-                  currentWorker={rental.poolWorker}
-                  currentPassword={rental.poolPassword}
-                />
-              )}
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">URL</span>
-                <span className="font-mono text-xs break-all bg-muted/30 px-2 py-1.5 rounded">{rental.poolUrl}</span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">Worker</span>
-                <span className="font-mono text-xs bg-muted/30 px-2 py-1.5 rounded">{rental.poolWorker}</span>
-              </div>
-              {rental.status === 'active' && (
-                <div className={`flex items-center gap-2 mt-1 text-xs px-2 py-1.5 rounded-md border ${
-                  poolConnected
-                    ? 'text-green-600 dark:text-green-400 bg-green-500/10 border-green-500/30'
-                    : 'text-muted-foreground bg-muted/20 border-border/40'
-                }`}>
-                  {poolConnected
-                    ? <><Wifi className="w-3 h-3" /> Pool is receiving hashrate</>
-                    : <><WifiOff className="w-3 h-3" /> Waiting for connection</>
-                  }
+          {/* Renter's destination pool — RENTER-ONLY card. The rig owner sees
+              all stats but never the renter's pool credentials (privacy). */}
+          {isRenter && (
+            <Card className="bg-card/50 border-border/50">
+              <CardHeader className="pb-3 flex-row items-center justify-between">
+                <CardTitle className="text-sm text-muted-foreground uppercase tracking-wider">Destination Pool</CardTitle>
+                {rental.status === 'active' && (
+                  <SwitchPoolDialog
+                    rentalId={rental.id}
+                    currentUrl={rental.poolUrl}
+                    currentWorker={rental.poolWorker}
+                    currentPassword={rental.poolPassword}
+                  />
+                )}
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">URL</span>
+                  <span className="font-mono text-xs break-all bg-muted/30 px-2 py-1.5 rounded">{rental.poolUrl}</span>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Worker</span>
+                  <span className="font-mono text-xs bg-muted/30 px-2 py-1.5 rounded">{rental.poolWorker}</span>
+                </div>
+                {rental.status === 'active' && (
+                  <div className={`flex items-center gap-2 mt-1 text-xs px-2 py-1.5 rounded-md border ${
+                    poolConnected
+                      ? 'text-green-600 dark:text-green-400 bg-green-500/10 border-green-500/30'
+                      : 'text-muted-foreground bg-muted/20 border-border/40'
+                  }`}>
+                    {poolConnected
+                      ? <><Wifi className="w-3 h-3" /> Pool is receiving hashrate</>
+                      : <><WifiOff className="w-3 h-3" /> Waiting for connection</>
+                    }
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Rental summary */}
           <Card className="bg-card/50 border-border/50">
