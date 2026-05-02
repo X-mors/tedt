@@ -223,6 +223,22 @@ router.post("/rentals", async (req, res) => {
     res.status(400).json({ error: "Cannot rent your own rig" });
     return;
   }
+
+  // Effective availability check: rig.status is the persisted DB column
+  // (refreshed every 5 min by the online-sync interval), but the proxy
+  // always knows the truth right now. Treat an "offline" rig as rentable
+  // if the owner has any live miner session — otherwise the rent button
+  // worked, but the API returned 400 "Rig is not available" while the
+  // miner was clearly connected. "rented" and "paused" still block.
+  const ownerHasLiveSession =
+    proxyState.getAnySessionForOwner(rigRow.ownerId) != null;
+  const isMineable =
+    rigRow.status === "available" ||
+    (rigRow.status === "offline" && ownerHasLiveSession);
+  if (!isMineable) {
+    res.status(400).json({ error: "Rig is not available" });
+    return;
+  }
   if (body.hours < rigRow.minRentalHours || body.hours > rigRow.maxRentalHours) {
     res.status(400).json({
       error: `Rental must be between ${rigRow.minRentalHours} and ${rigRow.maxRentalHours} hours`,
@@ -273,7 +289,11 @@ router.post("/rentals", async (req, res) => {
         .update(rigsTable)
         .set({ status: "rented" })
         .where(
-          sql`${rigsTable.id} = ${body.rigId} AND ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved'`,
+          // Accept "offline" too — the pre-tx isMineable check above already
+          // confirmed the owner's miner is live. "rented" and "paused" remain
+          // blocked, so race conditions can't double-rent or override an
+          // owner's pause.
+          sql`${rigsTable.id} = ${body.rigId} AND ${rigsTable.status} IN ('available', 'offline') AND ${rigsTable.approvalStatus} = 'approved'`,
         )
         .returning({ id: rigsTable.id });
       if (!reserved) throw new TxError("unavailable");
