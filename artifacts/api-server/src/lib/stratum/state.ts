@@ -237,9 +237,13 @@ class ProxyState {
     const conn = Array.from(this.rigConnections.values()).find(
       (c) => c.entry.rentalId === rentalId,
     );
+    // During the brief miner-reconnect grace window the socket is closed but a
+    // parked upstream keeps the pool connection alive.  Treat this as "connected"
+    // so the UI does not flicker to "offline" between the old and new TCP sessions.
+    const hasParked = this.parkedUpstreams.has(rentalId);
     return {
-      minerConnected: conn != null,
-      upstreamConnected: conn?.entry.upstreamConnected ?? false,
+      minerConnected: conn != null || hasParked,
+      upstreamConnected: conn?.entry.upstreamConnected ?? hasParked,
       poolAuthFailed: conn?.entry.upstreamAuthFailed ?? false,
       // Return cumulative lifetime totals for stable rental-level accounting.
       sharesAccepted: window.sharesAcceptedLifetime,

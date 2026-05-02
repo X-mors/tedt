@@ -675,7 +675,16 @@ router.post("/rentals/:id/cancel", async (req, res) => {
   });
 
   // Tear down any live proxy routing for this rental.
-  proxyState.getRigSession(rental.rigId)?.deactivateRental();
+  // Fall back to owner-level session lookup in case the miner connected under
+  // a different stratumName (shadow rig with a different rigId).
+  const cancelSession =
+    proxyState.getRigSession(rental.rigId) ??
+    proxyState.getAnySessionForOwner(rental.ownerId);
+  if (cancelSession) {
+    cancelSession.deactivateRental();
+  } else {
+    proxyState.removeShareWindow(rental.id);
+  }
 
   const detail = await loadRentalDetail(rental.id);
   res.json(CancelRentalResponse.parse(detail));
