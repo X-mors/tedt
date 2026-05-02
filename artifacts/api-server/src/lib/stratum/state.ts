@@ -325,19 +325,6 @@ class ProxyState {
     this.parkedUpstreams.delete(rentalId);
     return parked.upstream;
   }
-
-  /**
-   * Peek at a parked upstream's extranonce WITHOUT claiming it.
-   * Used by _completeAuth to send the correct extranonce in the subscribe
-   * response before the upstream is formally claimed by _startUpstream.
-   */
-  peekParkedExtranonce(rentalId: number): { extranonce1: string; extranonce2Size: number } | null {
-    const parked = this.parkedUpstreams.get(rentalId);
-    if (!parked) return null;
-    const e1 = parked.upstream.getExtranonce1();
-    if (!e1) return null;
-    return { extranonce1: e1, extranonce2Size: parked.upstream.getExtranonce2Size() };
-  }
 }
 
 export const proxyState = new ProxyState();
