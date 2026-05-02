@@ -115,7 +115,7 @@ export default function RigForm() {
     const fallbackPort = formData.fallbackPoolPort ? parseInt(formData.fallbackPoolPort) : undefined;
 
     if (isEditing) {
-      const validStatuses = ["available", "rented", "offline", "paused"] as const;
+      const validStatuses = ["available", "paused"] as const;
       const data = {
         name: formData.name || undefined,
         description: formData.description,
@@ -441,15 +441,26 @@ export default function RigForm() {
               {isEditing && (
                 <div className="space-y-2">
                   <Label htmlFor="status">Status</Label>
-                  <Select value={formData.status || ""} onValueChange={v => set("status", v)}>
+                  <Select
+                    value={
+                      formData.status === "available" || formData.status === "paused"
+                        ? formData.status
+                        : "available"
+                    }
+                    onValueChange={v => set("status", v)}
+                  >
                     <SelectTrigger className="bg-background font-mono text-sm" id="status">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="available">Available (Listed)</SelectItem>
-                      <SelectItem value="offline">Offline (Hidden)</SelectItem>
+                      <SelectItem value="available">Available (Listed in marketplace)</SelectItem>
+                      <SelectItem value="paused">Paused (Hidden — maintenance / not for rent)</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    "Offline" and "Rented" are managed automatically by the
+                    system — pick "Paused" to hide the rig manually.
+                  </p>
                 </div>
               )}
             </div>

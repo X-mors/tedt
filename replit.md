@@ -274,14 +274,15 @@ the response so the user can copy-paste it onto the VPS after pushing to GitHub:
 cd /var/www/livehashrate.com
 git pull
 pnpm --filter @workspace/api-server run build
+pnpm --filter @workspace/rigmarket run build
 pm2 restart tedt-api
 ```
 
 Notes:
 - VPS path: `/var/www/livehashrate.com`, PM2 process name: `tedt-api`.
-- Print this block even for frontend-only changes — the user prefers a single
-  consistent snippet. If the change touches the frontend (`artifacts/rigmarket`)
-  AND the user explicitly asks about frontend deploy, additionally mention:
-  `PORT=3000 BASE_PATH=/ pnpm --filter @workspace/rigmarket run build`.
+- The rigmarket build is included by default because skipping it has caused
+  user-visible regressions (saved-pool dropdowns missing, stats UI mismatch
+  with API). If a session truly only touches `artifacts/api-server` you may
+  drop the rigmarket build line — but when in doubt, build both.
 - Do NOT add `pnpm install` or `pnpm --filter @workspace/db run push` unless
   dependencies or DB schema actually changed in this session.
