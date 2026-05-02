@@ -281,19 +281,27 @@ router.post("/rentals", async (req, res) => {
   // stratumName that differs from the listed rig's stratumName (e.g. the rig was listed
   // under a different name and the proxy auto-created a shadow rig entry). In that
   // scenario the session is keyed under the shadow rig's ID, not body.rigId.
-  const session =
-    proxyState.getRigSession(body.rigId) ??
-    proxyState.getAnySessionForOwner(rigRow.ownerId);
+  const primarySession = proxyState.getRigSession(body.rigId);
+  const session = primarySession ?? proxyState.getAnySessionForOwner(rigRow.ownerId);
 
   if (session) {
-    if (!proxyState.getRigSession(body.rigId)) {
-      // Fallback path used — log so admins can detect stratumName mismatches.
+    if (!primarySession) {
       logger.warn(
         { rigId: body.rigId, ownerId: rigRow.ownerId, rentalId },
-        "rental: activating on fallback session — possible stratumName mismatch (miner connected under a different rig ID)",
+        "rental:create — activating on FALLBACK session (stratumName mismatch / shadow rig)",
+      );
+    } else {
+      logger.info(
+        { rigId: body.rigId, rentalId },
+        "rental:create — activating on PRIMARY session",
       );
     }
     void session.activateRental(rentalId, body.poolUrl, body.poolWorker, body.poolPassword ?? "x");
+  } else {
+    logger.warn(
+      { rigId: body.rigId, ownerId: rigRow.ownerId, rentalId },
+      "rental:create — NO SESSION FOUND — miner is not connected to proxy — routing will happen on next miner connect",
+    );
   }
 
   res.status(201).json(newRental);

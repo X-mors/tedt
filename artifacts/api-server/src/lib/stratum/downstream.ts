@@ -449,16 +449,27 @@ export class DownstreamSession extends EventEmitter {
     proxyState.setRigAuthorized(rig.id, this.rentalId);
 
     this._reply(msg.id, true);
-    logger.info({ rigId: rig.id, rentalId: this.rentalId }, "stratum:downstream authorized");
+    logger.info(
+      { rigId: rig.id, ownerId: rig.ownerId, rentalId: this.rentalId },
+      "stratum:downstream authorized",
+    );
 
     if (activeRental) {
       this.isFallback = false;
+      logger.info(
+        { rigId: rig.id, rentalId: activeRental.id, poolUrl: activeRental.poolUrl },
+        "stratum:downstream ROUTING → RENTER POOL",
+      );
       await this._startUpstream(activeRental);
     } else if (rig.stratumHost && rig.stratumPort > 0) {
+      logger.info(
+        { rigId: rig.id, stratumHost: rig.stratumHost, stratumPort: rig.stratumPort },
+        "stratum:downstream ROUTING → OWNER FALLBACK POOL (no active rental)",
+      );
       await this._startFallbackUpstream(rig);
     } else {
       this._notify("mining.set_difficulty", [1]);
-      logger.info({ rigId: rig.id }, "stratum:downstream no active rental, miner idle");
+      logger.info({ rigId: rig.id }, "stratum:downstream ROUTING → IDLE (no rental, no fallback pool configured)");
     }
   }
 
@@ -481,7 +492,25 @@ export class DownstreamSession extends EventEmitter {
           eq(rentalsTable.status, "active"),
         ),
       );
-    if (rental && rental.endsAt >= now) return rental;
+
+    if (rental) {
+      if (rental.endsAt >= now) {
+        logger.info(
+          { rigId, rentalId: rental.id, poolUrl: rental.poolUrl, endsAt: rental.endsAt },
+          "stratum:_findActiveRental PRIMARY HIT — routing to renter pool",
+        );
+        return rental;
+      }
+      logger.warn(
+        { rigId, rentalId: rental.id, endsAt: rental.endsAt, now },
+        "stratum:_findActiveRental primary found rental but endsAt is PAST — not routing",
+      );
+    } else {
+      logger.info(
+        { rigId, ownerId },
+        "stratum:_findActiveRental primary miss — no active rental for rigId, trying ownerId fallback",
+      );
+    }
 
     // Fallback: miner may have connected under a stratumName that caused the
     // proxy to auto-create a shadow rig with a different ID.  Search by ownerId
@@ -501,11 +530,25 @@ export class DownstreamSession extends EventEmitter {
           eq(rentalsTable.status, "active"),
         ),
       );
-    if (!ownerRental || ownerRental.endsAt < now) return null;
+
+    if (!ownerRental) {
+      logger.info(
+        { rigId, ownerId },
+        "stratum:_findActiveRental fallback miss — no active rental for ownerId either → fallback pool",
+      );
+      return null;
+    }
+    if (ownerRental.endsAt < now) {
+      logger.warn(
+        { rigId, ownerId, rentalId: ownerRental.id, endsAt: ownerRental.endsAt, now },
+        "stratum:_findActiveRental fallback found rental but endsAt is PAST → fallback pool",
+      );
+      return null;
+    }
 
     logger.warn(
-      { shadowRigId: rigId, ownerId, rentalId: ownerRental.id },
-      "stratum:downstream _findActiveRental fallback via ownerId — stratumName mismatch",
+      { shadowRigId: rigId, ownerId, rentalId: ownerRental.id, poolUrl: ownerRental.poolUrl },
+      "stratum:_findActiveRental FALLBACK HIT via ownerId — stratumName mismatch, routing to renter pool",
     );
     return ownerRental;
   }
