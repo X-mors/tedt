@@ -492,18 +492,36 @@ export class DownstreamSession extends EventEmitter {
     return ownerRental;
   }
 
-  async activateRental(rentalId: number, poolUrl: string, poolWorker: string, poolPassword: string): Promise<void> {
+  async activateRental(rentalId: number, _poolUrl: string, _poolWorker: string, _poolPassword: string): Promise<void> {
+    // Destroy the current upstream (owner's fallback pool) so shares stop going there.
     if (this.upstream) {
       this.upstream.destroy();
       this.upstream = null;
     }
-    // Discard any buffered fallback shares — they belong to the owner's pool
-    // and must not be replayed to the renter's pool.
     this.submitBuffer = [];
     this.isFallback = false;
     this.rentalId = rentalId;
     if (this.rigId != null) proxyState.setRigAuthorized(this.rigId, rentalId);
-    await this._startUpstream({ id: rentalId, poolUrl, poolWorker, poolPassword, endsAt: new Date(Date.now() + 9999999) });
+
+    // Force-disconnect the miner so it reconnects from scratch.
+    //
+    // Rationale: many ASIC firmwares (Antminer, Whatsminer, …) do NOT honour
+    // mid-session `mining.set_extranonce` messages.  If we start a fresh
+    // upstream to the renter's pool while the miner is still subscribed to the
+    // owner's pool, the miner keeps using the old extranonce prefix, the
+    // renter's pool rejects every share as invalid, and effective hashrate stays
+    // at 0.
+    //
+    // By closing the TCP connection here we force the miner to re-connect
+    // (typically within 1-3 seconds).  On reconnect `_completeAuth` is called,
+    // `_findActiveRental` sees the now-active rental and `_startUpstream`
+    // creates a fresh pool subscription — the miner receives the correct
+    // extranonce from the renter's pool at the start of the new session.
+    logger.info(
+      { rigId: this.rigId, rentalId },
+      "stratum:downstream rental activated — force-closing miner for clean reconnect (extranonce refresh)",
+    );
+    this._close();
   }
 
   deactivateRental(): void {
@@ -519,18 +537,16 @@ export class DownstreamSession extends EventEmitter {
       proxyState.setRigAuthorized(this.rigId, null);
       proxyState.setUpstreamConnected(this.rigId, false);
     }
-    // Remove the share window so the flush loop stops inserting samples for
-    // this finished rental.
+    // Remove the share window so the flush loop stops inserting samples for this finished rental.
     if (prevRentalId != null) {
       proxyState.removeShareWindow(prevRentalId);
     }
-    this._notify("mining.set_difficulty", [1]);
-    logger.info({ rigId: this.rigId }, "stratum:downstream rental deactivated, reconnecting to fallback pool if configured");
 
-    // After rental ends, reconnect to owner's fallback pool if configured.
-    if (this.rigId != null) {
-      void this._connectFallbackIfConfigured(this.rigId);
-    }
+    // Force-close the miner so it reconnects and picks up the owner's fallback pool
+    // with a fresh subscription (correct extranonce). Same reasoning as activateRental —
+    // many ASIC firmwares don't honour mid-session mining.set_extranonce.
+    logger.info({ rigId: this.rigId, prevRentalId }, "stratum:downstream rental deactivated — force-closing miner for clean reconnect");
+    this._close();
   }
 
   /**
