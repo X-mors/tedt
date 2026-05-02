@@ -43,6 +43,14 @@ export class DownstreamSession extends EventEmitter {
   private extranonce2Size = 4;
   private subscribed = false;
   private authorized = false;
+  /**
+   * Pending mining.subscribe request stored until the upstream pool's extranonce
+   * is known.  We delay the subscribe response so we can include the POOL's
+   * extranonce1 directly — this avoids having to send mining.set_extranonce
+   * mid-session, which many ASIC firmwares handle by immediately reconnecting
+   * (creating an infinite reconnect loop).
+   */
+  private pendingSubscribeMsg: JsonRpcMessage | null = null;
   private currentDifficulty = 1;
   private lastJobId: string | null = null;
   /** Version-rolling mask negotiated with the miner via mining.configure, or null if not negotiated. */
@@ -196,9 +204,39 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
     this.subscribed = true;
+    // Generate a random placeholder extranonce; it will be overwritten with
+    // the pool's extranonce before the response is actually sent.
     this.extranonce1 = makeExtranonce1();
     this.extranonce2Size = 4;
 
+    // Hold the subscribe response — we will reply once the upstream pool's
+    // extranonce1 is known (see _replySubscribe).  This ensures the miner
+    // receives the POOL's extranonce directly in the subscribe response, so we
+    // never need to send mining.set_extranonce mid-session (which triggers
+    // reconnects on many ASIC firmwares, creating an infinite reconnect loop).
+    this.pendingSubscribeMsg = msg;
+
+    // Safety fallback: if auth + pool connection takes longer than 30 s, reply
+    // with the random placeholder extranonce so the miner doesn't time out.
+    setTimeout(() => {
+      if (this.pendingSubscribeMsg === msg) {
+        logger.warn(
+          { rigId: this.rigId },
+          "stratum:downstream subscribe response timeout — replying with placeholder extranonce",
+        );
+        this._replySubscribe(msg);
+      }
+    }, 30_000).unref();
+  }
+
+  /**
+   * Send the `mining.subscribe` response with the current extranonce1/extranonce2Size.
+   * Call this once the upstream pool's extranonce is known so the miner gets the
+   * pool's extranonce directly and never needs a mid-session set_extranonce.
+   */
+  private _replySubscribe(msg: JsonRpcMessage): void {
+    if (this.pendingSubscribeMsg !== msg && this.pendingSubscribeMsg !== null) return;
+    this.pendingSubscribeMsg = null;
     this._reply(msg.id, [
       [["mining.set_difficulty", `sub-diff-${this.msgIdCounter}`]],
       this.extranonce1,
@@ -439,6 +477,11 @@ export class DownstreamSession extends EventEmitter {
     } else if (rig.stratumHost && rig.stratumPort > 0) {
       await this._startFallbackUpstream(rig);
     } else {
+      // No rental and no fallback pool — reply to any pending subscribe immediately
+      // with the proxy-generated placeholder extranonce so the miner doesn't time out.
+      if (this.pendingSubscribeMsg) {
+        this._replySubscribe(this.pendingSubscribeMsg);
+      }
       this._notify("mining.set_difficulty", [1]);
       logger.info({ rigId: rig.id }, "stratum:downstream no active rental, miner idle");
     }
@@ -619,7 +662,11 @@ export class DownstreamSession extends EventEmitter {
     upstream.on("subscribed", ({ extranonce1, extranonce2Size }: { extranonce1: string; extranonce2Size: number }) => {
       this.extranonce1 = extranonce1 ?? this.extranonce1;
       this.extranonce2Size = extranonce2Size;
-      this._notify("mining.set_extranonce", [this.extranonce1, this.extranonce2Size]);
+      if (this.pendingSubscribeMsg) {
+        this._replySubscribe(this.pendingSubscribeMsg);
+      } else {
+        this._notify("mining.set_extranonce", [this.extranonce1, this.extranonce2Size]);
+      }
     });
 
     upstream.on("setExtranonce", ({ extranonce1, extranonce2Size }: { extranonce1: string; extranonce2Size: number }) => {
@@ -666,8 +713,19 @@ export class DownstreamSession extends EventEmitter {
         { rigId: this.rigId, rentalId: rental.id },
         "stratum:downstream reusing parked upstream (reconnect grace)",
       );
+      // Use the parked upstream's extranonce BEFORE wiring events so that
+      // _replySubscribe sends the correct extranonce to the miner.
+      const parkedE1 = parked.getExtranonce1();
+      if (parkedE1) {
+        this.extranonce1 = parkedE1;
+        this.extranonce2Size = parked.getExtranonce2Size();
+      }
       this.upstream = parked;
       this._wireUpstreamEvents(rental.id);
+      // Reply to any pending subscribe with the pool's extranonce (no set_extranonce).
+      if (this.pendingSubscribeMsg) {
+        this._replySubscribe(this.pendingSubscribeMsg);
+      }
       // Upstream is already connected — mark ready and drain any buffered shares.
       if (this.rigId != null) proxyState.setUpstreamConnected(this.rigId, true);
       void this._flushSubmitBuffer();
@@ -706,7 +764,14 @@ export class DownstreamSession extends EventEmitter {
     upstream.on("subscribed", ({ extranonce1, extranonce2Size }: { extranonce1: string; extranonce2Size: number }) => {
       this.extranonce1 = extranonce1 ?? this.extranonce1;
       this.extranonce2Size = extranonce2Size;
-      this._notify("mining.set_extranonce", [this.extranonce1, this.extranonce2Size]);
+      if (this.pendingSubscribeMsg) {
+        // First-connect path: miner hasn't received a subscribe response yet.
+        // Reply now with the pool's extranonce — no set_extranonce ever sent.
+        this._replySubscribe(this.pendingSubscribeMsg);
+      } else {
+        // Mid-session pool extranonce change (pool reconnect / extranonce rotation).
+        this._notify("mining.set_extranonce", [this.extranonce1, this.extranonce2Size]);
+      }
     });
 
     upstream.on("setExtranonce", ({ extranonce1, extranonce2Size }: { extranonce1: string; extranonce2Size: number }) => {

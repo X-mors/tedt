@@ -20,6 +20,11 @@ export class UpstreamClient extends EventEmitter {
   private subscriptionId: string | null = null;
   private extranonce1: string | null = null;
   private extranonce2Size = 4;
+
+  /** The extranonce1 assigned by the upstream pool during subscription. */
+  getExtranonce1(): string | null { return this.extranonce1; }
+  /** The extranonce2 size assigned by the upstream pool during subscription. */
+  getExtranonce2Size(): number { return this.extranonce2Size; }
   private currentDifficulty = 1;
   private connectTimer: NodeJS.Timeout | null = null;
 
