@@ -896,10 +896,12 @@ export class DownstreamSession extends EventEmitter {
       } catch {
         accepted = false;
       }
-      // Only track rental shares in accounting; fallback shares go to the owner's
-      // pool but are not counted toward any rental window.
+      // Track rental shares in rental accounting; fallback shares feed the
+      // per-rig fallback buffer (display only — no settlement).
       if (this.rigId != null && !this.isFallback) {
         proxyState.recordShare(this.rigId, accepted, diff);
+      } else if (this.rigId != null && this.isFallback) {
+        proxyState.recordFallbackShare(this.rigId, accepted, diff);
       }
     }
   }
@@ -978,20 +980,15 @@ export class DownstreamSession extends EventEmitter {
 
     this._reply(msg.id, accepted, accepted ? null : [23, "Low difficulty share"]);
 
-    // Only track shares in rental accounting; fallback shares are excluded.
+    // Track rental shares in rental accounting; fallback shares feed the
+    // per-rig fallback buffer (display-only — no settlement, no DB samples).
     if (this.rigId != null && !this.isFallback) {
       proxyState.recordShare(this.rigId, accepted, diff);
-      // Refresh lastSeenAt heartbeat at most once per minute to avoid DB hotspot.
-      const nowMs = Date.now();
-      if (nowMs - this.lastSeenAtWrittenMs > 60_000) {
-        this.lastSeenAtWrittenMs = nowMs;
-        void db
-          .update(rigsTable)
-          .set({ lastSeenAt: new Date(nowMs) })
-          .where(eq(rigsTable.id, this.rigId));
-      }
     } else if (this.rigId != null && this.isFallback) {
-      // Still update lastSeenAt for fallback connections (owner's rig is online).
+      proxyState.recordFallbackShare(this.rigId, accepted, diff);
+    }
+    // Refresh lastSeenAt heartbeat at most once per minute (both modes).
+    if (this.rigId != null) {
       const nowMs = Date.now();
       if (nowMs - this.lastSeenAtWrittenMs > 60_000) {
         this.lastSeenAtWrittenMs = nowMs;

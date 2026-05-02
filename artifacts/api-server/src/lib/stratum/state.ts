@@ -1,4 +1,9 @@
-import type { ShareWindow, ProxyRigEntry, ProxyAdminStatus } from "./types";
+import type {
+  ShareSample,
+  ShareWindow,
+  ProxyRigEntry,
+  ProxyAdminStatus,
+} from "./types";
 import type { DownstreamSession } from "./downstream";
 import type { UpstreamClient } from "./upstream";
 
@@ -12,15 +17,209 @@ interface ParkedUpstream {
   timer: NodeJS.Timeout;
 }
 
+interface RigSnapshot {
+  entry: ProxyRigEntry;
+  seenAt: number;
+}
+
 const RECONNECT_GRACE_MS = 60_000;
+
+/** How long we keep a disconnected rig's last-seen entry visible to the UI. */
+const RIG_SNAPSHOT_TTL_MS = 10 * 60_000;
+
+/** Maximum age of share samples kept in the rolling buffer. */
+const ROLLING_BUFFER_MS = 5 * 60_000;
+
+/** Hard cap on samples-per-window so a runaway miner can't OOM the process. */
+const ROLLING_BUFFER_MAX = 2000;
+
+/** Window used by /live and /stats to compute the displayed hashrate. */
+const LIVE_HASHRATE_LOOKBACK_MS = 2 * 60_000;
+
+/** Window used by the 60-s DB sample writer. Shorter = more responsive samples. */
+const FLUSH_SNAPSHOT_LOOKBACK_MS = 60_000;
+
+/** Drop a fallback window if it has not received a share in this long. */
+const FALLBACK_WINDOW_IDLE_TTL_MS = 30 * 60_000;
+
+/** How often the background GC sweeps stale snapshots and idle fallback buffers. */
+const GC_INTERVAL_MS = 5 * 60_000;
+
+/**
+ * Snapshot returned by flushSnapshot — kept structurally compatible with the
+ * legacy ShareWindow flush payload that StratumServer._flushSamples consumes.
+ */
+export interface FlushSnapshot {
+  rentalId: number;
+  rigId: number;
+  startedAt: number;
+  sharesAccepted: number;
+  sharesRejected: number;
+  difficultySum: number;
+  effectiveHashrateH: number;
+  windowSeconds: number;
+}
 
 class ProxyState {
   private rigConnections = new Map<number, RigConnection>();
   private shareWindows = new Map<number, ShareWindow>();
+  /** Per-rig fallback share buffer (used when no rental is active). */
+  private fallbackWindows = new Map<number, ShareWindow>();
   /** Upstream pool connections kept alive during brief miner disconnects. */
   private parkedUpstreams = new Map<number, ParkedUpstream>();
+  /** Last-known rig entry retained for `RIG_SNAPSHOT_TTL_MS` after disconnect
+   *  so the owner UI does not flap to OFFLINE / 0 shares on transient drops. */
+  private lastSeenRigEntries = new Map<number, RigSnapshot>();
+  /** Background GC handle — sweeps stale snapshots and idle fallback buffers. */
+  private gcTimer: NodeJS.Timeout;
+
+  constructor() {
+    this.gcTimer = setInterval(() => this._gcSweep(), GC_INTERVAL_MS);
+    // Don't keep the event loop alive solely for this sweep.
+    this.gcTimer.unref();
+  }
+
+  /**
+   * Periodic cleanup. Without this, lastSeenRigEntries grows unbounded for
+   * any rig that disconnects and never reconnects (and is never queried by
+   * the owner UI), and fallbackWindows holds buffers for rigs that may have
+   * been deleted long ago. Bounded per-key but unbounded across all rig IDs
+   * a long-running process has ever seen.
+   */
+  private _gcSweep(): void {
+    const nowMs = Date.now();
+    for (const [rigId, snap] of this.lastSeenRigEntries) {
+      if (nowMs - snap.seenAt >= RIG_SNAPSHOT_TTL_MS) {
+        this.lastSeenRigEntries.delete(rigId);
+      }
+    }
+    for (const [rigId, w] of this.fallbackWindows) {
+      const lastTsMs = w.recentSamples.length > 0
+        ? w.recentSamples[w.recentSamples.length - 1]!.tsMs
+        : w.createdAtMs;
+      if (nowMs - lastTsMs >= FALLBACK_WINDOW_IDLE_TTL_MS) {
+        this.fallbackWindows.delete(rigId);
+      } else {
+        // Trim stale samples even if the window itself stays alive.
+        this._pruneSamples(w.recentSamples, nowMs);
+      }
+    }
+  }
+
+  /**
+   * Drop ALL state for a rigId. Call when a rig is deleted by its owner so
+   * the proxy doesn't hold a snapshot or fallback buffer for a record that
+   * no longer exists in the database.
+   */
+  forgetRig(rigId: number): void {
+    this.rigConnections.delete(rigId);
+    this.lastSeenRigEntries.delete(rigId);
+    this.fallbackWindows.delete(rigId);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Internal helpers
+  // ──────────────────────────────────────────────────────────────────────────
+
+  private _newWindow(rentalId: number, rigId: number): ShareWindow {
+    return {
+      rentalId,
+      rigId,
+      createdAtMs: Date.now(),
+      recentSamples: [],
+      currentDifficulty: 1,
+      lastShareAt: null,
+      sharesAcceptedLifetime: 0,
+      sharesRejectedLifetime: 0,
+    };
+  }
+
+  private _pruneSamples(samples: ShareSample[], nowMs: number): void {
+    const cutoff = nowMs - ROLLING_BUFFER_MS;
+    while (samples.length > 0 && samples[0]!.tsMs < cutoff) samples.shift();
+    while (samples.length > ROLLING_BUFFER_MAX) samples.shift();
+  }
+
+  private _calcHashrate(
+    samples: ShareSample[],
+    lookbackMs: number,
+    nowMs: number,
+  ): {
+    sharesAccepted: number;
+    sharesRejected: number;
+    difficultySum: number;
+    effectiveHashrateH: number;
+    elapsedSec: number;
+    oldestTsMs: number;
+  } {
+    const cutoff = nowMs - lookbackMs;
+    let sharesAccepted = 0;
+    let sharesRejected = 0;
+    let difficultySum = 0;
+    let oldestTsMs = nowMs;
+    let foundAccepted = false;
+    for (const s of samples) {
+      if (s.tsMs < cutoff) continue;
+      if (s.accepted) {
+        sharesAccepted++;
+        difficultySum += s.difficulty;
+        if (!foundAccepted || s.tsMs < oldestTsMs) {
+          oldestTsMs = s.tsMs;
+          foundAccepted = true;
+        }
+      } else {
+        sharesRejected++;
+      }
+    }
+    if (!foundAccepted) {
+      return {
+        sharesAccepted: 0,
+        sharesRejected,
+        difficultySum: 0,
+        effectiveHashrateH: 0,
+        elapsedSec: lookbackMs / 1000,
+        oldestTsMs: cutoff,
+      };
+    }
+    const elapsedSec = Math.max(1, (nowMs - oldestTsMs) / 1000);
+    const effectiveHashrateH = (difficultySum * 4294967296) / elapsedSec;
+    return {
+      sharesAccepted,
+      sharesRejected,
+      difficultySum,
+      effectiveHashrateH,
+      elapsedSec,
+      oldestTsMs,
+    };
+  }
+
+  private _appendSample(
+    window: ShareWindow,
+    accepted: boolean,
+    difficulty: number,
+    nowMs: number,
+  ): void {
+    window.recentSamples.push({ tsMs: nowMs, difficulty, accepted });
+    this._pruneSamples(window.recentSamples, nowMs);
+    if (accepted) {
+      window.sharesAcceptedLifetime++;
+      window.lastShareAt = new Date(nowMs);
+    } else {
+      window.sharesRejectedLifetime++;
+    }
+    window.currentDifficulty = difficulty;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Rig connection lifecycle
+  // ──────────────────────────────────────────────────────────────────────────
 
   addRig(rigId: number, ownerId: number, session: DownstreamSession, rigName: string): void {
+    // If we have a recent snapshot for this rigId, restore lifetime counters
+    // so a quick reconnect doesn't reset shares-accepted/rejected display.
+    const snap = this.lastSeenRigEntries.get(rigId);
+    const restored =
+      snap && Date.now() - snap.seenAt < RIG_SNAPSHOT_TTL_MS ? snap.entry : null;
     this.rigConnections.set(rigId, {
       session,
       entry: {
@@ -30,9 +229,9 @@ class ProxyState {
         connectedAt: new Date(),
         authorized: false,
         rentalId: null,
-        sharesAccepted: 0,
-        sharesRejected: 0,
-        lastShareAt: null,
+        sharesAccepted: restored?.sharesAccepted ?? 0,
+        sharesRejected: restored?.sharesRejected ?? 0,
+        lastShareAt: restored?.lastShareAt ?? null,
         upstreamConnected: false,
         upstreamAuthFailed: false,
         submitsDropped: 0,
@@ -40,6 +239,8 @@ class ProxyState {
         upstreamDisconnects: 0,
       },
     });
+    // Drop the snapshot now that the live entry has taken over.
+    this.lastSeenRigEntries.delete(rigId);
   }
 
   incrementDropped(rigId: number): void {
@@ -58,6 +259,20 @@ class ProxyState {
   }
 
   removeRig(rigId: number): void {
+    const conn = this.rigConnections.get(rigId);
+    if (conn) {
+      // Snapshot so the owner UI keeps showing share counts and lastShareAt
+      // during the reconnect grace window. Mark upstream as disconnected
+      // since the rig is going away.
+      this.lastSeenRigEntries.set(rigId, {
+        entry: {
+          ...conn.entry,
+          upstreamConnected: false,
+          upstreamAuthFailed: false,
+        },
+        seenAt: Date.now(),
+      });
+    }
     this.rigConnections.delete(rigId);
   }
 
@@ -129,12 +344,17 @@ class ProxyState {
     };
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Share recording — rental and fallback
+  // ──────────────────────────────────────────────────────────────────────────
+
   recordShare(rigId: number, accepted: boolean, difficulty: number): void {
     const conn = this.rigConnections.get(rigId);
     if (!conn) return;
+    const nowMs = Date.now();
     if (accepted) {
       conn.entry.sharesAccepted++;
-      conn.entry.lastShareAt = new Date();
+      conn.entry.lastShareAt = new Date(nowMs);
     } else {
       conn.entry.sharesRejected++;
     }
@@ -144,30 +364,35 @@ class ProxyState {
 
     let window = this.shareWindows.get(rentalId);
     if (!window) {
-      window = {
-        rentalId,
-        rigId,
-        startedAt: Date.now(),
-        sharesAccepted: 0,
-        sharesRejected: 0,
-        difficultySum: 0,
-        currentDifficulty: difficulty,
-        lastShareAt: null,
-        sharesAcceptedLifetime: 0,
-        sharesRejectedLifetime: 0,
-      };
+      window = this._newWindow(rentalId, rigId);
       this.shareWindows.set(rentalId, window);
     }
-    if (accepted) {
-      window.sharesAccepted++;
-      window.sharesAcceptedLifetime++;
-      window.difficultySum += difficulty;
-      window.lastShareAt = new Date();
-    } else {
-      window.sharesRejected++;
-      window.sharesRejectedLifetime++;
+    this._appendSample(window, accepted, difficulty, nowMs);
+  }
+
+  /**
+   * Track shares submitted while the rig is in fallback mode (no active
+   * rental). These shares go to the OWNER's pool and are not part of any
+   * rental accounting, but we still buffer them so the owner UI can show
+   * a meaningful "current hashrate" for an idle rig.
+   */
+  recordFallbackShare(rigId: number, accepted: boolean, difficulty: number): void {
+    const conn = this.rigConnections.get(rigId);
+    const nowMs = Date.now();
+    if (conn) {
+      if (accepted) {
+        conn.entry.sharesAccepted++;
+        conn.entry.lastShareAt = new Date(nowMs);
+      } else {
+        conn.entry.sharesRejected++;
+      }
     }
-    window.currentDifficulty = difficulty;
+    let window = this.fallbackWindows.get(rigId);
+    if (!window) {
+      window = this._newWindow(0, rigId);
+      this.fallbackWindows.set(rigId, window);
+    }
+    this._appendSample(window, accepted, difficulty, nowMs);
   }
 
   setCurrentDifficulty(rentalId: number, difficulty: number): void {
@@ -177,18 +402,7 @@ class ProxyState {
 
   initShareWindow(rentalId: number, rigId: number): void {
     if (!this.shareWindows.has(rentalId)) {
-      this.shareWindows.set(rentalId, {
-        rentalId,
-        rigId,
-        startedAt: Date.now(),
-        sharesAccepted: 0,
-        sharesRejected: 0,
-        difficultySum: 0,
-        currentDifficulty: 1,
-        lastShareAt: null,
-        sharesAcceptedLifetime: 0,
-        sharesRejectedLifetime: 0,
-      });
+      this.shareWindows.set(rentalId, this._newWindow(rentalId, rigId));
     }
   }
 
@@ -207,20 +421,51 @@ class ProxyState {
     }
   }
 
-  flushAndResetWindow(rentalId: number): ShareWindow | null {
+  removeFallbackWindow(rigId: number): void {
+    this.fallbackWindows.delete(rigId);
+  }
+
+  /**
+   * Compute a 60-s snapshot of the rental's rolling buffer for DB persistence.
+   * Does NOT mutate the buffer — samples roll naturally by age. Returns a
+   * shape compatible with the legacy ShareWindow flush payload so the
+   * StratumServer flush loop is unchanged.
+   */
+  flushSnapshot(rentalId: number): FlushSnapshot | null {
     const window = this.shareWindows.get(rentalId);
     if (!window) return null;
-    const snapshot = { ...window };
-    // Reset only current-window counters; lifetime totals carry forward.
-    this.shareWindows.set(rentalId, {
-      ...window,
-      startedAt: Date.now(),
-      sharesAccepted: 0,
-      sharesRejected: 0,
-      difficultySum: 0,
-    });
-    return snapshot;
+    const nowMs = Date.now();
+    const calc = this._calcHashrate(
+      window.recentSamples,
+      FLUSH_SNAPSHOT_LOOKBACK_MS,
+      nowMs,
+    );
+    return {
+      rentalId,
+      rigId: window.rigId,
+      // startedAt is the wall-clock anchor for this snapshot's elapsed window
+      // — server.ts recomputes effectiveHashrateH from (difficultySum, elapsed).
+      startedAt: nowMs - calc.elapsedSec * 1000,
+      sharesAccepted: calc.sharesAccepted,
+      sharesRejected: calc.sharesRejected,
+      difficultySum: calc.difficultySum,
+      effectiveHashrateH: calc.effectiveHashrateH,
+      windowSeconds: Math.round(calc.elapsedSec),
+    };
   }
+
+  /**
+   * Backwards-compatible alias retained for any caller that still references
+   * the old name. The "AndReset" suffix is now historical — the rolling
+   * buffer is never reset; samples age out naturally.
+   */
+  flushAndResetWindow(rentalId: number): FlushSnapshot | null {
+    return this.flushSnapshot(rentalId);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Live read-side helpers
+  // ──────────────────────────────────────────────────────────────────────────
 
   getLiveStats(rentalId: number): {
     minerConnected: boolean;
@@ -233,11 +478,14 @@ class ProxyState {
     effectiveHashrateH: number;
   } {
     const window = this.shareWindows.get(rentalId);
+    const conn = Array.from(this.rigConnections.values()).find(
+      (c) => c.entry.rentalId === rentalId,
+    );
     if (!window) {
       return {
-        minerConnected: false,
-        upstreamConnected: false,
-        poolAuthFailed: false,
+        minerConnected: conn != null,
+        upstreamConnected: conn?.entry.upstreamConnected ?? false,
+        poolAuthFailed: conn?.entry.upstreamAuthFailed ?? false,
         sharesAccepted: 0,
         sharesRejected: 0,
         lastShareAt: null,
@@ -245,24 +493,40 @@ class ProxyState {
         effectiveHashrateH: 0,
       };
     }
-    const elapsedSec = Math.max(1, (Date.now() - window.startedAt) / 1000);
-    const effectiveHashrateH =
-      (window.difficultySum * 4294967296) / elapsedSec;
-
-    const conn = Array.from(this.rigConnections.values()).find(
-      (c) => c.entry.rentalId === rentalId,
+    const calc = this._calcHashrate(
+      window.recentSamples,
+      LIVE_HASHRATE_LOOKBACK_MS,
+      Date.now(),
     );
     return {
       minerConnected: conn != null,
       upstreamConnected: conn?.entry.upstreamConnected ?? false,
       poolAuthFailed: conn?.entry.upstreamAuthFailed ?? false,
-      // Return cumulative lifetime totals for stable rental-level accounting.
       sharesAccepted: window.sharesAcceptedLifetime,
       sharesRejected: window.sharesRejectedLifetime,
       lastShareAt: window.lastShareAt,
       currentDifficulty: window.currentDifficulty,
-      effectiveHashrateH,
+      effectiveHashrateH: calc.effectiveHashrateH,
     };
+  }
+
+  /**
+   * Effective hashrate for a rig running in fallback mode (no rental).
+   * Computed from the rolling fallback buffer over the standard 2-minute
+   * lookback. Returns 0 if no recent fallback shares.
+   */
+  getFallbackHashrateH(rigId: number): number {
+    const w = this.fallbackWindows.get(rigId);
+    if (!w) return 0;
+    return this._calcHashrate(
+      w.recentSamples,
+      LIVE_HASHRATE_LOOKBACK_MS,
+      Date.now(),
+    ).effectiveHashrateH;
+  }
+
+  getFallbackLastShareAt(rigId: number): Date | null {
+    return this.fallbackWindows.get(rigId)?.lastShareAt ?? null;
   }
 
   getAllWindows(): ShareWindow[] {
@@ -280,12 +544,21 @@ class ProxyState {
       0,
     );
 
-    // Compute a true shares/sec rate from the active rolling share windows.
+    // shares/sec computed from the rolling buffers' 2-min lookback.
     const nowMs = Date.now();
+    const cutoff = nowMs - LIVE_HASHRATE_LOOKBACK_MS;
     const currentSharesPerSec = Array.from(this.shareWindows.values()).reduce(
       (sum, w) => {
-        const elapsedSec = Math.max(1, (nowMs - w.startedAt) / 1000);
-        return sum + w.sharesAccepted / elapsedSec;
+        let count = 0;
+        let oldest = nowMs;
+        for (const s of w.recentSamples) {
+          if (s.tsMs < cutoff || !s.accepted) continue;
+          count++;
+          if (s.tsMs < oldest) oldest = s.tsMs;
+        }
+        if (count === 0) return sum;
+        const elapsedSec = Math.max(1, (nowMs - oldest) / 1000);
+        return sum + count / elapsedSec;
       },
       0,
     );
@@ -305,6 +578,28 @@ class ProxyState {
    */
   getRigEntry(rigId: number): ProxyRigEntry | null {
     return this.rigConnections.get(rigId)?.entry ?? null;
+  }
+
+  /**
+   * Return the live entry, OR a recent snapshot taken when the rig last
+   * disconnected (within RIG_SNAPSHOT_TTL_MS). The `live` flag tells the
+   * caller whether the data is from an active session or a snapshot —
+   * useful for grace-period UI display that should not flap to OFFLINE
+   * during transient ASIC reconnects.
+   */
+  getRigEntryWithGrace(
+    rigId: number,
+  ): { entry: ProxyRigEntry; live: boolean } | null {
+    const live = this.rigConnections.get(rigId);
+    if (live) return { entry: live.entry, live: true };
+    const snap = this.lastSeenRigEntries.get(rigId);
+    if (snap) {
+      if (Date.now() - snap.seenAt < RIG_SNAPSHOT_TTL_MS) {
+        return { entry: snap.entry, live: false };
+      }
+      this.lastSeenRigEntries.delete(rigId);
+    }
+    return null;
   }
 
   getConnectedRigIds(): number[] {

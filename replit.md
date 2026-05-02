@@ -188,6 +188,35 @@ swap upstreams) because most ASIC firmwares ignore mid-session
 `mining.set_extranonce`. Without the close, the owner sees "saved" but
 shares get rejected by the new pool.
 
+### Rolling-buffer share tracking (DO NOT REVERT)
+
+`ShareWindow` is **not** flush-and-reset. Each rental keeps a rolling buffer of
+the last ~5 minutes of shares (`recentSamples: ShareSample[]`, capped at 2000)
+and `getLiveStats` computes effective hashrate from a 2-min lookback over that
+buffer. The 60-second DB sample writer (`flushSnapshot`) reads the buffer
+without mutating it.
+
+The previous flush-and-reset design caused the user-reported "stats freeze
+without affecting mining" bug — for ~30 s after every minute and for the
+entire next minute when an ASIC reconnect coincided with the reset, the live
+window was empty and the UI showed 0 H/s while mining continued normally.
+
+The owner side has two extra safeguards for the same reason:
+1. `lastSeenRigEntries` keeps the rig entry for 10 min after disconnect; the
+   `/me/rigs/:id/live` endpoint reads via `getRigEntryWithGrace` so a normal
+   ASIC reconnect doesn't flap the UI to OFFLINE / 0 shares.
+2. `fallbackWindows` is a per-rig rolling buffer of shares submitted in
+   fallback mode (no rental). Without this, idle owner mining always showed
+   0 H/s because share counters lived only in the (rentalless) entry.
+
+Renter-side `/rentals/:id/stats` and `/live` use a 3-tier fallback chain when
+the live buffer is empty: live → most-recent **non-zero** DB sample (NOT an
+average — averaging silent periods sank the display to 0) → cumulative
+`deliveredHashrateAvg`. `SOFT_CONNECT_GRACE_MS = 15 min`.
+
+A periodic GC (`_gcSweep`, every 5 min) prunes expired snapshots and idle
+fallback buffers; `forgetRig(rigId)` is called on rig delete.
+
 ### PATCH /me/rigs/:id (DO NOT REMOVE)
 
 The endpoint uses `safeParse` (NOT `.parse()`) for both request body and

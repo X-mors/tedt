@@ -55,10 +55,20 @@ const router: IRouter = Router();
  * The underlying proxy state, sample persistence, settlement math, and
  * low-delivery auto-cancel logic are unchanged.
  */
-const SOFT_CONNECT_GRACE_MS = 10 * 60_000;
-const RECENT_SAMPLE_WINDOW_MS = 10 * 60_000;
+const SOFT_CONNECT_GRACE_MS = 15 * 60_000;
+const RECENT_SAMPLE_WINDOW_MS = 30 * 60_000;
 
-async function getRecentAvgHashrateH(rentalId: number): Promise<number> {
+/**
+ * Fallback hashrate chain when the live rolling buffer is empty (rig in a
+ * brief reconnect gap or no recent shares). Returns the most recent
+ * non-zero DB sample within the lookback window — picking the latest known
+ * value is far more representative than averaging across silent periods,
+ * which dragged the displayed hashrate to zero whenever the rig stuttered.
+ *
+ * Returns 0 only when there is no non-zero sample in the lookback window —
+ * the caller should then fall back to the cumulative deliveredHashrateAvg.
+ */
+async function getMostRecentNonZeroHashrateH(rentalId: number): Promise<number> {
   const cutoff = new Date(Date.now() - RECENT_SAMPLE_WINDOW_MS);
   const rows = await db
     .select({ effectiveHashrateH: rentalHashSamplesTable.effectiveHashrateH })
@@ -68,13 +78,14 @@ async function getRecentAvgHashrateH(rentalId: number): Promise<number> {
         eq(rentalHashSamplesTable.rentalId, rentalId),
         gte(rentalHashSamplesTable.sampledAt, cutoff),
       ),
-    );
-  if (rows.length === 0) return 0;
-  const nonZero = rows
-    .map((r) => toNum(r.effectiveHashrateH ?? "0"))
-    .filter((h) => h > 0);
-  if (nonZero.length === 0) return 0;
-  return nonZero.reduce((sum, h) => sum + h, 0) / nonZero.length;
+    )
+    .orderBy(desc(rentalHashSamplesTable.sampledAt))
+    .limit(60);
+  for (const r of rows) {
+    const h = toNum(r.effectiveHashrateH ?? "0");
+    if (h > 0) return h;
+  }
+  return 0;
 }
 
 function withinGrace(lastShareAt: Date | null): boolean {
@@ -562,10 +573,19 @@ router.get("/rentals/:id/stats", async (req, res) => {
   const inGrace = withinGrace(live.lastShareAt);
   const minerConnectedDisplay = live.minerConnected || inGrace;
   const upstreamConnectedDisplay = live.upstreamConnected || inGrace;
-  const displayHashrateH =
-    live.effectiveHashrateH > 0
-      ? live.effectiveHashrateH
-      : await getRecentAvgHashrateH(id);
+  // Display-hashrate fallback chain (resolves the "stats freeze at 0" bug):
+  //   1. Live rolling buffer (2-min lookback) — present when rig is mining now.
+  //   2. Most-recent non-zero DB sample (30-min lookback) — covers reconnect
+  //      gaps and the seconds immediately after a miner restart.
+  //   3. Cumulative deliveredHashrateAvg since rental start — guarantees a
+  //      meaningful number for any rental that has ever produced shares.
+  let displayHashrateH = live.effectiveHashrateH;
+  if (displayHashrateH === 0) {
+    displayHashrateH = await getMostRecentNonZeroHashrateH(id);
+  }
+  if (displayHashrateH === 0 && avgDeliveredH > 0) {
+    displayHashrateH = avgDeliveredH;
+  }
 
   let message: string | null = null;
   if (rental.status === "active" && !minerConnectedDisplay) {
@@ -639,10 +659,25 @@ router.get("/rentals/:id/live", async (req, res) => {
   const inGrace = withinGrace(live.lastShareAt);
   const minerConnectedDisplay = live.minerConnected || inGrace;
   const upstreamConnectedDisplay = live.upstreamConnected || inGrace;
-  const recentAvgH =
-    live.effectiveHashrateH > 0 ? 0 : await getRecentAvgHashrateH(id);
-  const displayHashrateH =
-    live.effectiveHashrateH > 0 ? live.effectiveHashrateH : recentAvgH;
+
+  // Same fallback chain as /stats: live → most-recent non-zero sample →
+  // cumulative deliveredHashrateAvg. Without the cumulative tail the rental
+  // detail UI flaps to 0 H/s every time the rig drops momentarily.
+  const [rentalRow] = await db
+    .select({ deliveredHashrateAvg: rentalsTable.deliveredHashrateAvg })
+    .from(rentalsTable)
+    .where(eq(rentalsTable.id, id));
+  const cumulativeAvgH =
+    rentalRow?.deliveredHashrateAvg != null
+      ? toNum(rentalRow.deliveredHashrateAvg) * algMultiplier
+      : 0;
+  let displayHashrateH = live.effectiveHashrateH;
+  if (displayHashrateH === 0) {
+    displayHashrateH = await getMostRecentNonZeroHashrateH(id);
+  }
+  if (displayHashrateH === 0 && cumulativeAvgH > 0) {
+    displayHashrateH = cumulativeAvgH;
+  }
   const deliveryRatio =
     advertisedH > 0 && displayHashrateH > 0
       ? Math.min(1.05, displayHashrateH / advertisedH)

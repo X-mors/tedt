@@ -412,7 +412,13 @@ router.get("/me/rigs/:id/live", async (req, res) => {
     return;
   }
 
-  const entry = proxyState.getRigEntry(id);
+  // Grace lookup: if the rig disconnected within the last 10 minutes, the
+  // proxy still returns the last-known entry so the UI does not flap to
+  // OFFLINE / 0 shares during a routine ASIC reconnect cycle. The `live`
+  // flag distinguishes a current connection from a snapshot.
+  const graced = proxyState.getRigEntryWithGrace(id);
+  const entry = graced?.entry ?? null;
+  const isLive = graced?.live ?? false;
 
   // When no rental is active, surface the configured fallback pool URL so the
   // owner can see where their idle hashrate is going.
@@ -422,26 +428,39 @@ router.get("/me/rigs/:id/live", async (req, res) => {
       ? `stratum+tcp://${rig.stratumHost}:${rig.stratumPort}`
       : null;
 
-  // Rough current hashrate estimate from the rig's own share window — only
-  // available while a rental is active (we don't keep windows for fallback
-  // mining, since there's no settlement to drive). For owners checking idle
-  // mining, the share counts + lastShareAt are the source of truth.
-  const currentHashrate =
-    entry?.rentalId != null
-      ? proxyState.getLiveStats(entry.rentalId).effectiveHashrateH
-      : 0;
+  // Current-hashrate fallback chain (resolves "owner stats freeze" bug):
+  //   1. Rental window's rolling buffer when a rental is active.
+  //   2. Per-rig fallback rolling buffer for idle mining (no rental).
+  //   3. 0 only if the rig has produced no shares in the rolling-buffer
+  //      window.
+  let currentHashrate = 0;
+  if (entry?.rentalId != null) {
+    currentHashrate = proxyState.getLiveStats(entry.rentalId).effectiveHashrateH;
+  } else {
+    currentHashrate = proxyState.getFallbackHashrateH(id);
+  }
+
+  // Use the most recent share timestamp we know about — fallback buffer's
+  // lastShareAt may be fresher than the entry's during fallback mining.
+  const fallbackLastShare = proxyState.getFallbackLastShareAt(id);
+  const effectiveLastShareAt =
+    fallbackLastShare && (!entry?.lastShareAt || fallbackLastShare > entry.lastShareAt)
+      ? fallbackLastShare
+      : entry?.lastShareAt ?? null;
 
   const data = GetMyRigLiveResponse.parse({
     rigId: id,
+    // Treat snapshot entries as "connected" for display — the rig was
+    // mining moments ago and is almost certainly still mining.
     minerConnected: entry != null,
-    upstreamConnected: entry?.upstreamConnected ?? false,
-    poolAuthFailed: entry?.upstreamAuthFailed ?? false,
+    upstreamConnected: isLive ? entry?.upstreamConnected ?? false : false,
+    poolAuthFailed: isLive ? entry?.upstreamAuthFailed ?? false : false,
     poolUrl: rentalActive ? null : fallbackUrl,
     poolWorker: rentalActive ? null : (rig.stratumUser ?? null),
     sharesAccepted: entry?.sharesAccepted ?? 0,
     sharesRejected: entry?.sharesRejected ?? 0,
     currentHashrate,
-    lastShareAt: entry?.lastShareAt ? entry.lastShareAt.toISOString() : null,
+    lastShareAt: effectiveLastShareAt ? effectiveLastShareAt.toISOString() : null,
     rentalActive,
   });
   res.json(data);
@@ -461,6 +480,9 @@ router.delete("/me/rigs/:id", async (req, res) => {
     res.status(404).json({ error: "Rig not found" });
     return;
   }
+  // Drop any in-memory proxy state for the deleted rig (snapshot + fallback
+  // buffer) so we don't keep stale records for a row that no longer exists.
+  proxyState.forgetRig(id);
   res.status(204).end();
 });
 

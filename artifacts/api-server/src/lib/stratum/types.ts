@@ -6,17 +6,45 @@ export interface JsonRpcMessage {
   error?: unknown;
 }
 
+/**
+ * Single share sample stored in the rolling buffer. Each ASIC submit produces
+ * one of these. Buffer is bounded by both wall-clock age and total count.
+ */
+export interface ShareSample {
+  tsMs: number;
+  difficulty: number;
+  accepted: boolean;
+}
+
+/**
+ * Per-rental share tracking, redesigned around a rolling buffer of recent
+ * shares. Effective hashrate is computed from samples within a configurable
+ * lookback window (default 2 min for live display, 60 s for DB snapshots).
+ *
+ * Why a rolling buffer instead of flush-and-reset:
+ *   The previous design reset difficultySum and startedAt every 60 s. Within
+ *   ~30 s of a reset effectiveHashrateH was always 0 (no samples yet),
+ *   producing a periodic "stuck at 0" UI artifact. Worse, ASIC firmwares
+ *   reconnect every 1-2 min for keepalive, and any reset that landed inside
+ *   a reconnect gap left the window starved for the entire next minute.
+ *   The rolling buffer carries shares across both flushes and reconnects
+ *   so the live hashrate reflects actual recent mining at all times.
+ *
+ * Memory: bounded to ROLLING_BUFFER_MAX samples × ~24 bytes ≈ 24 KB / rental.
+ * Pruned by age (ROLLING_BUFFER_MS) to discard stale data.
+ */
 export interface ShareWindow {
   rentalId: number;
   rigId: number;
-  startedAt: number;
-  // Current 60-s flush window — reset on each flush
-  sharesAccepted: number;
-  sharesRejected: number;
-  difficultySum: number;
+  /** Wall-clock time when the window was first created (cumulative anchor). */
+  createdAtMs: number;
+  /** Rolling buffer of recent share samples, oldest first. */
+  recentSamples: ShareSample[];
+  /** Latest difficulty the upstream pool has set on this session. */
   currentDifficulty: number;
+  /** Most recent accepted-share timestamp — used by display-stability grace. */
   lastShareAt: Date | null;
-  // Cumulative totals for the whole rental lifetime — never reset
+  /** Cumulative totals for the whole rental lifetime — never reset. */
   sharesAcceptedLifetime: number;
   sharesRejectedLifetime: number;
 }
@@ -48,6 +76,6 @@ export interface ProxyAdminStatus {
   activeRoutes: number;
   /** Cumulative accepted+rejected share count across all connected rig sessions */
   totalSharesThisSession: number;
-  /** Estimated shares/sec computed from the 60-s rolling share windows */
+  /** Estimated shares/sec computed from the rolling share windows */
   currentSharesPerSec: number;
 }
