@@ -230,7 +230,7 @@ export class DownstreamSession extends EventEmitter {
     // -----------------------------------------------------------------------
     // Determine auth mode:
     //   Legacy: "rig-{number}" or "rig-{number}.suffix"  → authenticate by proxyToken
-    //   New:    "{stratumUsername}.{rigname}"              → authenticate by stratumToken
+    //   New:    "{stratumUsername}.{rigname}"              → authenticate by stratumUsername (any password accepted)
     // -----------------------------------------------------------------------
     const firstDotIdx = workerStr.indexOf(".");
     const firstSegment = firstDotIdx >= 0 ? workerStr.slice(0, firstDotIdx) : workerStr;
