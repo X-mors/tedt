@@ -32,8 +32,8 @@ import {
   ApproveRigBody,
   ApproveRigResponse,
   ApproveWithdrawalBody,
-  AdminSetRigStatusBody,
-  AdminSetRigStatusResponse,
+  SetAdminRigStatusBody,
+  SetAdminRigStatusResponse,
   ApproveWithdrawalResponse,
   CreateAlgorithmBody,
   GetAdminStatsResponse,
@@ -652,7 +652,7 @@ router.patch("/admin/rigs/:id/status", async (req, res) => {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
-  const body = AdminSetRigStatusBody.parse(req.body ?? {});
+  const body = SetAdminRigStatusBody.parse(req.body ?? {});
   const [updated] = await db
     .update(rigsTable)
     .set({ status: body.status })
@@ -663,7 +663,7 @@ router.patch("/admin/rigs/:id/status", async (req, res) => {
     return;
   }
   const detail = await loadAdminRig(updated.id);
-  res.json(AdminSetRigStatusResponse.parse(detail));
+  res.json(SetAdminRigStatusResponse.parse(detail));
 });
 
 // ============================================================================

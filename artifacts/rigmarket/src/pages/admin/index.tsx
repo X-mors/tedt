@@ -275,7 +275,7 @@ export default function AdminDashboard() {
   };
 
   const handleSetRigStatus = (id: number, status: "available" | "offline" | "paused") => {
-    setRigStatus.mutate({ id, status }, {
+    setRigStatus.mutate({ id, data: { status } }, {
       onSuccess: () => {
         toast({ title: "Status Updated", description: `Rig status set to ${status}.` });
         queryClient.invalidateQueries({ queryKey: getListAdminRigsQueryKey({}) });

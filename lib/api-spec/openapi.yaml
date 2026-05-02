@@ -1016,6 +1016,33 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /admin/rigs/{id}/status:
+    post:
+      operationId: setAdminRigStatus
+      tags: [admin]
+      summary: Admin override for a rig's marketplace status
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminSetRigStatusBody"
+      responses:
+        "200":
+          description: Updated rig
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRigRow"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /admin/rentals:
     get:
       operationId: listAdminRentals
@@ -2066,6 +2093,12 @@ components:
           type: number
         averageHashrate:
           type: number
+        hashrate10m:
+          type: number
+          description: 10-minute average hashrate in algorithm units
+        hashrate1h:
+          type: number
+          description: 1-hour average hashrate in algorithm units
         deliveryRatio:
           type: number
           description: Average delivered hashrate divided by advertised hashrate (0–1)
@@ -2097,6 +2130,8 @@ components:
         - rentalId
         - currentHashrate
         - averageHashrate
+        - hashrate10m
+        - hashrate1h
         - deliveryRatio
         - sharesAccepted
         - sharesRejected
@@ -2686,6 +2721,15 @@ components:
         note:
           type: string
           maxLength: 500
+
+    AdminSetRigStatusBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [available, offline, paused]
+      required:
+        - status
 
     AdminRentalRow:
       type: object

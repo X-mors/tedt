@@ -920,6 +920,12 @@ export const GetRentalStatsResponse = zod.object({
   rentalId: zod.number(),
   currentHashrate: zod.number(),
   averageHashrate: zod.number(),
+  hashrate10m: zod
+    .number()
+    .describe("10-minute average hashrate in algorithm units"),
+  hashrate1h: zod
+    .number()
+    .describe("1-hour average hashrate in algorithm units"),
   deliveryRatio: zod
     .number()
     .describe(
@@ -1614,15 +1620,15 @@ export const RejectRigResponse = zod.object({
 /**
  * @summary Admin override for a rig's marketplace status
  */
-export const AdminSetRigStatusParams = zod.object({
+export const SetAdminRigStatusParams = zod.object({
   id: zod.coerce.number(),
 });
 
-export const AdminSetRigStatusBody = zod.object({
+export const SetAdminRigStatusBody = zod.object({
   status: zod.enum(["available", "offline", "paused"]),
 });
 
-export const AdminSetRigStatusResponse = zod.object({
+export const SetAdminRigStatusResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
   description: zod.string(),

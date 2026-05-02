@@ -22,6 +22,7 @@ import type {
   AdminRentalRow,
   AdminRigDecisionBody,
   AdminRigRow,
+  AdminSetRigStatusBody,
   AdminStats,
   AdminSummary,
   AdminUserRow,
@@ -4179,14 +4180,14 @@ export const getSetAdminRigStatusUrl = (id: number) => {
 
 export const setAdminRigStatus = async (
   id: number,
-  body: { status: "available" | "offline" | "paused" },
+  adminSetRigStatusBody: AdminSetRigStatusBody,
   options?: RequestInit,
 ): Promise<AdminRigRow> => {
   return customFetch<AdminRigRow>(getSetAdminRigStatusUrl(id), {
     ...options,
-    method: "PATCH",
+    method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(body),
+    body: JSON.stringify(adminSetRigStatusBody),
   });
 };
 
@@ -4199,14 +4200,14 @@ export const getSetAdminRigStatusMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof setAdminRigStatus>>,
     TError,
-    { id: number; status: "available" | "offline" | "paused" },
+    { id: number; data: BodyType<AdminSetRigStatusBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof setAdminRigStatus>>,
   TError,
-  { id: number; status: "available" | "offline" | "paused" },
+  { id: number; data: BodyType<AdminSetRigStatusBody> },
   TContext
 > => {
   const mutationKey = ["setAdminRigStatus"];
@@ -4220,10 +4221,11 @@ export const getSetAdminRigStatusMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof setAdminRigStatus>>,
-    { id: number; status: "available" | "offline" | "paused" }
+    { id: number; data: BodyType<AdminSetRigStatusBody> }
   > = (props) => {
-    const { id, status } = props ?? {};
-    return setAdminRigStatus(id, { status }, requestOptions);
+    const { id, data } = props ?? {};
+
+    return setAdminRigStatus(id, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -4232,10 +4234,14 @@ export const getSetAdminRigStatusMutationOptions = <
 export type SetAdminRigStatusMutationResult = NonNullable<
   Awaited<ReturnType<typeof setAdminRigStatus>>
 >;
+export type SetAdminRigStatusMutationBody = BodyType<AdminSetRigStatusBody>;
 export type SetAdminRigStatusMutationError = ErrorType<
   UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
 >;
 
+/**
+ * @summary Admin override for a rig's marketplace status
+ */
 export const useSetAdminRigStatus = <
   TError = ErrorType<
     UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
@@ -4245,14 +4251,14 @@ export const useSetAdminRigStatus = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof setAdminRigStatus>>,
     TError,
-    { id: number; status: "available" | "offline" | "paused" },
+    { id: number; data: BodyType<AdminSetRigStatusBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof setAdminRigStatus>>,
   TError,
-  { id: number; status: "available" | "offline" | "paused" },
+  { id: number; data: BodyType<AdminSetRigStatusBody> },
   TContext
 > => {
   return useMutation(getSetAdminRigStatusMutationOptions(options));

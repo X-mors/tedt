@@ -11,6 +11,8 @@ export * from "./adminProxyDisconnectRig200";
 export * from "./adminRentalRow";
 export * from "./adminRigDecisionBody";
 export * from "./adminRigRow";
+export * from "./adminSetRigStatusBody";
+export * from "./adminSetRigStatusBodyStatus";
 export * from "./adminStats";
 export * from "./adminStatsTopAlgorithmsByDemandItem";
 export * from "./adminSummary";
