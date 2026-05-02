@@ -894,15 +894,29 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
 
-    // Use the difficulty active at the moment the JOB was issued — not the
-    // current one. If pool sent set_difficulty between job-issue and share-
-    // submission, using the current diff would mis-credit the share (often
-    // wildly, since vardiff steps can be 8-16x). Falls back to current diff
-    // for unknown jobs.
+    // Credit the share at the CURRENT pool difficulty — i.e. the value of
+    // the last mining.set_difficulty the pool sent us. This matches how every
+    // mainstream pool (F2Pool, AntPool, ViaBTC, NiceHash, …) credits shares:
+    // the share is worth the difficulty active when the pool RECEIVES it,
+    // not the difficulty active when the corresponding job was first issued.
+    //
+    // Stratum V1 vardiff sequence that breaks per-job tracking:
+    //   1. set_difficulty(D1)
+    //   2. notify(jobX)             ← jobDifficulty[jobX] = D1
+    //   3. set_difficulty(D2 > D1)  ← vardiff up; miner switches immediately
+    //   4. miner submits share for jobX, MINED AT D2 (not D1)
+    //   5. pool credits at D2; per-job lookup gives D1 → undercount by D2/D1×.
+    // For the typical vardiff-up step of 8-16× this exactly produces the
+    // ~13 % observed-vs-actual ratio seen in production.
+    //
+    // We retain getJobDifficulty as a fallback only for the rare case where
+    // the upstream has not yet received its first set_difficulty (currentDiff
+    // == 1 default).
+    const upstreamCurrentDiff = this.upstream.getCurrentDifficulty();
     const diff =
-      this.upstream.getJobDifficulty(jobId) ||
-      this.upstream.getCurrentDifficulty() ||
-      this.currentDifficulty;
+      upstreamCurrentDiff > 1
+        ? upstreamCurrentDiff
+        : this.upstream.getJobDifficulty(jobId) || this.currentDifficulty;
     let accepted = false;
     try {
       accepted = await this.upstream.submitShare(
