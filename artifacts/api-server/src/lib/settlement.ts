@@ -38,7 +38,7 @@ export async function settleExpiredRentals(): Promise<number> {
 
   let settled = 0;
 
-  for (const { id, rigId } of expired) {
+  for (const { id, rigId, ownerId } of expired) {
     const ok = await db.transaction(async (tx) => {
       // Re-check inside the transaction — only the first concurrent caller wins.
       const [claimed] = await tx

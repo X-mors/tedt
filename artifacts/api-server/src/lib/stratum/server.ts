@@ -301,7 +301,13 @@ export class StratumServer {
       // Remove share window and evict algUnit cache for the ended rental.
       proxyState.removeShareWindow(rental.id);
       this.algUnitCache.delete(rental.id);
-      proxyState.forceDisconnect(rental.rigId);
+      // Try primary rigId first; fall back to owner-level lookup because the
+      // miner may be connected as a shadow rig under a different rigId.
+      const disconnected = proxyState.forceDisconnect(rental.rigId);
+      if (!disconnected) {
+        const ownerSession = proxyState.getAnySessionForOwner(rental.ownerId);
+        ownerSession?.disconnect("Auto-cancelled: low delivery");
+      }
     } catch (err) {
       logger.error(
         { err, rentalId: rental.id },

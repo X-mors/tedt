@@ -358,7 +358,7 @@ export class DownstreamSession extends EventEmitter {
       .where(and(eq(rigsTable.ownerId, user.id), eq(rigsTable.stratumName, rigname)));
 
     if (existingRig) {
-      await this._completeAuth(msg, { ...existingRig, ownerId: user.id });
+      await this._completeAuth(msg, { ...existingRig, ownerId: user.id }, rigname);
       return;
     }
 
@@ -420,7 +420,7 @@ export class DownstreamSession extends EventEmitter {
       "stratum:downstream auto-created rig on first connect",
     );
 
-    await this._completeAuth(msg, { ...autoRig, ownerId: user.id });
+    await this._completeAuth(msg, { ...autoRig, ownerId: user.id }, rigname);
   }
 
   /** Shared post-authentication logic for both legacy and new auth paths. */
@@ -432,7 +432,7 @@ export class DownstreamSession extends EventEmitter {
     stratumPort: number;
     stratumUser: string;
     stratumPassword: string;
-  }): Promise<void> {
+  }, stratumName?: string): Promise<void> {
     this.rigId = rig.id;
     this.ownerId = rig.ownerId;
     this.authorized = true;
@@ -444,7 +444,7 @@ export class DownstreamSession extends EventEmitter {
       .set({ isOnline: true, lastSeenAt: new Date() })
       .where(eq(rigsTable.id, rig.id));
 
-    const activeRental = await this._findActiveRental(rig.id, rig.ownerId);
+    const activeRental = await this._findActiveRental(rig.id, rig.ownerId, stratumName);
     this.rentalId = activeRental?.id ?? null;
     proxyState.setRigAuthorized(rig.id, this.rentalId);
 
@@ -473,7 +473,7 @@ export class DownstreamSession extends EventEmitter {
     }
   }
 
-  private async _findActiveRental(rigId: number, ownerId: number) {
+  private async _findActiveRental(rigId: number, ownerId: number, stratumName?: string) {
     const now = new Date();
 
     // Primary: look up by the exact rigId registered in the marketplace.
@@ -507,14 +507,55 @@ export class DownstreamSession extends EventEmitter {
       );
     } else {
       logger.info(
-        { rigId, ownerId },
-        "stratum:_findActiveRental primary miss — no active rental for rigId, trying ownerId fallback",
+        { rigId, ownerId, stratumName },
+        "stratum:_findActiveRental primary miss — no active rental for rigId, trying stratumName fallback",
       );
     }
 
-    // Fallback: miner may have connected under a stratumName that caused the
-    // proxy to auto-create a shadow rig with a different ID.  Search by ownerId
-    // so we can still route to the renter's pool when the IDs don't match.
+    // Secondary fallback: if we know the miner's stratumName (rigname), find
+    // the rig that owns that stratumName and look up its rental. This handles
+    // the case where an owner has multiple rigs — we can pinpoint the correct
+    // rental rather than returning an arbitrary one via the ownerId fallback.
+    if (stratumName) {
+      const [byStratumName] = await db
+        .select({
+          id: rentalsTable.id,
+          poolUrl: rentalsTable.poolUrl,
+          poolWorker: rentalsTable.poolWorker,
+          poolPassword: rentalsTable.poolPassword,
+          endsAt: rentalsTable.endsAt,
+          matchedRigId: rigsTable.id,
+        })
+        .from(rentalsTable)
+        .innerJoin(rigsTable, eq(rigsTable.id, rentalsTable.rigId))
+        .where(
+          and(
+            eq(rigsTable.ownerId, ownerId),
+            eq(rigsTable.stratumName, stratumName),
+            eq(rentalsTable.status, "active"),
+          ),
+        );
+
+      if (byStratumName) {
+        if (byStratumName.endsAt >= now) {
+          logger.warn(
+            { shadowRigId: rigId, ownerId, stratumName, rentalId: byStratumName.id, matchedRigId: byStratumName.matchedRigId },
+            "stratum:_findActiveRental STRATUMNAME FALLBACK HIT — shadow rig matched by stratumName",
+          );
+          return byStratumName;
+        }
+        logger.warn(
+          { rigId, ownerId, stratumName, rentalId: byStratumName.id, endsAt: byStratumName.endsAt, now },
+          "stratum:_findActiveRental stratumName fallback found rental but endsAt is PAST → fallback pool",
+        );
+        return null;
+      }
+    }
+
+    // Last resort: any active rental for this owner. Only used when stratumName
+    // is unknown (legacy auth) or when the owner has a single rig.
+    // WARNING: if the owner has multiple rigs with active rentals this may
+    // return the wrong rental — prefer the stratumName path above.
     const [ownerRental] = await db
       .select({
         id: rentalsTable.id,
@@ -548,7 +589,7 @@ export class DownstreamSession extends EventEmitter {
 
     logger.warn(
       { shadowRigId: rigId, ownerId, rentalId: ownerRental.id, poolUrl: ownerRental.poolUrl },
-      "stratum:_findActiveRental FALLBACK HIT via ownerId — stratumName mismatch, routing to renter pool",
+      "stratum:_findActiveRental OWNER FALLBACK HIT — last resort ownerId lookup (shadow rig, single-rig owner)",
     );
     return ownerRental;
   }
