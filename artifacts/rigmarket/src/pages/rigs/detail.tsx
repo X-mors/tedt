@@ -30,27 +30,37 @@ export default function RigDetail() {
   const ownerIsOnline = myRig?.isOnline ?? rig.isOnline;
   const hasFallbackPool = myRig?.hasFallbackPool ?? false;
 
+  // Effective status: rig.status is the persisted DB column, refreshed by a
+  // 5-minute background sync. If the miner is connected RIGHT NOW we treat an
+  // "offline" record as "available" so the page doesn't show OFFLINE next to
+  // ONLINE · IDLE (and the rent button doesn't show UNAVAILABLE for a rig that
+  // is clearly mineable). "rented" and "paused" are owner/system states and
+  // override the live signal.
+  const effectiveStatus =
+    ownerIsOnline && rig.status === 'offline' ? 'available' : rig.status;
+  const isRentable = effectiveStatus === 'available';
+
   return (
     <div className="container py-8 px-4 max-w-5xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-3 mb-2">
             <h1 className="text-3xl font-bold tracking-tight">{rig.name}</h1>
-            <Badge variant={rig.status === 'available' ? 'default' : rig.status === 'rented' ? 'secondary' : 'destructive'} 
-                   className={`font-mono text-xs uppercase ${rig.status === 'available' ? 'bg-primary/20 text-primary border-primary/30' : ''}`}>
-              {rig.status}
+            <Badge variant={effectiveStatus === 'available' ? 'default' : effectiveStatus === 'rented' ? 'secondary' : 'destructive'}
+                   className={`font-mono text-xs uppercase ${effectiveStatus === 'available' ? 'bg-primary/20 text-primary border-primary/30' : ''}`}>
+              {effectiveStatus}
             </Badge>
-            {ownerIsOnline && rig.status !== 'rented' && hasFallbackPool && (
+            {ownerIsOnline && effectiveStatus !== 'rented' && hasFallbackPool && (
               <Badge variant="outline" className="font-mono text-xs uppercase bg-yellow-500/10 text-yellow-500 border-yellow-500/30">
                 MINING FALLBACK
               </Badge>
             )}
-            {ownerIsOnline && rig.status !== 'rented' && !hasFallbackPool && (
+            {ownerIsOnline && effectiveStatus !== 'rented' && !hasFallbackPool && (
               <Badge variant="outline" className="font-mono text-xs uppercase bg-green-500/10 text-green-500 border-green-500/30">
                 ONLINE · IDLE
               </Badge>
             )}
-            {ownerIsOnline && rig.status === 'rented' && (
+            {ownerIsOnline && effectiveStatus === 'rented' && (
               <Badge variant="outline" className="font-mono text-xs uppercase bg-green-500/10 text-green-500 border-green-500/30">
                 CONNECTED
               </Badge>
@@ -64,7 +74,7 @@ export default function RigDetail() {
           </div>
         </div>
         
-        {rig.status === 'available' && rig.ownerId !== me?.id && (
+        {isRentable && rig.ownerId !== me?.id && (
           <Link href={`/rentals/new/${rig.id}`}>
             <Button size="lg" className="font-mono text-sm bg-primary text-primary-foreground hover:bg-primary/90 w-full md:w-auto">
               INITIATE_RENTAL
@@ -166,7 +176,7 @@ export default function RigDetail() {
                 </div>
               </div>
 
-              {rig.status === 'available' ? (
+              {isRentable ? (
                 rig.ownerId === me?.id ? (
                   <Button disabled className="w-full font-mono">YOUR_RIG</Button>
                 ) : (
