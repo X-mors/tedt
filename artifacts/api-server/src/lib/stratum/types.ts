@@ -23,6 +23,8 @@ export interface ShareWindow {
 
 export interface ProxyRigEntry {
   rigId: number;
+  /** Database ownerId — used to locate a session when rigId lookup misses due to stratumName mismatch. */
+  ownerId: number;
   rigName: string;
   connectedAt: Date;
   authorized: boolean;

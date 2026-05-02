@@ -255,6 +255,7 @@ export class DownstreamSession extends EventEmitter {
     const [rig] = await db
       .select({
         id: rigsTable.id,
+        ownerId: rigsTable.ownerId,
         name: rigsTable.name,
         proxyToken: rigsTable.proxyToken,
         stratumHost: rigsTable.stratumHost,
@@ -337,7 +338,7 @@ export class DownstreamSession extends EventEmitter {
       .where(and(eq(rigsTable.ownerId, user.id), eq(rigsTable.stratumName, rigname)));
 
     if (existingRig) {
-      await this._completeAuth(msg, existingRig);
+      await this._completeAuth(msg, { ...existingRig, ownerId: user.id });
       return;
     }
 
@@ -399,12 +400,13 @@ export class DownstreamSession extends EventEmitter {
       "stratum:downstream auto-created rig on first connect",
     );
 
-    await this._completeAuth(msg, autoRig);
+    await this._completeAuth(msg, { ...autoRig, ownerId: user.id });
   }
 
   /** Shared post-authentication logic for both legacy and new auth paths. */
   private async _completeAuth(msg: JsonRpcMessage, rig: {
     id: number;
+    ownerId: number;
     name: string;
     stratumHost: string;
     stratumPort: number;
@@ -413,7 +415,7 @@ export class DownstreamSession extends EventEmitter {
   }): Promise<void> {
     this.rigId = rig.id;
     this.authorized = true;
-    proxyState.addRig(rig.id, this, rig.name);
+    proxyState.addRig(rig.id, rig.ownerId, this, rig.name);
 
     // Persist online state and last-seen timestamp so admin can track connectivity.
     await db

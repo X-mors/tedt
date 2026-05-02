@@ -276,8 +276,23 @@ router.post("/rentals", async (req, res) => {
   const newRental = await loadRentalDetail(rentalId);
 
   // If the rig owner's miner is already connected to the proxy, start routing immediately.
-  const session = proxyState.getRigSession(body.rigId);
+  // Primary lookup: by the exact rigId stored in the session (happy path).
+  // Fallback lookup: by ownerId — handles the case where the miner connected with a
+  // stratumName that differs from the listed rig's stratumName (e.g. the rig was listed
+  // under a different name and the proxy auto-created a shadow rig entry). In that
+  // scenario the session is keyed under the shadow rig's ID, not body.rigId.
+  const session =
+    proxyState.getRigSession(body.rigId) ??
+    proxyState.getAnySessionForOwner(rigRow.ownerId);
+
   if (session) {
+    if (!proxyState.getRigSession(body.rigId)) {
+      // Fallback path used — log so admins can detect stratumName mismatches.
+      logger.warn(
+        { rigId: body.rigId, ownerId: rigRow.ownerId, rentalId },
+        "rental: activating on fallback session — possible stratumName mismatch (miner connected under a different rig ID)",
+      );
+    }
     void session.activateRental(rentalId, body.poolUrl, body.poolWorker, body.poolPassword ?? "x");
   }
 

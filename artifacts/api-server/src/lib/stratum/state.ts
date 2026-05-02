@@ -20,11 +20,12 @@ class ProxyState {
   /** Upstream pool connections kept alive during brief miner disconnects. */
   private parkedUpstreams = new Map<number, ParkedUpstream>();
 
-  addRig(rigId: number, session: DownstreamSession, rigName: string): void {
+  addRig(rigId: number, ownerId: number, session: DownstreamSession, rigName: string): void {
     this.rigConnections.set(rigId, {
       session,
       entry: {
         rigId,
+        ownerId,
         rigName,
         connectedAt: new Date(),
         authorized: false,
@@ -62,6 +63,19 @@ class ProxyState {
 
   getRigSession(rigId: number): DownstreamSession | undefined {
     return this.rigConnections.get(rigId)?.session;
+  }
+
+  /**
+   * Fallback lookup: return the first connected session that belongs to `ownerId`.
+   * Used when the rental's rigId doesn't match the connected rig's rigId (which
+   * happens when the miner connected with a stratumName that differs from the
+   * listed rig's stratumName and the proxy auto-created a shadow rig).
+   */
+  getAnySessionForOwner(ownerId: number): DownstreamSession | undefined {
+    for (const conn of this.rigConnections.values()) {
+      if (conn.entry.ownerId === ownerId) return conn.session;
+    }
+    return undefined;
   }
 
   setRigAuthorized(rigId: number, rentalId: number | null): void {
