@@ -1,0 +1,52 @@
+og
+root@vmi3202752:/var/www/livehashrate.com# pm2 logs tedt-api --lines 500 --nostr
+eam | grep -E "stratum|share|extranonce|authFailed|reject" > /tmp/rental-debug.l
+og
+root@vmi3202752:/var/www/livehashrate.com# wc -l /tmp/rental-debug.log
+66 /tmp/rental-debug.log
+root@vmi3202752:/var/www/livehashrate.com# psql $DATABASE_URL -c "SELECT id, sta
+tus, hashrate, delivered_hashrate_avg, started_at, ends_at FROM rentals ORDER BY
+ id DESC LIMIT 3;"
+psql $DATABASE_URL -c "SELECT rental_id, sampled_at, shares_accepted, shares_rej
+ected, effective_hashrate_h FROM rental_hash_samples ORDER BY id DESC LIMIT 20;"
+psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432"
+failed: FATAL:  role "root" does not exist
+psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432"
+failed: FATAL:  role "root" does not exist
+root@vmi3202752:/var/www/livehashrate.com# pm2 logs tedt-api --lines 50000 --nos
+tream | grep -iE "stratum|extranonce|authFailed|reject|share " > /tmp/rental-deb
+ug.log
+wc -l /tmp/rental-debug.log
+5871 /tmp/rental-debug.log
+root@vmi3202752:/var/www/livehashrate.com# pm2 logs tedt-api | grep -iE "stratum
+|extranonce|share|authFailed|reject"
+0|tedt-api | {"level":30,"time":1777744542657,"pid":120504,"hostname":"vmi320275
+2","remoteAddress":"165.227.153.169","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777744543446,"pid":120504,"hostname":"vmi320275
+2","rigId":6,"rentalId":12,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1777744543448,"pid":120504,"hostname":"vmi320275
+2","rentalId":12,"host":"bitcoin.viabtc.io","resolvedHost":"172.65.63.49","port"
+:3333,"msg":"stratum:upstream connecting"}
+0|tedt-api | {"level":30,"time":1777744543836,"pid":120504,"hostname":"vmi320275
+2","rentalId":12,"worker":"AhmadSamir.y","msg":"stratum:upstream pool auth OK"}
+0|tedt-api | {"level":30,"time":1777744543836,"pid":120504,"hostname":"vmi320275
+2","rigId":6,"rentalId":12,"msg":"stratum:downstream upstream ready"}
+0|tedt-api | {"level":30,"time":1777744544088,"pid":120504,"hostname":"vmi320275
+2","rigId":6,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777744604092,"pid":120504,"hostname":"vmi320275
+2","rentalId":12,"msg":"stratum:upstream closed"}
+0|tedt-api | {"level":30,"time":1777744662602,"pid":120504,"hostname":"vmi320275
+2","remoteAddress":"165.227.153.169","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777744663376,"pid":120504,"hostname":"vmi320275
+2","rigId":6,"rentalId":12,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1777744663378,"pid":120504,"hostname":"vmi320275
+2","rentalId":12,"host":"bitcoin.viabtc.io","resolvedHost":"172.65.63.49","port"
+:3333,"msg":"stratum:upstream connecting"}
+0|tedt-api | {"level":30,"time":1777744663731,"pid":120504,"hostname":"vmi320275
+2","rentalId":12,"worker":"AhmadSamir.y","msg":"stratum:upstream pool auth OK"}
+0|tedt-api | {"level":30,"time":1777744663732,"pid":120504,"hostname":"vmi320275
+2","rigId":6,"rentalId":12,"msg":"stratum:downstream upstream ready"}
+0|tedt-api | {"level":30,"time":1777744664420,"pid":120504,"hostname":"vmi320275
+2","rigId":6,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777744724423,"pid":120504,"hostname":"vmi320275
+2","rentalId":12,"msg":"stratum:upstream closed"}
