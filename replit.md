@@ -189,3 +189,24 @@ default 3% / 5% commission row, and 5 demo rigs across two seed owners
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup,
 and package details.
+
+## VPS Deploy Commands (USER PREFERENCE — ALWAYS PRINT)
+
+After **every** code fix or edit, ALWAYS print this exact block at the end of
+the response so the user can copy-paste it onto the VPS after pushing to GitHub:
+
+```bash
+cd /var/www/livehashrate.com
+git pull
+pnpm --filter @workspace/api-server run build
+pm2 restart tedt-api
+```
+
+Notes:
+- VPS path: `/var/www/livehashrate.com`, PM2 process name: `tedt-api`.
+- Print this block even for frontend-only changes — the user prefers a single
+  consistent snippet. If the change touches the frontend (`artifacts/rigmarket`)
+  AND the user explicitly asks about frontend deploy, additionally mention:
+  `PORT=3000 BASE_PATH=/ pnpm --filter @workspace/rigmarket run build`.
+- Do NOT add `pnpm install` or `pnpm --filter @workspace/db run push` unless
+  dependencies or DB schema actually changed in this session.
