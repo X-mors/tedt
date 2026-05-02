@@ -715,6 +715,12 @@ router.post("/rentals/:id/switch-pool", async (req, res) => {
     })
     .where(eq(rentalsTable.id, id));
 
+  // ALWAYS evict any parked upstream first — even if no live session is
+  // found right now (rig briefly disconnected). Otherwise the miner could
+  // reconnect and claim a parked OLD-pool upstream, silently mining to the
+  // previous pool. Safe to call when nothing is parked.
+  proxyState.removeParkedUpstream(rental.id);
+
   // Find the live session — prefer rentalId lookup so shadow rigs work too.
   const session =
     proxyState.getSessionByRentalId(rental.id) ??

@@ -587,6 +587,10 @@ export class DownstreamSession extends EventEmitter {
       this.upstream.destroy();
       this.upstream = null;
     }
+    // CRITICAL: also evict any parked upstream from a recent natural reconnect.
+    // Otherwise _startUpstream on the next reconnect would claim the parked
+    // OLD-pool upstream and silently keep mining to the previous pool.
+    proxyState.removeParkedUpstream(rentalId);
     this.submitBuffer = [];
     if (this.rigId != null) {
       proxyState.setUpstreamConnected(this.rigId, false);
@@ -641,7 +645,18 @@ export class DownstreamSession extends EventEmitter {
       this.isFallback = false;
       proxyState.setUpstreamConnected(this.rigId, false);
     }
-    await this._connectFallbackIfConfigured(this.rigId);
+    // Force the miner to reconnect for a clean stratum subscription with the
+    // new pool's extranonce. Many ASIC firmwares (Antminer, Whatsminer, …) do
+    // NOT honour mid-session `mining.set_extranonce`, so without a clean
+    // reconnect the new pool would reject every share as invalid and the
+    // owner would see "saved" but no shares delivered to the new pool.
+    // _completeAuth → _connectFallbackIfConfigured will pick up the new
+    // settings from the DB on reconnect.
+    logger.info(
+      { rigId: this.rigId },
+      "stratum:downstream fallback pool reloaded — force-closing miner for clean reconnect",
+    );
+    this._close();
   }
 
   /**

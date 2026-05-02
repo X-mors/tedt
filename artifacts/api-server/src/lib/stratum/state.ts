@@ -345,6 +345,23 @@ class ProxyState {
   }
 
   /**
+   * Force-clear any parked upstream for `rentalId` so the next reconnect
+   * cannot reuse a stale pool connection. MUST be called whenever the
+   * rental's destination pool changes (live switch, settlement, etc.) —
+   * otherwise the miner reconnects, claims the parked OLD-pool upstream
+   * in `_startUpstream`, and silently keeps mining to the previous pool
+   * even though the DB and UI both show the new pool.
+   */
+  removeParkedUpstream(rentalId: number): void {
+    const parked = this.parkedUpstreams.get(rentalId);
+    if (parked) {
+      clearTimeout(parked.timer);
+      parked.upstream.destroy();
+      this.parkedUpstreams.delete(rentalId);
+    }
+  }
+
+  /**
    * Park an upstream pool connection for `rentalId` during a miner reconnect
    * grace period. The upstream is automatically destroyed after RECONNECT_GRACE_MS
    * if the miner does not reconnect.

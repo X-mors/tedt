@@ -165,6 +165,29 @@ Two safeguards exist and **must stay in place**:
    so the owner-side UI sees the real upstream pool status even when the
    miner is on a shadow rig.
 
+### Parked upstream eviction on pool change (DO NOT REMOVE)
+
+`_startUpstream` reuses any **parked** upstream pool socket via
+`proxyState.claimParkedUpstream(rentalId)` — that's how a 1-3 s natural
+miner reconnect doesn't disrupt mining. The 60 s park lives in
+`proxyState.parkedUpstreams`.
+
+This means **any code path that changes the rental's destination pool
+MUST also evict the parked upstream**, otherwise the miner reconnects,
+claims the parked OLD-pool upstream, and silently keeps mining to the
+previous pool — DB and UI show "saved" but the renter sees stats stuck
+at the OLD-pool's rate. Three places call `removeParkedUpstream`:
+
+1. `DownstreamSession.switchRentalPool` — covers the live-session case.
+2. `POST /rentals/:id/switch-pool` route — covers the rig-temporarily-disconnected
+   case (no live session to call switchRentalPool on).
+3. `removeShareWindow` (already there, on rental settle) — covers cleanup.
+
+Similarly, `reloadFallbackPool` must `_close()` the miner (not just
+swap upstreams) because most ASIC firmwares ignore mid-session
+`mining.set_extranonce`. Without the close, the owner sees "saved" but
+shares get rejected by the new pool.
+
 ### PATCH /me/rigs/:id (DO NOT REMOVE)
 
 The endpoint uses `safeParse` (NOT `.parse()`) for both request body and
