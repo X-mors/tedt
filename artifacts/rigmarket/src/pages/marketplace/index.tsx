@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListRigs, useListAlgorithms } from "@workspace/api-client-react";
+import { useListRigs, useListAlgorithms, getListRigsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatHashrate, formatMoney } from "@/lib/format";
 import { Link } from "wouter";
@@ -16,12 +16,15 @@ export default function Marketplace() {
   const [sort, setSort] = useState<"price_asc" | "price_desc" | "hashrate_desc" | "newest" | "rating_desc">("newest");
 
   const { data: algorithms } = useListAlgorithms();
-  const { data: rigs, isLoading } = useListRigs({
+  const listRigsParams = {
     search: search || undefined,
     algorithmId,
     status,
     sort,
-  }, { refetchInterval: 5 * 60_000 });
+  };
+  const { data: rigs, isLoading } = useListRigs(listRigsParams, {
+    query: { refetchInterval: 5 * 60_000, queryKey: getListRigsQueryKey(listRigsParams) },
+  });
 
   const available = rigs?.filter(r => r.status === "available") ?? [];
   const rented = rigs?.filter(r => r.status === "rented") ?? [];

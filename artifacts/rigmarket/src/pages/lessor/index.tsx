@@ -52,7 +52,7 @@ function DeliveryBar({ ratio }: { ratio: number }) {
 }
 
 export default function LessorDashboard() {
-  const { data: rigs, isLoading: rigsLoading } = useListMyRigs({}, { refetchInterval: 5 * 60_000 });
+  const { data: rigs, isLoading: rigsLoading } = useListMyRigs({ query: { refetchInterval: 5 * 60_000, queryKey: getListMyRigsQueryKey() } });
   const { data: rentals, isLoading: rentalsLoading } = useListLessorRentals();
   const deleteRig = useDeleteMyRig();
   const { toast } = useToast();
