@@ -96,7 +96,7 @@ export default function RigForm() {
         minRentalHours: rig.minRentalHours.toString(),
         maxRentalHours: rig.maxRentalHours.toString(),
         region: rig.region,
-        status: rig.status,
+        status: rig.status || "available",
         fallbackPoolHost: rig.fallbackPoolHost ?? "",
         fallbackPoolPort: rig.fallbackPoolPort?.toString() ?? "",
         fallbackPoolUser: rig.fallbackPoolUser ?? "",
@@ -112,14 +112,17 @@ export default function RigForm() {
     const fallbackPort = formData.fallbackPoolPort ? parseInt(formData.fallbackPoolPort) : undefined;
 
     if (isEditing) {
+      const validStatuses = ["available", "rented", "offline", "paused"] as const;
       const data = {
-        name: formData.name,
+        name: formData.name || undefined,
         description: formData.description,
         hashrate: parseFloat(formData.hashrate),
         minRentalHours: parseInt(formData.minRentalHours),
         maxRentalHours: parseInt(formData.maxRentalHours),
-        region: formData.region,
-        status: formData.status as "available" | "rented" | "offline",
+        ...(formData.region && { region: formData.region }),
+        ...(formData.status && validStatuses.includes(formData.status as typeof validStatuses[number]) && {
+          status: formData.status as typeof validStatuses[number],
+        }),
         fallbackPoolHost: fallbackHost,
         ...(fallbackPort !== undefined && !isNaN(fallbackPort) && { fallbackPoolPort: fallbackPort }),
         fallbackPoolUser: formData.fallbackPoolUser.trim(),
@@ -435,9 +438,9 @@ export default function RigForm() {
               {isEditing && (
                 <div className="space-y-2">
                   <Label htmlFor="status">Status</Label>
-                  <Select value={formData.status} onValueChange={v => set("status", v)}>
+                  <Select value={formData.status || ""} onValueChange={v => set("status", v)}>
                     <SelectTrigger className="bg-background font-mono text-sm" id="status">
-                      <SelectValue />
+                      <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="available">Available (Listed)</SelectItem>
