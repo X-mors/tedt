@@ -147,6 +147,39 @@ H/s) and flushed to `rental_hash_samples` every 60 seconds.
 Admin can see all connected rigs and force-disconnect them from the admin
 dashboard → "Stratum Proxy" tab.
 
+### Shadow rigs & online status (DO NOT REMOVE)
+
+When a miner connects with a `stratumName` that doesn't match a listed rig,
+the proxy auto-creates a "shadow rig" with a different ID. This means the
+miner is connected (and possibly mining via fallback pool), but the
+**listed rig** in the marketplace would show OFFLINE if we only marked the
+connected `rigId` online.
+
+Two safeguards exist and **must stay in place**:
+1. The 5-minute online-sync interval in `index.ts` calls
+   `proxyState.getConnectedOwnerIds()` and marks **every approved rig** for
+   each connected owner as `isOnline=true`. This covers the shadow-rig case.
+2. `selectMyRigDetail` in `meRigs.ts` reads `fallbackPoolConnected` /
+   `fallbackPoolAuthFailed` via
+   `getFallbackPoolStatus(rigId) ?? getFallbackPoolStatusByOwner(ownerId)`
+   so the owner-side UI sees the real upstream pool status even when the
+   miner is on a shadow rig.
+
+### PATCH /me/rigs/:id (DO NOT REMOVE)
+
+The endpoint uses `safeParse` (NOT `.parse()`) for both request body and
+response. There is no global Zod error handler — `.parse()` would throw
+a 500. `safeParse` returns 400 with field-level details so the frontend
+can surface "Update Failed: ..." to the owner.
+
+When `body.fallbackPoolHost === ""` (clearing the pool), the route also
+resets `stratumPort = 0` so `hasFallbackPool` (computed as
+`!!(stratumHost && stratumPort > 0)`) flips to `false`.
+
+Both safeguards have been silently dropped by checkpoint rollbacks before
+(commit `cde5c45 Restored to 027ed1c1...` wiped `b11b58d`/`7550f7d`/
+`b0d5ce7`); re-verify after any rollback.
+
 ## API surface (selected)
 
 - `GET /api/marketplace/summary`, `GET /api/algorithms`

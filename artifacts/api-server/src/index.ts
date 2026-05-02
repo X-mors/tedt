@@ -5,7 +5,7 @@ import { StratumServer } from "./lib/stratum/server";
 import { backfillApprovedRigStatus, backfillRigTokens, backfillStratumNames } from "./lib/backfill";
 import { startDepositWorker } from "./lib/depositWorker";
 import { db, rigsTable } from "@workspace/db";
-import { eq, notInArray, inArray } from "drizzle-orm";
+import { eq, notInArray, inArray, and } from "drizzle-orm";
 import { proxyState } from "./lib/stratum/state";
 
 const rawPort = process.env["PORT"];
@@ -44,17 +44,28 @@ seedDatabase()
 
     // Sync isOnline in DB with actual proxy connections every 5 minutes.
     // This corrects any drift (e.g. unclean shutdown, missed _onClose).
+    // NOTE: miners may connect under a "shadow rig" ID (auto-created when the
+    // miner's stratumName doesn't match the listed rig).  We therefore mark
+    // the approved listed rig for each connected owner as online as well —
+    // otherwise the marketplace shows the rig OFFLINE even though it's mining.
     const SYNC_INTERVAL_MS = 5 * 60_000;
     setInterval(async () => {
       try {
         const connectedIds = proxyState.getConnectedRigIds();
+        const connectedOwnerIds = proxyState.getConnectedOwnerIds();
+        // Step 1: set everything offline.
+        await db.update(rigsTable).set({ isOnline: false });
+
+        // Step 2: set shadow rigs and approved listed rigs for connected owners online.
         if (connectedIds.length > 0) {
           await db.update(rigsTable).set({ isOnline: true }).where(inArray(rigsTable.id, connectedIds));
-          await db.update(rigsTable).set({ isOnline: false }).where(notInArray(rigsTable.id, connectedIds));
-        } else {
-          await db.update(rigsTable).set({ isOnline: false });
         }
-        logger.debug({ connectedIds }, "online-sync: DB synced with proxy state");
+        if (connectedOwnerIds.length > 0) {
+          await db.update(rigsTable).set({ isOnline: true }).where(
+            and(inArray(rigsTable.ownerId, connectedOwnerIds), eq(rigsTable.approvalStatus, "approved"))
+          );
+        }
+        logger.debug({ connectedIds, connectedOwnerIds }, "online-sync: DB synced with proxy state");
       } catch (err) {
         logger.warn({ err }, "online-sync: failed");
       }
