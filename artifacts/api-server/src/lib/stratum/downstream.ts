@@ -550,6 +550,26 @@ export class DownstreamSession extends EventEmitter {
   }
 
   /**
+   * Called by the API after the owner saves new fallback pool settings.
+   * If the miner is online and idle (no active rental) we tear down the
+   * current fallback upstream (if any) and immediately reconnect with the
+   * freshly-saved settings from the DB.
+   * No-op when a rental is active — the rental pool takes precedence.
+   */
+  async reloadFallbackPool(): Promise<void> {
+    if (this.destroyed || this.rentalId !== null) return;
+    if (this.rigId == null) return;
+    // Tear down the existing fallback upstream so we can restart with new settings.
+    if (this.upstream) {
+      this.upstream.destroy();
+      this.upstream = null;
+      this.isFallback = false;
+      proxyState.setUpstreamConnected(this.rigId, false);
+    }
+    await this._connectFallbackIfConfigured(this.rigId);
+  }
+
+  /**
    * Look up the rig's fallback pool settings from DB and connect to them.
    * Called after auth (no rental) and after a rental ends.
    */

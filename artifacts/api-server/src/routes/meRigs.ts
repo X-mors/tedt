@@ -338,6 +338,18 @@ router.patch("/me/rigs/:id", async (req, res) => {
     await db.update(rigsTable).set(patch).where(eq(rigsTable.id, id));
   }
 
+  // If fallback pool settings changed, hot-reload the upstream on any live
+  // miner session that is currently idle (no active rental).
+  const fallbackChanged =
+    body.fallbackPoolHost !== undefined ||
+    body.fallbackPoolPort !== undefined ||
+    body.fallbackPoolUser !== undefined ||
+    body.fallbackPoolPassword !== undefined;
+  if (fallbackChanged) {
+    const session = proxyState.getRigSession(id);
+    if (session) void session.reloadFallbackPool();
+  }
+
   const detail = await selectMyRigDetail(req.currentUser!.id, id);
   if (!detail) {
     res.status(404).json({ error: "Rig not found" });
