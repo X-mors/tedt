@@ -103,7 +103,6 @@ export class StratumServer {
               SELECT AVG(effective_hashrate_h) / ${multiplier}
               FROM rental_hash_samples
               WHERE rental_id = ${snapshot.rentalId}
-                AND sampled_at > NOW() - INTERVAL '3 hours'
             )`,
           })
           .where(eq(rentalsTable.id, snapshot.rentalId));
@@ -222,12 +221,14 @@ export class StratumServer {
           .returning();
         if (!claimed) return;
 
-        // Flag rig for admin review — low delivery auto-cancel requires manual re-approval.
+        // Mark the rig offline but DO NOT change its approval status — the
+        // owner has already been approved and forcing re-approval blocks
+        // them from re-listing without admin action. We still record the
+        // reason as an approvalNote for the admin's audit trail.
         await tx
           .update(rigsTable)
           .set({
             status: "offline",
-            approvalStatus: "pending",
             approvalNote: `Auto-cancelled rental #${rental.id}: sustained hashrate below ${Math.round(thresholdPct * 100)}% of advertised value.`,
           })
           .where(eq(rigsTable.id, rental.rigId));

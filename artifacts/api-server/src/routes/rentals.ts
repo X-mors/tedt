@@ -520,7 +520,15 @@ router.get("/rentals/:id/stats", async (req, res) => {
 
   const hashrate10mH = avgH(dbSamples.slice(0, 10)); // last 10 min
   const hashrate1hH = avgH(dbSamples.slice(0, 60)); // last 60 min
-  const avgDeliveredH = hashrate1hH; // delivery uses 1-h avg (more stable)
+
+  // Delivery is the CUMULATIVE average since rental start so the percentage
+  // reflects "how much hashrate did the renter actually receive over the
+  // elapsed period vs. what the rig owner advertised". `deliveredHashrateAvg`
+  // is maintained in algorithm units (TH/MH/...) — multiply back to H/s.
+  const avgDeliveredH =
+    rental.deliveredHashrateAvg != null
+      ? toNum(rental.deliveredHashrateAvg) * algMultiplier
+      : 0;
 
   const hashrate10m = hashrate10mH / algMultiplier;
   const hashrate1h = hashrate1hH / algMultiplier;
