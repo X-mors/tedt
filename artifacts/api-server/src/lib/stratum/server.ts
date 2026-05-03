@@ -271,7 +271,8 @@ export class StratumServer {
     const recentSamples = await db
       .select({
         sharesAccepted: rentalHashSamplesTable.sharesAccepted,
-        effectiveHashrateH: rentalHashSamplesTable.effectiveHashrateH,
+        difficultySum: rentalHashSamplesTable.difficultySum,
+        windowSeconds: rentalHashSamplesTable.windowSeconds,
       })
       .from(rentalHashSamplesTable)
       .where(
@@ -289,24 +290,24 @@ export class StratumServer {
       0,
     );
 
-    const avgHashrateH =
-      recentSamples.length === 0
-        ? 0
-        : recentSamples.reduce(
-            (s, r) => s + toNum(r.effectiveHashrateH ?? "0"),
-            0,
-          ) / recentSamples.length;
+    // Time-weighted average: total hashes delivered in the window divided by
+    // the full window duration. Silent gaps (disconnected rig) count as zero
+    // so a rig that was offline for half the window shows ~50% delivery.
+    const totalHashesInWindow = recentSamples.reduce(
+      (s, r) => s + toNum(r.difficultySum) * 4294967296,
+      0,
+    );
+    const avgHashrateH = totalHashesInWindow / lowDeliveryWindowSec;
 
     const algUnit = await this._getAlgUnit(rentalId);
     const mult = unitMultiplier(algUnit);
     const advertisedH = toNum(rental.hashrate) * mult;
     const ratio = advertisedH > 0 ? avgHashrateH / advertisedH : 1;
 
-    // If the rig is producing some shares but below the configured minimum,
-    // wait — too few samples to judge. But if there are zero shares AND
-    // zero samples for the whole window past the grace period, treat it as
-    // 0% delivery and trigger the auto-cancel directly.
-    const totallyDark = recentSamples.length === 0 && totalShares === 0;
+    // Skip if too few shares to make a meaningful judgment — unless the rig
+    // has been completely silent for the entire window (totally dark), in
+    // which case we treat it as 0% delivery regardless.
+    const totallyDark = recentSamples.length === 0;
     if (!totallyDark && totalShares < minSharesForCheck) return;
 
     if (ratio < lowDeliveryThresholdPct) {
