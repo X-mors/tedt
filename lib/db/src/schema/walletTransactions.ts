@@ -21,6 +21,7 @@ export const walletTransactionsTable = pgTable("wallet_transactions", {
       "rental_charge",
       "rental_payout",
       "rental_refund",
+      "rental_dispute",
       "admin_credit",
       "admin_debit",
     ],

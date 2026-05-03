@@ -871,16 +871,31 @@ router.post("/rentals/:id/cancel", async (req, res) => {
     return;
   }
 
+  // Threshold: at-or-above this delivery ratio we treat the rig as fully
+  // performant and settle on time-used alone (renter pays only for elapsed
+  // hours, owner is credited for elapsed hours). Below it we FREEZE funds
+  // and route the dispute to an admin — the user is not auto-refunded and
+  // the owner is not auto-paid, because either party may legitimately be
+  // owed more or less than a naive proportional split.
+  const FULL_DELIVERY_THRESHOLD = 0.95;
+
   await db.transaction(async (tx) => {
     const now = new Date();
+    const deliveryRatio = computeDeliveryRatio(
+      rental.deliveredHashrateAvg,
+      rental.hashrate,
+    );
+    const isDisputed = deliveryRatio < FULL_DELIVERY_THRESHOLD;
 
     // Atomic claim — only the first concurrent caller wins.
     const [claimed] = await tx
       .update(rentalsTable)
       .set({
-        status: "cancelled",
+        status: isDisputed ? "disputed" : "cancelled",
         cancelledAt: now,
-        settledAt: now,
+        // Disputed rentals stay unsettled until admin resolution — only set
+        // settledAt for clean cancellations.
+        settledAt: isDisputed ? null : now,
       })
       .where(
         sql`${rentalsTable.id} = ${rental.id} AND ${rentalsTable.status} = 'active'`,
@@ -888,10 +903,31 @@ router.post("/rentals/:id/cancel", async (req, res) => {
       .returning();
     if (!claimed) return;
 
-    // Delivery-based cancellation settlement (same model as expiry settlement).
-    // deliveryRatio: what fraction of advertised hashrate was actually delivered.
-    // usedRatio: what fraction of the booked time elapsed before cancellation.
-    // effectiveRatio = deliveryRatio × usedRatio → owner earned this fraction of fees.
+    await tx
+      .update(rigsTable)
+      .set({ status: "available" })
+      .where(eq(rigsTable.id, rental.rigId));
+
+    if (isDisputed) {
+      // No fund movement. Renter's already-debited balance and owner's
+      // pending earnings stay frozen on this rental row; admin will settle
+      // manually.
+      await tx.insert(walletTransactionsTable).values({
+        userId: rental.renterId,
+        type: "rental_dispute",
+        amountUsd: "0.000000",
+        balanceAfterUsd: toUsdString(0),
+        memo: `Cancellation frozen for review — delivered ${Math.round(deliveryRatio * 100)}% of advertised hashrate (below ${Math.round(FULL_DELIVERY_THRESHOLD * 100)}% threshold)`,
+        relatedRentalId: rental.id,
+      });
+      return;
+    }
+
+    // Clean cancellation path: delivery met the threshold, so we treat the
+    // rig as having performed and bill on time-used only. Renter pays for
+    // elapsed time, owner earns for elapsed time. No "delivery × time"
+    // double-discount, and no >100% bonus from a deliveryRatio that was
+    // clipped at 1.05.
     const totalSeconds =
       (rental.endsAt.getTime() - rental.startedAt.getTime()) / 1000;
     const usedSeconds = Math.max(
@@ -899,20 +935,8 @@ router.post("/rentals/:id/cancel", async (req, res) => {
       Math.min(totalSeconds, (now.getTime() - rental.startedAt.getTime()) / 1000),
     );
     const usedRatio = totalSeconds > 0 ? usedSeconds / totalSeconds : 1;
-
-    const deliveryRatio = computeDeliveryRatio(
-      rental.deliveredHashrateAvg,
-      rental.hashrate,
-    );
-
-    const effectiveRatio = deliveryRatio * usedRatio;
-    const ownerPayout = round6(toNum(rental.ownerEarningsUsd) * effectiveRatio);
-    const renterRefund = round6(toNum(rental.renterTotalUsd) * (1 - effectiveRatio));
-
-    await tx
-      .update(rigsTable)
-      .set({ status: "available" })
-      .where(eq(rigsTable.id, rental.rigId));
+    const ownerPayout = round6(toNum(rental.ownerEarningsUsd) * usedRatio);
+    const renterRefund = round6(toNum(rental.renterTotalUsd) * (1 - usedRatio));
 
     if (renterRefund > 0) {
       const refundStr = toUsdString(renterRefund);
@@ -930,7 +954,7 @@ router.post("/rentals/:id/cancel", async (req, res) => {
           type: "rental_refund",
           amountUsd: refundStr,
           balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
-          memo: `Delivery-based refund for cancelled rental #${rental.id} (${Math.round(effectiveRatio * 100)}% of value delivered)`,
+          memo: `Refund for cancelled rental #${rental.id} (used ${Math.round(usedRatio * 100)}% of booked time)`,
           relatedRentalId: rental.id,
         });
       }
@@ -952,7 +976,7 @@ router.post("/rentals/:id/cancel", async (req, res) => {
           type: "rental_payout",
           amountUsd: payoutStr,
           balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
-          memo: `Delivery-based payout for cancelled rental #${rental.id} (${Math.round(deliveryRatio * 100)}% delivery × ${Math.round(usedRatio * 100)}% time used)`,
+          memo: `Payout for cancelled rental #${rental.id} (${Math.round(usedRatio * 100)}% of booked time used, delivery ${Math.round(deliveryRatio * 100)}%)`,
           relatedRentalId: rental.id,
         });
       }

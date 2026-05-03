@@ -2128,7 +2128,7 @@ components:
 
     RentalStatus:
       type: string
-      enum: [pending, active, completed, cancelled]
+      enum: [pending, active, completed, cancelled, disputed]
 
     RentalSummary:
       type: object

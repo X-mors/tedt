@@ -36,7 +36,9 @@ export const rentalsTable = pgTable("rentals", {
   platformFeeUsd: numeric("platform_fee_usd", { precision: 18, scale: 6 })
     .notNull(),
   status: text("status", {
-    enum: ["pending", "active", "completed", "cancelled"],
+    // "disputed" — cancelled by renter while delivered hashrate was below the
+    // 95% threshold. Funds are frozen on both sides until an admin resolves.
+    enum: ["pending", "active", "completed", "cancelled", "disputed"],
   })
     .notNull()
     .default("active"),

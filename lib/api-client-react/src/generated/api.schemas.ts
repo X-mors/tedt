@@ -387,6 +387,7 @@ export const RentalStatus = {
   active: "active",
   completed: "completed",
   cancelled: "cancelled",
+  disputed: "disputed",
 } as const;
 
 export interface RentalSummary {
