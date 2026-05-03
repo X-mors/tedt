@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Activity, Server, CheckCircle2, Wifi, WifiOff, BarChart2, ShieldAlert } from "lucide-react";
-import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 const toNum = (v: string | number | null | undefined): number => {
   if (v == null) return 0;
@@ -444,6 +444,7 @@ export default function RentalCockpit() {
                               <stop offset="100%" stopColor="#f0b90b" stopOpacity={0.02} />
                             </linearGradient>
                           </defs>
+                          <XAxis dataKey="timestamp" hide />
                           <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax * 1.15, toNum(rental.hashrate) * 1.05)]} />
                           <Tooltip
                             cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '3 3' }}
