@@ -812,21 +812,14 @@ export class DownstreamSession extends EventEmitter {
     if (this.rigId == null) return;
     proxyState.initShareWindow(rental.id, this.rigId);
 
-    // Attempt to reuse a parked upstream from a recent reconnect grace window.
-    const parked = proxyState.claimParkedUpstream(rental.id);
-    if (parked) {
-      logger.info(
-        { rigId: this.rigId, rentalId: rental.id },
-        "stratum:downstream reusing parked upstream (reconnect grace)",
-      );
-      this.upstream = parked;
-      this._wireUpstreamEvents(rental.id);
-      // Upstream is already connected — mark ready and drain any buffered shares.
-      if (this.rigId != null) proxyState.setUpstreamConnected(this.rigId, true);
-      void this._flushSubmitBuffer();
-      return;
-    }
-
+    // Mirror the owner-fallback path: always create a fresh UpstreamClient.
+    // We deliberately do NOT reuse a parked upstream here — reusing the pool
+    // socket across miner reconnects means the miner gets a fresh random
+    // extranonce1 while the parked upstream still holds the previous one.
+    // The pool then receives extranonce2 values that don't match the
+    // extranonce1 it issued and treats every share as invalid, eventually
+    // disconnecting the upstream. Owner fallback works because it always
+    // does a fresh subscribe handshake with matching extranonce per session.
     const upstream = new UpstreamClient(
       rental.poolUrl,
       rental.poolWorker,
@@ -1179,15 +1172,14 @@ export class DownstreamSession extends EventEmitter {
         .where(eq(rigsTable.id, this.rigId));
     }
     if (this.upstream != null) {
-      if (this.rentalId != null && !this.isFallback) {
-        // Park rental upstream for the reconnect grace period — keeps the pool
-        // connection alive for 60 s while the rig reconnects after a brief glitch.
-        proxyState.parkUpstream(this.rentalId, this.upstream);
-      } else {
-        // Fallback upstreams are not parked — the owner's pool is cheap to
-        // reconnect and parking by rentalId=0 would cause collisions.
-        this.upstream.destroy();
-      }
+      // Always destroy the upstream on session close — both rental and
+      // fallback paths now use the same fresh-handshake-per-session model.
+      // Parking the rental upstream for reuse caused extranonce1 mismatch
+      // between the new miner subscribe and the still-subscribed pool
+      // socket, which made the pool reject every share and eventually
+      // disconnect us. Fresh handshake per session guarantees matching
+      // extranonce, mirroring the owner fallback path that works reliably.
+      this.upstream.destroy();
       this.upstream = null;
     }
     logger.info({ rigId: this.rigId }, "stratum:downstream closed");
