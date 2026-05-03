@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { useTheme } from "@/lib/theme";
 
 export default function ProfilePage() {
   const queryClient = useQueryClient();
@@ -15,6 +17,7 @@ export default function ProfilePage() {
 
   const [displayName, setDisplayName] = useState("");
   const [editing, setEditing] = useState(false);
+  const [theme, setTheme] = useTheme();
 
   const updateMe = useUpdateMe({
     mutation: {
@@ -136,6 +139,27 @@ export default function ProfilePage() {
           <div>
             <p className="text-xs text-muted-foreground uppercase font-mono">Total Earned</p>
             <p className="text-2xl font-bold font-mono mt-1">${me.totalEarnedUsd.toFixed(2)}</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-mono">Appearance</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="dark-mode" className="text-sm font-medium">Dark Mode</Label>
+              <p className="text-xs text-muted-foreground">
+                Toggle between light and dark themes. Your choice is saved on this device.
+              </p>
+            </div>
+            <Switch
+              id="dark-mode"
+              checked={theme === "dark"}
+              onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+            />
           </div>
         </CardContent>
       </Card>
