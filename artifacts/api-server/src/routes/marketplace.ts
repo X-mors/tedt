@@ -31,8 +31,8 @@ router.get("/algorithms", async (_req, res) => {
       slug: algorithmsTable.slug,
       unit: algorithmsTable.unit,
       basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
-      rigCount: sql<string>`COALESCE(COUNT(${rigsTable.id}) FILTER (WHERE ${rigsTable.status} = 'available'), 0)`,
-      totalHashrate: sql<string>`COALESCE(SUM(${rigsTable.hashrate}) FILTER (WHERE ${rigsTable.status} = 'available'), 0)`,
+      rigCount: sql<string>`COALESCE(COUNT(${rigsTable.id}) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.isOnline} = true), 0)`,
+      totalHashrate: sql<string>`COALESCE(SUM(${rigsTable.hashrate}) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.isOnline} = true), 0)`,
     })
     .from(algorithmsTable)
     .leftJoin(
@@ -95,6 +95,7 @@ router.get("/marketplace/featured", async (req, res) => {
       and(
         eq(rigsTable.status, "available"),
         eq(rigsTable.approvalStatus, "approved"),
+        eq(rigsTable.isOnline, true),
       ),
     )
     .groupBy(rigsTable.id, usersTable.id, algorithmsTable.id)
@@ -144,8 +145,8 @@ router.get("/marketplace/algorithm-stats", async (_req, res) => {
       algorithmName: algorithmsTable.name,
       unit: algorithmsTable.unit,
       basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
-      availableRigCount: sql<string>`COUNT(${rigsTable.id}) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved')`,
-      totalAvailableHashrate: sql<string>`COALESCE(SUM(${rigsTable.hashrate}) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved'), 0)`,
+      availableRigCount: sql<string>`COUNT(${rigsTable.id}) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved' AND ${rigsTable.isOnline} = true)`,
+      totalAvailableHashrate: sql<string>`COALESCE(SUM(${rigsTable.hashrate}) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved' AND ${rigsTable.isOnline} = true), 0)`,
       rentalCount30d: sql<string>`COUNT(${rentalsTable.id}) FILTER (WHERE ${rentalsTable.createdAt} >= ${thirtyDaysAgo.toISOString()})`,
       volumeUsd30d: sql<string>`COALESCE(SUM(${rentalsTable.renterTotalUsd}) FILTER (WHERE ${rentalsTable.createdAt} >= ${thirtyDaysAgo.toISOString()}), 0)`,
     })
@@ -156,7 +157,7 @@ router.get("/marketplace/algorithm-stats", async (_req, res) => {
       and(eq(rentalsTable.rigId, rigsTable.id), gte(rentalsTable.createdAt, thirtyDaysAgo)),
     )
     .groupBy(algorithmsTable.id)
-    .orderBy(desc(sql`COUNT(${rigsTable.id}) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved')`));
+    .orderBy(desc(sql`COUNT(${rigsTable.id}) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved' AND ${rigsTable.isOnline} = true)`));
 
   const data = GetMarketplaceAlgorithmStatsResponse.parse(
     rows.map((r) => ({
@@ -180,7 +181,7 @@ router.get("/marketplace/summary", async (_req, res) => {
 
   const [counts] = await db
     .select({
-      availableRigs: sql<string>`COUNT(*) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved')`,
+      availableRigs: sql<string>`COUNT(*) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.approvalStatus} = 'approved' AND ${rigsTable.isOnline} = true)`,
     })
     .from(rigsTable);
 
@@ -209,8 +210,8 @@ router.get("/marketplace/summary", async (_req, res) => {
       algorithmName: algorithmsTable.name,
       unit: algorithmsTable.unit,
       basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
-      rigCount: sql<string>`COUNT(${rigsTable.id}) FILTER (WHERE ${rigsTable.status} = 'available')`,
-      totalHashrate: sql<string>`COALESCE(SUM(${rigsTable.hashrate}) FILTER (WHERE ${rigsTable.status} = 'available'), 0)`,
+      rigCount: sql<string>`COUNT(${rigsTable.id}) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.isOnline} = true)`,
+      totalHashrate: sql<string>`COALESCE(SUM(${rigsTable.hashrate}) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.isOnline} = true), 0)`,
     })
     .from(algorithmsTable)
     .leftJoin(
@@ -221,7 +222,7 @@ router.get("/marketplace/summary", async (_req, res) => {
       ),
     )
     .groupBy(algorithmsTable.id)
-    .orderBy(desc(sql`COUNT(${rigsTable.id}) FILTER (WHERE ${rigsTable.status} = 'available')`));
+    .orderBy(desc(sql`COUNT(${rigsTable.id}) FILTER (WHERE ${rigsTable.status} = 'available' AND ${rigsTable.isOnline} = true)`));
 
   const algorithmsOnline = breakdown.filter(
     (b) => Number(b.rigCount) > 0,
@@ -255,6 +256,7 @@ router.get("/marketplace/summary", async (_req, res) => {
       and(
         eq(rigsTable.status, "available"),
         eq(rigsTable.approvalStatus, "approved"),
+        eq(rigsTable.isOnline, true),
       ),
     )
     .groupBy(rigsTable.id, usersTable.id, algorithmsTable.id)
