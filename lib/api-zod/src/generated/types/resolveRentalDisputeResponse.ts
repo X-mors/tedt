@@ -10,5 +10,8 @@ import type { ResolveRentalDisputeResponseAward } from "./resolveRentalDisputeRe
 export interface ResolveRentalDisputeResponse {
   rentalId: number;
   award: ResolveRentalDisputeResponseAward;
+  /** Total amount moved (renter refund + owner credit gross). */
   amountUsd: number;
+  renterRefundUsd: number;
+  ownerCreditUsd: number;
 }

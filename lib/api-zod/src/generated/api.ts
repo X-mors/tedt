@@ -1895,11 +1895,20 @@ export const ResolveRentalDisputeParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const resolveRentalDisputeBodyRenterAmountUsdMin = 0;
+
 export const ResolveRentalDisputeBody = zod.object({
   award: zod
-    .enum(["owner", "renter"])
+    .enum(["owner", "renter", "split"])
     .describe(
-      '\"owner\" credits the frozen used-time amount to the rig owner (with\nplatform fee deducted) — typical when the failure was on the\nrenter\'s pool. \"renter\" refunds the frozen amount back to the\nrenter — typical when the rig itself under-delivered.\n',
+      '\"owner\" credits the entire frozen used-time amount to the rig owner\n(with platform fee deducted) — typical when the failure was on the\nrenter\'s pool. \"renter\" refunds the entire frozen amount back to the\nrenter — typical when the rig itself under-delivered. \"split\"\ndivides the frozen amount: `renterAmountUsd` is refunded to the\nrenter and the remainder is paid to the owner (after platform fee).\n',
+    ),
+  renterAmountUsd: zod
+    .number()
+    .min(resolveRentalDisputeBodyRenterAmountUsdMin)
+    .optional()
+    .describe(
+      'Required when award=\"split\". Portion of the frozen amount to\nrefund to the renter; must be between 0 and the frozen amount.\nThe owner receives the remainder (with platform fee deducted).\n',
     ),
   note: zod
     .string()
@@ -1909,8 +1918,12 @@ export const ResolveRentalDisputeBody = zod.object({
 
 export const ResolveRentalDisputeResponse = zod.object({
   rentalId: zod.number(),
-  award: zod.enum(["owner", "renter"]),
-  amountUsd: zod.number(),
+  award: zod.enum(["owner", "renter", "split"]),
+  amountUsd: zod
+    .number()
+    .describe("Total amount moved (renter refund + owner credit gross)."),
+  renterRefundUsd: zod.number(),
+  ownerCreditUsd: zod.number(),
 });
 
 /**

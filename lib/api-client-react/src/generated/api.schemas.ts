@@ -367,10 +367,12 @@ export interface OwnerRigLive {
 }
 
 /**
- * "owner" credits the frozen used-time amount to the rig owner (with
-platform fee deducted) — typical when the failure was on the
-renter's pool. "renter" refunds the frozen amount back to the
-renter — typical when the rig itself under-delivered.
+ * "owner" credits the entire frozen used-time amount to the rig owner
+(with platform fee deducted) — typical when the failure was on the
+renter's pool. "renter" refunds the entire frozen amount back to the
+renter — typical when the rig itself under-delivered. "split"
+divides the frozen amount: `renterAmountUsd` is refunded to the
+renter and the remainder is paid to the owner (after platform fee).
 
  */
 export type ResolveRentalDisputeBodyAward =
@@ -379,15 +381,26 @@ export type ResolveRentalDisputeBodyAward =
 export const ResolveRentalDisputeBodyAward = {
   owner: "owner",
   renter: "renter",
+  split: "split",
 } as const;
 
 export interface ResolveRentalDisputeBody {
-  /** "owner" credits the frozen used-time amount to the rig owner (with
-platform fee deducted) — typical when the failure was on the
-renter's pool. "renter" refunds the frozen amount back to the
-renter — typical when the rig itself under-delivered.
+  /** "owner" credits the entire frozen used-time amount to the rig owner
+(with platform fee deducted) — typical when the failure was on the
+renter's pool. "renter" refunds the entire frozen amount back to the
+renter — typical when the rig itself under-delivered. "split"
+divides the frozen amount: `renterAmountUsd` is refunded to the
+renter and the remainder is paid to the owner (after platform fee).
  */
   award: ResolveRentalDisputeBodyAward;
+  /**
+   * Required when award="split". Portion of the frozen amount to
+refund to the renter; must be between 0 and the frozen amount.
+The owner receives the remainder (with platform fee deducted).
+
+   * @minimum 0
+   */
+  renterAmountUsd?: number;
   /** Free-text admin note recorded on the wallet ledger entry. */
   note?: string;
 }
@@ -398,12 +411,16 @@ export type ResolveRentalDisputeResponseAward =
 export const ResolveRentalDisputeResponseAward = {
   owner: "owner",
   renter: "renter",
+  split: "split",
 } as const;
 
 export interface ResolveRentalDisputeResponse {
   rentalId: number;
   award: ResolveRentalDisputeResponseAward;
+  /** Total amount moved (renter refund + owner credit gross). */
   amountUsd: number;
+  renterRefundUsd: number;
+  ownerCreditUsd: number;
 }
 
 export type OwnerRigStatsSamplesItem = {

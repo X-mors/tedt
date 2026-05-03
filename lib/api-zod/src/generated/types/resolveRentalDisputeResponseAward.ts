@@ -12,4 +12,5 @@ export type ResolveRentalDisputeResponseAward =
 export const ResolveRentalDisputeResponseAward = {
   owner: "owner",
   renter: "renter",
+  split: "split",
 } as const;

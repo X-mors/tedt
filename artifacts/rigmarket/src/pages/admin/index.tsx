@@ -135,6 +135,7 @@ export default function AdminDashboard() {
 
   const [disputeRental, setDisputeRental] = useState<AdminRentalRow | null>(null);
   const [disputeNote, setDisputeNote] = useState("");
+  const [disputeSplitRenter, setDisputeSplitRenter] = useState("");
   const resolveDispute = useResolveRentalDispute();
 
   const [markSentId, setMarkSentId] = useState<number | null>(null);
@@ -1320,7 +1321,7 @@ export default function AdminDashboard() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={disputeRental !== null} onOpenChange={(open) => { if (!open) { setDisputeRental(null); setDisputeNote(""); } }}>
+      <Dialog open={disputeRental !== null} onOpenChange={(open) => { if (!open) { setDisputeRental(null); setDisputeNote(""); setDisputeSplitRenter(""); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Resolve Disputed Cancellation</DialogTitle>
@@ -1347,7 +1348,7 @@ export default function AdminDashboard() {
                 <div className="rounded-md border border-border/50 p-3 space-y-2">
                   <div className="font-mono text-xs font-bold">RIG FAULT — refund the renter</div>
                   <p className="text-xs text-muted-foreground">
-                    The rig under-delivered the advertised hashrate. Refund the frozen used-time amount back to the renter; the owner gets nothing.
+                    The rig under-delivered. Refund the entire frozen amount to the renter; the owner gets nothing.
                   </p>
                   <Button
                     variant="outline"
@@ -1365,18 +1366,19 @@ export default function AdminDashboard() {
                         queryClient.invalidateQueries({ queryKey: getListAdminWalletTransactionsQueryKey() });
                         setDisputeRental(null);
                         setDisputeNote("");
+                        setDisputeSplitRenter("");
                       } catch (e) {
                         toast({ title: "Error", description: (e as Error).message, variant: "destructive" });
                       }
                     }}
                   >
-                    REFUND_RENTER
+                    REFUND_RENTER (${disputeRental.netRenterPaidUsd.toFixed(4)})
                   </Button>
                 </div>
                 <div className="rounded-md border border-border/50 p-3 space-y-2">
                   <div className="font-mono text-xs font-bold">POOL FAULT — pay the owner</div>
                   <p className="text-xs text-muted-foreground">
-                    The shortfall was on the renter's mining pool, not the rig. Release the frozen amount to the owner with no discount applied.
+                    The shortfall was on the renter's pool. Release the entire frozen amount to the owner (platform fee deducted).
                   </p>
                   <Button
                     className="font-mono text-xs w-full"
@@ -1393,13 +1395,79 @@ export default function AdminDashboard() {
                         queryClient.invalidateQueries({ queryKey: getListAdminWalletTransactionsQueryKey() });
                         setDisputeRental(null);
                         setDisputeNote("");
+                        setDisputeSplitRenter("");
                       } catch (e) {
                         toast({ title: "Error", description: (e as Error).message, variant: "destructive" });
                       }
                     }}
                   >
-                    PAY_OWNER
+                    PAY_OWNER (${disputeRental.netRenterPaidUsd.toFixed(4)})
                   </Button>
+                </div>
+                <div className="rounded-md border border-border/50 p-3 space-y-2">
+                  <div className="font-mono text-xs font-bold">SHARED FAULT — split the frozen amount</div>
+                  <p className="text-xs text-muted-foreground">
+                    Refund part to the renter and pay the rest to the owner.
+                    Enter the amount (USD) to refund the renter; the owner
+                    gets the remainder (after platform fee). Frozen total: ${disputeRental.netRenterPaidUsd.toFixed(4)}
+                  </p>
+                  {(() => {
+                    const frozen = disputeRental.netRenterPaidUsd;
+                    const v = parseFloat(disputeSplitRenter);
+                    const valid = Number.isFinite(v) && v >= 0 && v <= frozen + 1e-6;
+                    const ownerGross = valid ? Math.max(0, frozen - v) : 0;
+                    return (
+                      <>
+                        <Input
+                          type="number"
+                          step="0.0001"
+                          min="0"
+                          max={frozen}
+                          placeholder={`0.0000 — ${frozen.toFixed(4)}`}
+                          value={disputeSplitRenter}
+                          onChange={(e) => setDisputeSplitRenter(e.target.value)}
+                          className="font-mono text-xs"
+                        />
+                        {disputeSplitRenter ? (
+                          <div className="text-xs font-mono text-muted-foreground">
+                            {valid ? (
+                              <>renter: ${v.toFixed(4)} · owner gross: ${ownerGross.toFixed(4)}</>
+                            ) : (
+                              <span className="text-destructive">Must be 0 — {frozen.toFixed(4)}</span>
+                            )}
+                          </div>
+                        ) : null}
+                        <Button
+                          variant="secondary"
+                          className="font-mono text-xs w-full"
+                          disabled={resolveDispute.isPending || !valid}
+                          onClick={async () => {
+                            if (!disputeRental || !valid) return;
+                            try {
+                              await resolveDispute.mutateAsync({
+                                id: disputeRental.id,
+                                data: {
+                                  award: "split",
+                                  renterAmountUsd: v,
+                                  note: disputeNote || undefined,
+                                },
+                              });
+                              toast({ title: "Split applied", description: `Rental #${disputeRental.id} resolved` });
+                              queryClient.invalidateQueries({ queryKey: getListAdminRentalsQueryKey() });
+                              queryClient.invalidateQueries({ queryKey: getListAdminWalletTransactionsQueryKey() });
+                              setDisputeRental(null);
+                              setDisputeNote("");
+                              setDisputeSplitRenter("");
+                            } catch (e) {
+                              toast({ title: "Error", description: (e as Error).message, variant: "destructive" });
+                            }
+                          }}
+                        >
+                          APPLY_SPLIT
+                        </Button>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

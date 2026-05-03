@@ -2129,12 +2129,21 @@ components:
       properties:
         award:
           type: string
-          enum: [owner, renter]
+          enum: [owner, renter, split]
           description: |
-            "owner" credits the frozen used-time amount to the rig owner (with
-            platform fee deducted) — typical when the failure was on the
-            renter's pool. "renter" refunds the frozen amount back to the
-            renter — typical when the rig itself under-delivered.
+            "owner" credits the entire frozen used-time amount to the rig owner
+            (with platform fee deducted) — typical when the failure was on the
+            renter's pool. "renter" refunds the entire frozen amount back to the
+            renter — typical when the rig itself under-delivered. "split"
+            divides the frozen amount: `renterAmountUsd` is refunded to the
+            renter and the remainder is paid to the owner (after platform fee).
+        renterAmountUsd:
+          type: number
+          minimum: 0
+          description: |
+            Required when award="split". Portion of the frozen amount to
+            refund to the renter; must be between 0 and the frozen amount.
+            The owner receives the remainder (with platform fee deducted).
         note:
           type: string
           description: Free-text admin note recorded on the wallet ledger entry.
@@ -2147,10 +2156,15 @@ components:
           type: integer
         award:
           type: string
-          enum: [owner, renter]
+          enum: [owner, renter, split]
         amountUsd:
           type: number
-      required: [rentalId, award, amountUsd]
+          description: Total amount moved (renter refund + owner credit gross).
+        renterRefundUsd:
+          type: number
+        ownerCreditUsd:
+          type: number
+      required: [rentalId, award, amountUsd, renterRefundUsd, ownerCreditUsd]
 
     OwnerRigStats:
       type: object

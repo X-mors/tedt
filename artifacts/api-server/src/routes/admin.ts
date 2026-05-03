@@ -1273,7 +1273,7 @@ router.post("/admin/rentals/:id/resolve-dispute", async (req, res) => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { award, note } = parsed.data;
+  const { award, note, renterAmountUsd } = parsed.data;
 
   const result = await db.transaction(async (tx) => {
     const [rental] = await tx
@@ -1297,6 +1297,28 @@ router.post("/admin/rentals/:id/resolve-dispute", async (req, res) => {
     const usedRatio = totalSec > 0 ? usedSec / totalSec : 1;
     const frozen = round6(toNum(rental.renterTotalUsd) * usedRatio);
 
+    // Decide how to split the frozen amount between renter (refund) and
+    // owner (gross before fee). For "renter"/"owner" it's all-or-nothing;
+    // for "split" the admin supplies how much goes back to the renter.
+    let renterRefund = 0;
+    let ownerGross = 0;
+    if (award === "renter") {
+      renterRefund = frozen;
+    } else if (award === "owner") {
+      ownerGross = frozen;
+    } else {
+      // award === "split"
+      if (renterAmountUsd == null) {
+        return { error: "missing_split_amount" as const };
+      }
+      const r = round6(renterAmountUsd);
+      if (r < 0 || r > frozen + 1e-6) {
+        return { error: "split_out_of_range" as const, frozen };
+      }
+      renterRefund = Math.min(frozen, Math.max(0, r));
+      ownerGross = round6(frozen - renterRefund);
+    }
+
     // Atomic claim — flip status away from disputed.
     const [claimed] = await tx
       .update(rentalsTable)
@@ -1307,41 +1329,36 @@ router.post("/admin/rentals/:id/resolve-dispute", async (req, res) => {
       .returning({ id: rentalsTable.id });
     if (!claimed) return { error: "race" as const };
 
-    if (award === "renter") {
-      // Refund the frozen used-time portion to the renter.
-      if (frozen > 0) {
-        const refundStr = toUsdString(frozen);
-        const [credited] = await tx
-          .update(usersTable)
-          .set({
-            balanceUsd: sql`${usersTable.balanceUsd} + ${refundStr}`,
-            totalSpentUsd: sql`GREATEST(0, ${usersTable.totalSpentUsd} - ${refundStr})`,
-          })
-          .where(eq(usersTable.id, rental.renterId))
-          .returning({ balanceUsd: usersTable.balanceUsd });
-        if (credited) {
-          await tx.insert(walletTransactionsTable).values({
-            userId: rental.renterId,
-            type: "rental_refund",
-            amountUsd: refundStr,
-            balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
-            memo: `Admin resolved dispute for rental #${rental.id} in renter's favour${note ? ` — ${note}` : ""}`,
-            relatedRentalId: rental.id,
-          });
-        }
+    // Refund renter portion.
+    if (renterRefund > 0) {
+      const refundStr = toUsdString(renterRefund);
+      const [credited] = await tx
+        .update(usersTable)
+        .set({
+          balanceUsd: sql`${usersTable.balanceUsd} + ${refundStr}`,
+          totalSpentUsd: sql`GREATEST(0, ${usersTable.totalSpentUsd} - ${refundStr})`,
+        })
+        .where(eq(usersTable.id, rental.renterId))
+        .returning({ balanceUsd: usersTable.balanceUsd });
+      if (credited) {
+        await tx.insert(walletTransactionsTable).values({
+          userId: rental.renterId,
+          type: "rental_refund",
+          amountUsd: refundStr,
+          balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
+          memo: `Admin resolved dispute for rental #${rental.id} (refund to renter)${note ? ` — ${note}` : ""}`,
+          relatedRentalId: rental.id,
+        });
       }
-      return { ok: true as const, amount: frozen };
     }
 
-    // award === "owner": the failure was on the renter's side (e.g. their
-    // pool). Credit the owner's earnings share of the frozen used-time
-    // amount, with the platform fee applied at the rental's original split.
+    // Credit owner portion at the rental's original owner-share (i.e.
+    // platform fee is deducted from the owner's slice of the frozen amount).
     const ownerShare =
       toNum(rental.renterTotalUsd) > 0
         ? toNum(rental.ownerEarningsUsd) / toNum(rental.renterTotalUsd)
         : 0;
-    const ownerCredit = round6(frozen * ownerShare);
-
+    const ownerCredit = round6(ownerGross * ownerShare);
     if (ownerCredit > 0) {
       const creditStr = toUsdString(ownerCredit);
       const [credited] = await tx
@@ -1358,12 +1375,18 @@ router.post("/admin/rentals/:id/resolve-dispute", async (req, res) => {
           type: "rental_payout",
           amountUsd: creditStr,
           balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
-          memo: `Admin resolved dispute for rental #${rental.id} in owner's favour${note ? ` — ${note}` : ""}`,
+          memo: `Admin resolved dispute for rental #${rental.id} (payout to owner)${note ? ` — ${note}` : ""}`,
           relatedRentalId: rental.id,
         });
       }
     }
-    return { ok: true as const, amount: ownerCredit };
+
+    return {
+      ok: true as const,
+      renterRefund,
+      ownerCredit,
+      total: round6(renterRefund + ownerCredit),
+    };
   });
 
   if ("error" in result) {
@@ -1371,6 +1394,12 @@ router.post("/admin/rentals/:id/resolve-dispute", async (req, res) => {
       res.status(404).json({ error: "Rental not found" });
     } else if (result.error === "not_disputed") {
       res.status(400).json({ error: "Rental is not in disputed state" });
+    } else if (result.error === "missing_split_amount") {
+      res.status(400).json({ error: "renterAmountUsd is required for split award" });
+    } else if (result.error === "split_out_of_range") {
+      res.status(400).json({
+        error: `renterAmountUsd must be between 0 and ${result.frozen.toFixed(6)}`,
+      });
     } else {
       res.status(409).json({ error: "Dispute already resolved" });
     }
@@ -1381,7 +1410,9 @@ router.post("/admin/rentals/:id/resolve-dispute", async (req, res) => {
     ResolveRentalDisputeResponse.parse({
       rentalId,
       award,
-      amountUsd: result.amount,
+      amountUsd: result.total,
+      renterRefundUsd: result.renterRefund,
+      ownerCreditUsd: result.ownerCredit,
     }),
   );
 });
