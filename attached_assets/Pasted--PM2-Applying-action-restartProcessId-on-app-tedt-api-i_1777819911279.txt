@@ -1,0 +1,87 @@
+[PM2] Applying action restartProcessId on app [tedt-api](ids: [ 0 ])
+[PM2] [tedt-api](0) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ tedt-api           │ fork     │ 94   │ online    │ 0%       │ 20.8mb   │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+[TAILING] Tailing last 20 lines for [tedt-api] process (change the value with --lines option)
+/root/.pm2/logs/tedt-api-error.log last 20 lines:
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/co
+rs/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_module
+s/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules
+/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_
+modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/r
+outer/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/
+router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_module
+s/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/
+index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/nod
+e_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/co
+rs/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_module
+s/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules
+/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_
+modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/r
+outer/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/
+router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_module
+s/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/
+index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/nod
+e_modules/pino-http/logger.js:206:7)
+/root/.pm2/logs/tedt-api-out.log last 20 lines:
+0|tedt-api | vmi3202752","err":{"type":"_DrizzleQueryError","message":"Failed query: update \"algorithms
+\" set \"name\" = $1, \"slug\" = $2, \"updated_at\" = $3 where \"algorithms\".\"id\" = $4\nparams: SHA-2
+56 (AsicBoost),sha256asicboost,2026-05-03T14:46:24.359Z,6: duplicate key value violates unique constrain
+t \"algorithms_slug_unique\"","stack":"Error: Failed query: update \"algorithms\" set \"name\" = $1, \"s
+lug\" = $2, \"updated_at\" = $3 where \"algorithms\".\"id\" = $4\nparams: SHA-256 (AsicBoost),sha256asic
+boost,2026-05-03T14:46:24.359Z,6\n    at NodePgPreparedQuery.queryWithCache (/var/www/livehashrate.com/n
+ode_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:1
+1)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async see
+dDatabase (/var/www/livehashrate.com/artifacts/api-server/src/lib/seed.ts:60:7)\ncaused by: error: dupli
+cate key value violates unique constraint \"algorithms_slug_unique\"\n    at <anonymous> (/var/www/liveh
+ashrate.com/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)\n    at pro
+cess.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async <anonymous> (/var
+/www/livehashrate.com/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.18.0_pg@8.20.0/node_modules/src/
+node-postgres/session.ts:149:14)\n    at async NodePgPreparedQuery.queryWithCache (/var/www/livehashrate
+.com/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.t
+s:71:12)\n    at async seedDatabase (/var/www/livehashrate.com/artifacts/api-server/src/lib/seed.ts:60:7
+)","query":"update \"algorithms\" set \"name\" = $1, \"slug\" = $2, \"updated_at\" = $3 where \"algorith
+ms\".\"id\" = $4","params":["SHA-256 (AsicBoost)","sha256asicboost","2026-05-03T14:46:24.359Z",6]},"msg"
+:"Failed to seed database on startup"}
+0|tedt-api | {"level":30,"time":1777819585063,"pid":210939,"hostname":"vmi3202752","id":6,"msg":"Renamin
+g legacy 'sha256' algorithm row to 'sha256asicboost'"}
+0|tedt-api | {"level":50,"time":1777819585071,"pid":210939,"hostname":"vmi3202752","err":{"type":"_Drizz
+leQueryError","message":"Failed query: update \"algorithms\" set \"name\" = $1, \"slug\" = $2, \"updated
+_at\" = $3 where \"algorithms\".\"id\" = $4\nparams: SHA-256 (AsicBoost),sha256asicboost,2026-05-03T14:4
+6:25.066Z,6: duplicate key value violates unique constraint \"algorithms_slug_unique\"","stack":"Error:
+Failed query: update \"algorithms\" set \"name\" = $1, \"slug\" = $2, \"updated_at\" = $3 where \"algori
+thms\".\"id\" = $4\nparams: SHA-256 (AsicBoost),sha256asicboost,2026-05-03T14:46:25.066Z,6\n    at NodeP
+gPreparedQuery.queryWithCache (/var/www/livehashrate.com/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg
+@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)\n    at process.processTicksAndRejections (
+node:internal/process/task_queues:104:5)\n    at async seedDatabase (/var/www/livehashrate.com/artifacts
+/api-server/src/lib/seed.ts:60:7)\ncaused by: error: duplicate key value violates unique constraint \"al
+gorithms_slug_unique\"\n    at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/pg-pool@3.13.0_
+pg@8.20.0/node_modules/pg-pool/index.js:45:11)\n    at process.processTicksAndRejections (node:internal/
+process/task_queues:104:5)\n    at async <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/drizz
+le-orm@0.45.2_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)\n    at async
+ NodePgPreparedQuery.queryWithCache (/var/www/livehashrate.com/node_modules/.pnpm/drizzle-orm@0.45.2_@ty
+pes+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)\n    at async seedDatabase (/var/www/
+livehashrate.com/artifacts/api-server/src/lib/seed.ts:60:7)","query":"update \"algorithms\" set \"name\"
+ = $1, \"slug\" = $2, \"updated_at\" = $3 where \"algorithms\".\"id\" = $4","params":["SHA-256 (AsicBoos
