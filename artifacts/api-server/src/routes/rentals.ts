@@ -732,9 +732,16 @@ router.get("/rentals/:id/live", async (req, res) => {
   if (displayHashrateH === 0 && cumulativeAvgH > 0) {
     displayHashrateH = cumulativeAvgH;
   }
+  // Delivery ratio = average delivered hashrate over the elapsed rental
+  // period ÷ advertised hashrate. The cumulative average includes
+  // zero-share windows for periods when the rig was disconnected, so a rig
+  // that delivered full hashrate for half the rental and was offline for
+  // the other half scores ~0.5. This is the right number for a renter
+  // deciding whether to keep the rental running or cancel it — it reflects
+  // ACTUAL delivery so far, not the instantaneous reading.
   const deliveryRatio =
-    advertisedH > 0 && displayHashrateH > 0
-      ? Math.min(1.05, displayHashrateH / advertisedH)
+    advertisedH > 0 && cumulativeAvgH > 0
+      ? Math.min(1.05, cumulativeAvgH / advertisedH)
       : 0;
 
   res.json({
