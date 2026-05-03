@@ -5,7 +5,7 @@ import { StratumServer } from "./lib/stratum/server";
 import { backfillApprovedRigStatus, backfillRigTokens, backfillStratumNames } from "./lib/backfill";
 import { startDepositWorker } from "./lib/depositWorker";
 import { db, rigsTable } from "@workspace/db";
-import { eq, notInArray, inArray, and } from "drizzle-orm";
+import { eq, notInArray, inArray, and, or } from "drizzle-orm";
 import { proxyState } from "./lib/stratum/state";
 
 const rawPort = process.env["PORT"];
@@ -53,34 +53,56 @@ seedDatabase()
     stratumLegacyServer.start();
     startDepositWorker();
 
-    // Sync isOnline in DB with actual proxy connections every 5 minutes.
+    // Sync isOnline in DB with actual proxy connections every minute.
     // This corrects any drift (e.g. unclean shutdown, missed _onClose).
-    // NOTE: miners may connect under a "shadow rig" ID (auto-created when the
-    // miner's stratumName doesn't match the listed rig).  We therefore mark
-    // the approved listed rig for each connected owner as online as well —
-    // otherwise the marketplace shows the rig OFFLINE even though it's mining.
-    const SYNC_INTERVAL_MS = 5 * 60_000;
-    setInterval(async () => {
+    //
+    // A listed rig is marked ONLINE only if either:
+    //   (a) its own row id appears in `connectedIds` (e.g. it IS the shadow
+    //       rig the miner authenticated as), OR
+    //   (b) a connected miner authenticated under (ownerId, stratumName) that
+    //       exactly matches this listed rig's (ownerId, stratum_name).
+    //
+    // This replaces the previous fan-out that marked EVERY approved rig of
+    // any connected owner as online, which made offline rigs falsely appear
+    // online on the marketplace whenever the owner had any other rig mining.
+    const SYNC_INTERVAL_MS = 60_000;
+    const runOnlineSync = async () => {
       try {
         const connectedIds = proxyState.getConnectedRigIds();
-        const connectedOwnerIds = proxyState.getConnectedOwnerIds();
-        // Step 1: set everything offline.
+        const identities = proxyState.getConnectedRigIdentities();
         await db.update(rigsTable).set({ isOnline: false });
 
-        // Step 2: set shadow rigs and approved listed rigs for connected owners online.
-        if (connectedIds.length > 0) {
-          await db.update(rigsTable).set({ isOnline: true }).where(inArray(rigsTable.id, connectedIds));
-        }
-        if (connectedOwnerIds.length > 0) {
-          await db.update(rigsTable).set({ isOnline: true }).where(
-            and(inArray(rigsTable.ownerId, connectedOwnerIds), eq(rigsTable.approvalStatus, "approved"))
+        const idMatch =
+          connectedIds.length > 0
+            ? inArray(rigsTable.id, connectedIds)
+            : null;
+        const nameMatches = identities
+          .filter((i) => i.rigName)
+          .map((i) =>
+            and(
+              eq(rigsTable.ownerId, i.ownerId),
+              eq(rigsTable.stratumName, i.rigName),
+              eq(rigsTable.approvalStatus, "approved"),
+            ),
           );
+        const conditions = [idMatch, ...nameMatches].filter(
+          (c): c is NonNullable<typeof c> => c != null,
+        );
+        if (conditions.length > 0) {
+          await db
+            .update(rigsTable)
+            .set({ isOnline: true })
+            .where(or(...conditions));
         }
-        logger.debug({ connectedIds, connectedOwnerIds }, "online-sync: DB synced with proxy state");
+        logger.debug(
+          { connectedIds, identities },
+          "online-sync: DB synced with proxy state",
+        );
       } catch (err) {
         logger.warn({ err }, "online-sync: failed");
       }
-    }, SYNC_INTERVAL_MS).unref();
+    };
+    setInterval(runOnlineSync, SYNC_INTERVAL_MS).unref();
 
     app.listen(port, (err) => {
       if (err) {

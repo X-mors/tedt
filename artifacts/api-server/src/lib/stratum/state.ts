@@ -793,6 +793,20 @@ class ProxyState {
   }
 
   /**
+   * Return one (ownerId, rigName) pair per currently-connected miner session.
+   * The online-sync loop uses this to mark exactly the listed rigs whose
+   * `stratum_name` matches what an actually-connected miner authenticated as,
+   * instead of fanning out to every approved rig owned by the same user.
+   */
+  getConnectedRigIdentities(): Array<{ ownerId: number; rigName: string }> {
+    const out: Array<{ ownerId: number; rigName: string }> = [];
+    for (const conn of this.rigConnections.values()) {
+      out.push({ ownerId: conn.entry.ownerId, rigName: conn.entry.rigName });
+    }
+    return out;
+  }
+
+  /**
    * Fallback for getFallbackPoolStatus when the miner connected as a shadow rig
    * (different ID than the listed rig).  Returns the status for the first
    * connected session owned by `ownerId` that is NOT in an active rental.
