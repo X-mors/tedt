@@ -67,28 +67,27 @@ export class UpstreamClient extends EventEmitter {
     // layer — many VPS providers (e.g. Contabo) have working IPv6 routes to
     // pools like NiceHash but their IPv4 ranges are firewalled by the pool, so
     // an IPv4-only lookup succeeds yet the TCP connect times out.
+    // Resolve A and AAAA records explicitly via resolve4/resolve6 — using
+    // getaddrinfo (dns.lookup) on Linux often skips AAAA based on /etc/gai.conf
+    // or kernel IPv6-availability heuristics, which on some VPS providers
+    // (Contabo) silently strips the IPv6 record we actually need.
     let candidates: string[] = [];
-    try {
-      const all = await dns.lookup(host, { all: true, family: 0 });
-      const validated = all
-        .map((r) => r.address)
-        .filter((addr) => {
-          if (isPrivateIp(addr)) {
-            logger.warn(
-              { rentalId: this.rentalId, host, address: addr },
-              "stratum:upstream skipping private/reserved IP (DNS rebinding guard)",
-            );
-            return false;
-          }
-          return true;
-        });
-      // Prefer IPv4 first, then IPv6 — IPv4 is usually faster when reachable,
-      // but we always try the other family if the first fails to connect.
-      const v4 = validated.filter((a) => a.includes("."));
-      const v6 = validated.filter((a) => !a.includes("."));
-      candidates = [...v4, ...v6];
-    } catch {
-      // ignore — empty candidates handled below
+    const [v4Res, v6Res] = await Promise.allSettled([
+      dns.resolve4(host),
+      dns.resolve6(host),
+    ]);
+    const v4 = v4Res.status === "fulfilled" ? v4Res.value : [];
+    const v6 = v6Res.status === "fulfilled" ? v6Res.value : [];
+    const all = [...v4, ...v6];
+    for (const addr of all) {
+      if (isPrivateIp(addr)) {
+        logger.warn(
+          { rentalId: this.rentalId, host, address: addr },
+          "stratum:upstream skipping private/reserved IP (DNS rebinding guard)",
+        );
+        continue;
+      }
+      candidates.push(addr);
     }
     if (candidates.length === 0) {
       logger.error(
@@ -100,43 +99,62 @@ export class UpstreamClient extends EventEmitter {
       return;
     }
 
-    // Try each candidate IP in order with a short per-attempt connect budget
-    // so we fall through to the next family quickly when one is firewalled.
-    const PER_ATTEMPT_MS = 5_000;
-    let sock: net.Socket | null = null;
-    let lastErr: Error | null = null;
-    let resolvedHost = candidates[0]!;
-    for (const addr of candidates) {
-      if (this.destroyed) return;
-      logger.info(
-        { rentalId: this.rentalId, host, resolvedHost: addr, port },
-        "stratum:upstream connecting",
-      );
-      const attempt = net.createConnection({ host: addr, port });
-      const ok = await new Promise<boolean>((resolve) => {
-        const t = setTimeout(() => {
-          attempt.destroy();
-          resolve(false);
-        }, PER_ATTEMPT_MS);
-        attempt.once("connect", () => {
-          clearTimeout(t);
-          resolve(true);
+    // Happy Eyeballs–style: race all candidate addresses in parallel with a
+    // shared 8-second budget. The first socket to fire "connect" wins; the
+    // others are destroyed. This keeps total connect latency well under the
+    // 10-second pool-test timeout even when one family is firewalled.
+    const PER_ATTEMPT_MS = 8_000;
+    logger.info(
+      { rentalId: this.rentalId, host, candidates, port },
+      "stratum:upstream connecting (racing all addresses)",
+    );
+    type RaceResult = { sock: net.Socket; addr: string } | { err: Error };
+    const race = await new Promise<RaceResult>((resolve) => {
+      const attempts = candidates.map((addr) => ({
+        addr,
+        sock: net.createConnection({ host: addr, port }),
+      }));
+      let settled = false;
+      let errors = 0;
+      let lastErr: Error = new Error("connect timeout");
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        for (const a of attempts) a.sock.destroy();
+        resolve({ err: new Error(`Connect timed out after ${PER_ATTEMPT_MS}ms`) });
+      }, PER_ATTEMPT_MS);
+      for (const a of attempts) {
+        a.sock.once("connect", () => {
+          if (settled) {
+            a.sock.destroy();
+            return;
+          }
+          settled = true;
+          clearTimeout(timer);
+          for (const other of attempts) {
+            if (other !== a) other.sock.destroy();
+          }
+          resolve({ sock: a.sock, addr: a.addr });
         });
-        attempt.once("error", (e: Error) => {
-          clearTimeout(t);
+        a.sock.once("error", (e: Error) => {
           lastErr = e;
-          resolve(false);
+          errors++;
+          if (errors === attempts.length && !settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve({ err: lastErr });
+          }
         });
-      });
-      if (ok) {
-        sock = attempt;
-        resolvedHost = addr;
-        break;
       }
-      logger.warn(
-        { rentalId: this.rentalId, host, tried: addr },
-        "stratum:upstream connect attempt failed — trying next address",
-      );
+    });
+    let sock: net.Socket | null = null;
+    let resolvedHost = candidates[0]!;
+    let lastErr: Error | null = null;
+    if ("sock" in race) {
+      sock = race.sock;
+      resolvedHost = race.addr;
+    } else {
+      lastErr = race.err;
     }
     if (!sock) {
       this.emit(
