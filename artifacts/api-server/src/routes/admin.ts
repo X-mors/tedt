@@ -365,6 +365,7 @@ router.get("/admin/commission", async (_req, res) => {
   const data = GetCommissionConfigResponse.parse({
     renterFeePct: c.renterFeePct,
     ownerFeePct: c.ownerFeePct,
+    cancellationFeePct: c.cancellationFeePct,
     updatedAt: (row?.updatedAt ?? new Date()).toISOString(),
   });
   res.json(data);
@@ -377,6 +378,7 @@ router.patch("/admin/commission", async (req, res) => {
     await db.insert(commissionConfigTable).values({
       renterFeePct: (body.renterFeePct ?? 3).toString(),
       ownerFeePct: (body.ownerFeePct ?? 5).toString(),
+      cancellationFeePct: (body.cancellationFeePct ?? 0).toString(),
     });
   } else {
     const patch: Record<string, unknown> = {};
@@ -384,6 +386,8 @@ router.patch("/admin/commission", async (req, res) => {
       patch["renterFeePct"] = body.renterFeePct.toString();
     if (body.ownerFeePct !== undefined)
       patch["ownerFeePct"] = body.ownerFeePct.toString();
+    if (body.cancellationFeePct !== undefined)
+      patch["cancellationFeePct"] = body.cancellationFeePct.toString();
     if (Object.keys(patch).length > 0) {
       await db
         .update(commissionConfigTable)
@@ -396,6 +400,7 @@ router.patch("/admin/commission", async (req, res) => {
   const data = UpdateCommissionConfigResponse.parse({
     renterFeePct: c.renterFeePct,
     ownerFeePct: c.ownerFeePct,
+    cancellationFeePct: c.cancellationFeePct,
     updatedAt: (row?.updatedAt ?? new Date()).toISOString(),
   });
   res.json(data);

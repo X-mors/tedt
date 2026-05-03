@@ -3014,10 +3014,13 @@ components:
         ownerFeePct:
           type: number
           description: Percentage withheld from owner earnings (e.g. 5 = 5%)
+        cancellationFeePct:
+          type: number
+          description: Penalty percentage applied to a renter's refund when they manually cancel/terminate an active rental. Kept as platform commission. 0 = no penalty.
         updatedAt:
           type: string
           format: date-time
-      required: [renterFeePct, ownerFeePct, updatedAt]
+      required: [renterFeePct, ownerFeePct, cancellationFeePct, updatedAt]
 
     UpdateCommissionBody:
       type: object
@@ -3030,6 +3033,10 @@ components:
           type: number
           minimum: 0
           maximum: 50
+        cancellationFeePct:
+          type: number
+          minimum: 0
+          maximum: 100
 
     AdminCreditBody:
       type: object

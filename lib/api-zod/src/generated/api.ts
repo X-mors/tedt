@@ -1784,6 +1784,11 @@ export const GetCommissionConfigResponse = zod.object({
   ownerFeePct: zod
     .number()
     .describe("Percentage withheld from owner earnings (e.g. 5 = 5%)"),
+  cancellationFeePct: zod
+    .number()
+    .describe(
+      "Penalty percentage applied to a renter's refund when they manually cancel\/terminate an active rental. Kept as platform commission. 0 = no penalty.",
+    ),
   updatedAt: zod.coerce.date(),
 });
 
@@ -1796,6 +1801,9 @@ export const updateCommissionConfigBodyRenterFeePctMax = 50;
 export const updateCommissionConfigBodyOwnerFeePctMin = 0;
 export const updateCommissionConfigBodyOwnerFeePctMax = 50;
 
+export const updateCommissionConfigBodyCancellationFeePctMin = 0;
+export const updateCommissionConfigBodyCancellationFeePctMax = 100;
+
 export const UpdateCommissionConfigBody = zod.object({
   renterFeePct: zod
     .number()
@@ -1806,6 +1814,11 @@ export const UpdateCommissionConfigBody = zod.object({
     .number()
     .min(updateCommissionConfigBodyOwnerFeePctMin)
     .max(updateCommissionConfigBodyOwnerFeePctMax)
+    .optional(),
+  cancellationFeePct: zod
+    .number()
+    .min(updateCommissionConfigBodyCancellationFeePctMin)
+    .max(updateCommissionConfigBodyCancellationFeePctMax)
     .optional(),
 });
 
@@ -1818,6 +1831,11 @@ export const UpdateCommissionConfigResponse = zod.object({
   ownerFeePct: zod
     .number()
     .describe("Percentage withheld from owner earnings (e.g. 5 = 5%)"),
+  cancellationFeePct: zod
+    .number()
+    .describe(
+      "Penalty percentage applied to a renter's refund when they manually cancel\/terminate an active rental. Kept as platform commission. 0 = no penalty.",
+    ),
   updatedAt: zod.coerce.date(),
 });
 

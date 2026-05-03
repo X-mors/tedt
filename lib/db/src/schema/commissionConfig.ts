@@ -14,6 +14,9 @@ export const commissionConfigTable = pgTable("commission_config", {
   ownerFeePct: numeric("owner_fee_pct", { precision: 6, scale: 3 })
     .notNull()
     .default("5"),
+  cancellationFeePct: numeric("cancellation_fee_pct", { precision: 6, scale: 3 })
+    .notNull()
+    .default("0"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()

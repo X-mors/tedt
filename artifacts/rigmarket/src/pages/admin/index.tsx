@@ -120,6 +120,7 @@ export default function AdminDashboard() {
 
   const [renterFee, setRenterFee] = useState("");
   const [ownerFee, setOwnerFee] = useState("");
+  const [cancelFee, setCancelFee] = useState("");
 
   const [creditUserId, setCreditUserId] = useState<number | null>(null);
   const [creditAmount, setCreditAmount] = useState("");
@@ -203,7 +204,8 @@ export default function AdminDashboard() {
     updateConfig.mutate({
       data: {
         renterFeePct: renterFee ? parseFloat(renterFee) : undefined,
-        ownerFeePct: ownerFee ? parseFloat(ownerFee) : undefined
+        ownerFeePct: ownerFee ? parseFloat(ownerFee) : undefined,
+        cancellationFeePct: cancelFee !== "" ? parseFloat(cancelFee) : undefined
       }
     }, {
       onSuccess: () => {
@@ -211,6 +213,7 @@ export default function AdminDashboard() {
         queryClient.invalidateQueries({ queryKey: getGetCommissionConfigQueryKey() });
         setRenterFee("");
         setOwnerFee("");
+        setCancelFee("");
       }
     });
   };
@@ -994,6 +997,10 @@ export default function AdminDashboard() {
                   <span className="text-muted-foreground">Current Owner Fee:</span>
                   <span>{config?.ownerFeePct}%</span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Cancellation Fee:</span>
+                  <span>{config?.cancellationFeePct ?? 0}%</span>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -1007,7 +1014,12 @@ export default function AdminDashboard() {
                   <Input type="number" step="0.1" placeholder="e.g. 5.0" className="font-mono text-sm bg-background" value={ownerFee} onChange={e => setOwnerFee(e.target.value)} />
                   <p className="text-xs text-muted-foreground">Withheld from rig owner earnings.</p>
                 </div>
-                <Button className="w-full font-mono text-sm mt-2" onClick={handleUpdateConfig} disabled={updateConfig.isPending || (!renterFee && !ownerFee)}>
+                <div className="space-y-2">
+                  <Label>New Cancellation Fee (%)</Label>
+                  <Input type="number" step="0.1" min="0" max="100" placeholder="e.g. 10.0" className="font-mono text-sm bg-background" value={cancelFee} onChange={e => setCancelFee(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">Withheld from the renter's refund when they manually cancel an active rental. Added to platform commission. Set 0 to disable.</p>
+                </div>
+                <Button className="w-full font-mono text-sm mt-2" onClick={handleUpdateConfig} disabled={updateConfig.isPending || (!renterFee && !ownerFee && cancelFee === "")}>
                   {updateConfig.isPending ? "APPLYING..." : "UPDATE_CONFIG"}
                 </Button>
               </div>

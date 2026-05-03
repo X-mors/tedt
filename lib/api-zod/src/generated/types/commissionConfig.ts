@@ -11,5 +11,7 @@ export interface CommissionConfig {
   renterFeePct: number;
   /** Percentage withheld from owner earnings (e.g. 5 = 5%) */
   ownerFeePct: number;
+  /** Penalty percentage applied to a renter's refund when they manually cancel/terminate an active rental. Kept as platform commission. 0 = no penalty. */
+  cancellationFeePct: number;
   updatedAt: Date;
 }

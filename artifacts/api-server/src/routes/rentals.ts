@@ -1167,7 +1167,25 @@ router.post("/rentals/:id/cancel", async (req, res) => {
     );
     const usedRatio = totalSeconds > 0 ? usedSeconds / totalSeconds : 1;
     const ownerPayout = round6(toNum(rental.ownerEarningsUsd) * usedRatio);
-    const renterRefund = round6(toNum(rental.renterTotalUsd) * (1 - usedRatio));
+    const grossRefund = round6(toNum(rental.renterTotalUsd) * (1 - usedRatio));
+
+    // Manual-cancel penalty: configurable percentage of the renter's refund is
+    // withheld as additional platform commission (added to rental.platformFeeUsd
+    // so it shows up in the Today/Week/Month commission stats). Auto-cancels
+    // (low-delivery / disputes / settlement timer) do not pass through this
+    // path, so they aren't penalised.
+    const c = await getCommission();
+    const cancelFeePct = Math.max(0, Math.min(100, c.cancellationFeePct));
+    const cancelFee = round6(grossRefund * (cancelFeePct / 100));
+    const renterRefund = round6(grossRefund - cancelFee);
+
+    if (cancelFee > 0) {
+      const feeStr = toUsdString(cancelFee);
+      await tx
+        .update(rentalsTable)
+        .set({ platformFeeUsd: sql`${rentalsTable.platformFeeUsd} + ${feeStr}` })
+        .where(eq(rentalsTable.id, rental.id));
+    }
 
     if (renterRefund > 0) {
       const refundStr = toUsdString(renterRefund);
@@ -1185,7 +1203,10 @@ router.post("/rentals/:id/cancel", async (req, res) => {
           type: "rental_refund",
           amountUsd: refundStr,
           balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
-          memo: `Refund for cancelled rental #${rental.id} (used ${Math.round(usedRatio * 100)}% of booked time)`,
+          memo:
+            cancelFee > 0
+              ? `Refund for cancelled rental #${rental.id} (used ${Math.round(usedRatio * 100)}% of booked time; $${cancelFee.toFixed(6)} cancellation fee withheld at ${cancelFeePct}%)`
+              : `Refund for cancelled rental #${rental.id} (used ${Math.round(usedRatio * 100)}% of booked time)`,
           relatedRentalId: rental.id,
         });
       }

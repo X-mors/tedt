@@ -17,4 +17,9 @@ export interface UpdateCommissionBody {
    * @maximum 50
    */
   ownerFeePct?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  cancellationFeePct?: number;
 }
