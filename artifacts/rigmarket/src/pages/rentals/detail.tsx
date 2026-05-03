@@ -234,8 +234,11 @@ export default function RentalCockpit() {
 
   const { data: stats } = useGetRentalStats(rentalId, {
     query: {
-      enabled: !!rentalId && rental?.status === 'active',
-      refetchInterval: 30000,
+      // Fetch stats for active rentals (polling every 30s) AND for finished
+      // rentals (one-shot fetch — no polling) so renters can revisit a
+      // completed/cancelled rental and see the full historical chart.
+      enabled: !!rentalId && !!rental,
+      refetchInterval: rental?.status === 'active' ? 30000 : false,
       refetchIntervalInBackground: true,
       queryKey: getGetRentalStatsQueryKey(rentalId),
     },
@@ -489,13 +492,78 @@ export default function RentalCockpit() {
                   </div>
                 </div>
               ) : rental.status === 'completed' || rental.status === 'cancelled' ? (
-                <div className="text-center py-10">
-                  {rental.status === 'completed' ? <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-3" /> : <ShieldAlert className="w-10 h-10 text-muted-foreground mx-auto mb-3" />}
-                  <h3 className="font-medium text-lg">Workload {rental.status === 'completed' ? 'Completed' : 'Terminated'}</h3>
-                  {rental.deliveredHashrateAvg !== null && (
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Final average delivered hashrate: <span className="font-mono text-foreground">{formatHashrate(rental.deliveredHashrateAvg, rental.algorithmUnit)}</span>
-                    </p>
+                <div className="space-y-6">
+                  <div className="text-center pb-2">
+                    {rental.status === 'completed' ? <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-3" /> : <ShieldAlert className="w-10 h-10 text-muted-foreground mx-auto mb-3" />}
+                    <h3 className="font-medium text-lg">Workload {rental.status === 'completed' ? 'Completed' : 'Terminated'}</h3>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
+                      <span className="text-[10px] text-muted-foreground uppercase font-semibold">Avg Hashrate</span>
+                      <span className="font-mono text-lg font-bold">{rental.deliveredHashrateAvg != null ? formatHashrate(rental.deliveredHashrateAvg, rental.algorithmUnit) : (stats ? formatHashrate(stats.averageHashrate, rental.algorithmUnit) : '—')}</span>
+                    </div>
+                    <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
+                      <span className="text-[10px] text-muted-foreground uppercase font-semibold">Delivery Ratio</span>
+                      <span className={`font-mono text-lg font-bold ${stats && stats.deliveryRatio >= 0.95 ? 'text-green-500' : stats && stats.deliveryRatio >= 0.8 ? 'text-yellow-500' : 'text-destructive'}`}>
+                        {stats ? `${(stats.deliveryRatio * 100).toFixed(1)}%` : '—'}
+                      </span>
+                    </div>
+                    <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
+                      <span className="text-[10px] text-muted-foreground uppercase font-semibold">Shares (A/R)</span>
+                      <span className="font-mono text-lg font-bold">
+                        <span className="text-green-500">{stats?.sharesAccepted ?? 0}</span> / <span className="text-destructive">{stats?.sharesRejected ?? 0}</span>
+                      </span>
+                    </div>
+                    <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
+                      <span className="text-[10px] text-muted-foreground uppercase font-semibold">Status</span>
+                      <span className={`font-mono text-lg font-bold ${rental.status === 'completed' ? 'text-green-500' : 'text-muted-foreground'}`}>{rental.status === 'completed' ? 'COMPLETED' : 'TERMINATED'}</span>
+                    </div>
+                  </div>
+
+                  {stats && stats.samples.length > 1 ? (
+                    <div className="h-32 bg-background/30 rounded-md border border-border/30 px-2 py-2">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={stats.samples} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                          <defs>
+                            <linearGradient id="hashrateFillHistory" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#f0b90b" stopOpacity={0.4} />
+                              <stop offset="100%" stopColor="#f0b90b" stopOpacity={0.02} />
+                            </linearGradient>
+                          </defs>
+                          <XAxis dataKey="timestamp" hide />
+                          <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax * 1.15, toNum(rental.hashrate) * 1.05)]} />
+                          <Tooltip
+                            cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '3 3' }}
+                            contentStyle={{
+                              background: 'hsl(var(--background))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontFamily: 'var(--font-mono)',
+                              padding: '4px 8px',
+                            }}
+                            labelStyle={{ color: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                            formatter={(v: number) => [formatHashrate(v, rental.algorithmUnit), 'Hashrate']}
+                            labelFormatter={(t: string) => new Date(t).toLocaleString()}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="hashrate"
+                            stroke="#f0b90b"
+                            strokeWidth={1.4}
+                            fill="url(#hashrateFillHistory)"
+                            isAnimationActive={false}
+                            dot={false}
+                            activeDot={{ r: 3, fill: '#f0b90b', stroke: 'hsl(var(--background))', strokeWidth: 1.5 }}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-2 h-16 bg-background/30 rounded-md border border-dashed border-border/30 text-muted-foreground">
+                      <BarChart2 className="w-4 h-4" />
+                      <span className="text-xs font-mono">No hashrate data recorded</span>
+                    </div>
                   )}
                 </div>
               ) : (

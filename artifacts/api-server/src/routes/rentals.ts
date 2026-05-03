@@ -554,8 +554,9 @@ router.get("/rentals/:id/stats", async (req, res) => {
   const algMultiplier = unitMultiplier(rental.algorithmUnit);
   const advertisedH = toNum(rental.hashrate) * algMultiplier;
 
-  // Fetch up to 1 hour of 60-s samples (60 samples × 60 s = 1 h).
-  // Ordered newest-first so slicing gives the most-recent N easily.
+  // Fetch ALL 60-s samples for the rental so the chart spans the full
+  // elapsed/ended duration. Newest-first ordering keeps slice(0, N) as the
+  // most-recent N for rolling averages.
   const dbSamples = await db
     .select({
       sampledAt: rentalHashSamplesTable.sampledAt,
@@ -563,8 +564,7 @@ router.get("/rentals/:id/stats", async (req, res) => {
     })
     .from(rentalHashSamplesTable)
     .where(eq(rentalHashSamplesTable.rentalId, id))
-    .orderBy(desc(rentalHashSamplesTable.sampledAt))
-    .limit(60);
+    .orderBy(desc(rentalHashSamplesTable.sampledAt));
 
   // Average over a slice (newest-first), returns H/s
   const avgH = (slice: typeof dbSamples) =>
@@ -593,14 +593,33 @@ router.get("/rentals/:id/stats", async (req, res) => {
       ? Math.min(1.05, avgDeliveredH / advertisedH)
       : 0;
 
-  // Chart: chronological order (oldest → newest) in algorithm units
-  const samples = dbSamples
-    .slice()
-    .reverse()
-    .map((s) => ({
+  // Chart: chronological order (oldest → newest) in algorithm units. Cap
+  // at MAX_CHART_POINTS by bucket-averaging so very long rentals don't
+  // ship megabytes of JSON to the renter's browser. The chart compresses
+  // along the X-axis but every point still represents real measured data.
+  const MAX_CHART_POINTS = 720;
+  const chronological = dbSamples.slice().reverse();
+  let samples: { timestamp: string; hashrate: number }[];
+  if (chronological.length <= MAX_CHART_POINTS) {
+    samples = chronological.map((s) => ({
       timestamp: s.sampledAt.toISOString(),
       hashrate: toNum(s.effectiveHashrateH ?? "0") / algMultiplier,
     }));
+  } else {
+    const bucketSize = Math.ceil(chronological.length / MAX_CHART_POINTS);
+    samples = [];
+    for (let i = 0; i < chronological.length; i += bucketSize) {
+      const bucket = chronological.slice(i, i + bucketSize);
+      const sum = bucket.reduce(
+        (s, x) => s + toNum(x.effectiveHashrateH ?? "0"),
+        0,
+      );
+      samples.push({
+        timestamp: bucket[Math.floor(bucket.length / 2)]!.sampledAt.toISOString(),
+        hashrate: sum / bucket.length / algMultiplier,
+      });
+    }
+  }
 
   // Combine DB-persisted cumulative shares with in-memory shares since the
   // last flush. The DB row keeps totals across server restarts; the in-memory
