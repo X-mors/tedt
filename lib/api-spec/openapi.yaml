@@ -238,6 +238,23 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /rigs/{id}/stats:
+    get:
+      operationId: getRigStats
+      tags: [rigs]
+      summary: Public hashrate history for a rig (up to 14 days, downsampled for chart)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Hashrate samples with rental periods
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerRigStats"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /rigs/{id}/reviews:
     get:
       operationId: listRigReviews

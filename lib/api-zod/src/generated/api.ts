@@ -486,6 +486,27 @@ export const GetRigResponse = zod.object({
 });
 
 /**
+ * @summary Public hashrate history for a rig (up to 14 days, downsampled for chart)
+ */
+export const GetRigStatsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetRigStatsResponse = zod.object({
+  rigId: zod.number(),
+  algorithmUnit: zod.string(),
+  advertisedHashrate: zod.number(),
+  retentionDays: zod.number(),
+  samples: zod.array(
+    zod.object({
+      timestamp: zod.coerce.date(),
+      hashrate: zod.number(),
+      hasRental: zod.boolean(),
+    }),
+  ),
+});
+
+/**
  * @summary List reviews for a rig
  */
 export const ListRigReviewsParams = zod.object({

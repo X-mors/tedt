@@ -1,5 +1,5 @@
 import { useParams, Link } from "wouter";
-import { useGetRig, useGetMyRig, getGetMyRigQueryKey, useListRigReviews, useGetMe, useGetMyRigStats, getGetMyRigStatsQueryKey } from "@workspace/api-client-react";
+import { useGetRig, useGetMyRig, getGetMyRigQueryKey, useListRigReviews, useGetMe, useGetRigStats, getGetRigStatsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatHashrate, formatMoney } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -29,10 +29,11 @@ export default function RigDetail() {
   // When the viewer is the owner, also fetch from the owner-specific endpoint
   // so hasFallbackPool reflects the actual fallback pool configuration.
   const { data: myRig } = useGetMyRig(rigId, { query: { enabled: isOwner, queryKey: getGetMyRigQueryKey(rigId) } });
-  // Owner chart: 14-day hashrate history. Refresh every 60s so a new flush
-  // becomes visible without a hard reload.
-  const { data: rigStats } = useGetMyRigStats(rigId, {
-    query: { enabled: isOwner, refetchInterval: 60_000, queryKey: getGetMyRigStatsQueryKey(rigId) },
+  // Public 14-day hashrate history. Visible to all visitors (logged in or
+  // not). Refresh every 60s so a new flush becomes visible without a hard
+  // reload.
+  const { data: rigStats } = useGetRigStats(rigId, {
+    query: { refetchInterval: 60_000, queryKey: getGetRigStatsQueryKey(rigId) },
   });
 
   // Group consecutive samples sharing the same rental state into contiguous
@@ -157,7 +158,7 @@ export default function RigDetail() {
             </CardContent>
           </Card>
 
-          {isOwner && rigStats && (
+          {rigStats && (
             <Card className="bg-card/50 border-border/50">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center justify-between">

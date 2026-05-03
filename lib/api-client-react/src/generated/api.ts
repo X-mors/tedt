@@ -984,6 +984,93 @@ export function useGetRig<
 }
 
 /**
+ * @summary Public hashrate history for a rig (up to 14 days, downsampled for chart)
+ */
+export const getGetRigStatsUrl = (id: number) => {
+  return `/api/rigs/${id}/stats`;
+};
+
+export const getRigStats = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OwnerRigStats> => {
+  return customFetch<OwnerRigStats>(getGetRigStatsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetRigStatsQueryKey = (id: number) => {
+  return [`/api/rigs/${id}/stats`] as const;
+};
+
+export const getGetRigStatsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRigStats>>,
+  TError = ErrorType<NotFoundResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getRigStats>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetRigStatsQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getRigStats>>> = ({
+    signal,
+  }) => getRigStats(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRigStats>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetRigStatsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRigStats>>
+>;
+export type GetRigStatsQueryError = ErrorType<NotFoundResponse>;
+
+/**
+ * @summary Public hashrate history for a rig (up to 14 days, downsampled for chart)
+ */
+
+export function useGetRigStats<
+  TData = Awaited<ReturnType<typeof getRigStats>>,
+  TError = ErrorType<NotFoundResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getRigStats>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetRigStatsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary List reviews for a rig
  */
 export const getListRigReviewsUrl = (id: number) => {

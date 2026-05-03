@@ -1,19 +1,21 @@
 import { Router, type IRouter } from "express";
-import { and, eq, ilike, sql, desc } from "drizzle-orm";
+import { and, asc, eq, gte, ilike, sql, desc } from "drizzle-orm";
 import {
   db,
   rigsTable,
   algorithmsTable,
   usersTable,
   reviewsTable,
+  rigHashSamplesTable,
 } from "@workspace/db";
 import {
   ListRigsResponse,
   GetRigResponse,
   ListRigReviewsResponse,
+  GetRigStatsResponse,
 } from "@workspace/api-zod";
 import { getCommission } from "../lib/commission";
-import { toNum } from "../lib/money";
+import { toNum, unitMultiplier } from "../lib/money";
 
 const router: IRouter = Router();
 
@@ -224,6 +226,91 @@ router.get("/rigs/:id", async (req, res) => {
     createdAt: row.createdAt.toISOString(),
   });
 
+  res.json(data);
+});
+
+/**
+ * Public hashrate history for a rig. Returns up to 14 days of bucket-averaged
+ * samples with `hasRental` flags so visitors (logged in or not) can see the
+ * rig's recent performance and rental activity. Mirrors the owner-only
+ * `/me/rigs/:id/stats` endpoint shape but without ownership checks.
+ */
+router.get("/rigs/:id/stats", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [rig] = await db
+    .select({
+      id: rigsTable.id,
+      hashrate: rigsTable.hashrate,
+      algorithmUnit: algorithmsTable.unit,
+    })
+    .from(rigsTable)
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
+    .where(
+      and(
+        eq(rigsTable.id, id),
+        eq(rigsTable.approvalStatus, "approved"),
+      ),
+    );
+  if (!rig) {
+    res.status(404).json({ error: "Rig not found" });
+    return;
+  }
+
+  const RETENTION_DAYS = 14;
+  const since = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  const dbSamples = await db
+    .select({
+      sampledAt: rigHashSamplesTable.sampledAt,
+      effectiveHashrateH: rigHashSamplesTable.effectiveHashrateH,
+      rentalId: rigHashSamplesTable.rentalId,
+    })
+    .from(rigHashSamplesTable)
+    .where(
+      and(
+        eq(rigHashSamplesTable.rigId, id),
+        gte(rigHashSamplesTable.sampledAt, since),
+      ),
+    )
+    .orderBy(asc(rigHashSamplesTable.sampledAt));
+
+  const algMultiplier = unitMultiplier(rig.algorithmUnit);
+
+  const MAX_CHART_POINTS = 720;
+  let samples: { timestamp: string; hashrate: number; hasRental: boolean }[];
+  if (dbSamples.length <= MAX_CHART_POINTS) {
+    samples = dbSamples.map((s) => ({
+      timestamp: s.sampledAt.toISOString(),
+      hashrate: toNum(s.effectiveHashrateH ?? "0") / algMultiplier,
+      hasRental: s.rentalId != null,
+    }));
+  } else {
+    const bucketSize = Math.ceil(dbSamples.length / MAX_CHART_POINTS);
+    samples = [];
+    for (let i = 0; i < dbSamples.length; i += bucketSize) {
+      const bucket = dbSamples.slice(i, i + bucketSize);
+      const sum = bucket.reduce(
+        (s, x) => s + toNum(x.effectiveHashrateH ?? "0"),
+        0,
+      );
+      samples.push({
+        timestamp: bucket[Math.floor(bucket.length / 2)]!.sampledAt.toISOString(),
+        hashrate: sum / bucket.length / algMultiplier,
+        hasRental: bucket.some((x) => x.rentalId != null),
+      });
+    }
+  }
+
+  const data = GetRigStatsResponse.parse({
+    rigId: id,
+    algorithmUnit: rig.algorithmUnit,
+    advertisedHashrate: toNum(rig.hashrate),
+    retentionDays: RETENTION_DAYS,
+    samples,
+  });
   res.json(data);
 });
 
