@@ -5,6 +5,7 @@ import { eq, and, asc } from "drizzle-orm";
 import { db, rigsTable, rentalsTable, proxyAuthFailuresTable, usersTable, algorithmsTable } from "@workspace/db";
 import { logger } from "../logger";
 import { proxyState } from "./state";
+import { flushAndRemoveRentalWindow } from "./persistence";
 import { UpstreamClient } from "./upstream";
 import type { JsonRpcMessage, RecordedShare } from "./types";
 
@@ -660,9 +661,12 @@ export class DownstreamSession extends EventEmitter {
       proxyState.setRigAuthorized(this.rigId, null);
       proxyState.setUpstreamConnected(this.rigId, false);
     }
-    // Remove the share window so the flush loop stops inserting samples for this finished rental.
+    // Flush any unflushed share counters into the rentals row, then remove
+    // the share window so the flush loop stops inserting samples. Fire and
+    // forget — deactivateRental is sync and the persist is best-effort; any
+    // failure is logged and the next periodic flush retries.
     if (prevRentalId != null) {
-      proxyState.removeShareWindow(prevRentalId);
+      void flushAndRemoveRentalWindow(prevRentalId);
     }
 
     // Force-close the miner so it reconnects and picks up the owner's fallback pool

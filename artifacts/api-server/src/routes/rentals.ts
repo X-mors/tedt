@@ -11,6 +11,7 @@ import {
   rentalHashSamplesTable,
 } from "@workspace/db";
 import { proxyState } from "../lib/stratum/state";
+import { flushAndRemoveRentalWindow } from "../lib/stratum/persistence";
 import { logger } from "../lib/logger";
 import {
   CreateRentalBody,
@@ -521,6 +522,9 @@ router.get("/rentals/:id/stats", async (req, res) => {
       startedAt: rentalsTable.startedAt,
       endsAt: rentalsTable.endsAt,
       deliveredHashrateAvg: rentalsTable.deliveredHashrateAvg,
+      sharesAcceptedPersisted: rentalsTable.sharesAccepted,
+      sharesRejectedPersisted: rentalsTable.sharesRejected,
+      lastShareAtPersisted: rentalsTable.lastShareAt,
       algorithmUnit: algorithmsTable.unit,
     })
     .from(rentalsTable)
@@ -598,9 +602,21 @@ router.get("/rentals/:id/stats", async (req, res) => {
       hashrate: toNum(s.effectiveHashrateH ?? "0") / algMultiplier,
     }));
 
+  // Combine DB-persisted cumulative shares with in-memory shares since the
+  // last flush. The DB row keeps totals across server restarts; the in-memory
+  // delta covers shares received in the current flush window. Together they
+  // give a complete count that survives deploys without double-counting.
+  const unflushed = proxyState.peekUnflushedShareDelta(id);
+  const totalSharesAccepted = rental.sharesAcceptedPersisted + unflushed.deltaAccepted;
+  const totalSharesRejected = rental.sharesRejectedPersisted + unflushed.deltaRejected;
+
   // Display-stability: smooth over normal ASIC reconnect cycles so the UI
   // doesn't flap to OFFLINE / 0 H/s every minute. See top-of-file comment.
-  const inGrace = withinGrace(live.lastShareAt);
+  // Use the most-recent share timestamp from either source so the grace
+  // window survives restarts (DB row carries the persisted lastShareAt).
+  const effectiveLastShareAt =
+    live.lastShareAt ?? rental.lastShareAtPersisted ?? null;
+  const inGrace = withinGrace(effectiveLastShareAt);
   const minerConnectedDisplay = live.minerConnected || inGrace;
   const upstreamConnectedDisplay = live.upstreamConnected || inGrace;
   // Display-hashrate fallback chain (resolves the "stats freeze at 0" bug):
@@ -635,8 +651,8 @@ router.get("/rentals/:id/stats", async (req, res) => {
     hashrate10m,
     hashrate1h,
     deliveryRatio,
-    sharesAccepted: live.sharesAccepted,
-    sharesRejected: live.sharesRejected,
+    sharesAccepted: totalSharesAccepted,
+    sharesRejected: totalSharesRejected,
     secondsRemaining,
     status: rental.status,
     samples,
@@ -662,6 +678,10 @@ router.get("/rentals/:id/live", async (req, res) => {
       status: rentalsTable.status,
       hashrate: rentalsTable.hashrate,
       endsAt: rentalsTable.endsAt,
+      deliveredHashrateAvg: rentalsTable.deliveredHashrateAvg,
+      sharesAcceptedPersisted: rentalsTable.sharesAccepted,
+      sharesRejectedPersisted: rentalsTable.sharesRejected,
+      lastShareAtPersisted: rentalsTable.lastShareAt,
       algorithmUnit: algorithmsTable.unit,
     })
     .from(rentalsTable)
@@ -685,21 +705,25 @@ router.get("/rentals/:id/live", async (req, res) => {
   const algMultiplier = unitMultiplier(rental.algorithmUnit);
   const advertisedH = toNum(rental.hashrate) * algMultiplier;
 
+  // Combine DB-persisted cumulative shares with in-memory shares since the
+  // last flush — see /stats endpoint for rationale.
+  const unflushed = proxyState.peekUnflushedShareDelta(id);
+  const totalSharesAccepted = rental.sharesAcceptedPersisted + unflushed.deltaAccepted;
+  const totalSharesRejected = rental.sharesRejectedPersisted + unflushed.deltaRejected;
+  const effectiveLastShareAt =
+    live.lastShareAt ?? rental.lastShareAtPersisted ?? null;
+
   // Display-stability: smooth over normal ASIC reconnect cycles. See top-of-file comment.
-  const inGrace = withinGrace(live.lastShareAt);
+  const inGrace = withinGrace(effectiveLastShareAt);
   const minerConnectedDisplay = live.minerConnected || inGrace;
   const upstreamConnectedDisplay = live.upstreamConnected || inGrace;
 
   // Same fallback chain as /stats: live → most-recent non-zero sample →
   // cumulative deliveredHashrateAvg. Without the cumulative tail the rental
   // detail UI flaps to 0 H/s every time the rig drops momentarily.
-  const [rentalRow] = await db
-    .select({ deliveredHashrateAvg: rentalsTable.deliveredHashrateAvg })
-    .from(rentalsTable)
-    .where(eq(rentalsTable.id, id));
   const cumulativeAvgH =
-    rentalRow?.deliveredHashrateAvg != null
-      ? toNum(rentalRow.deliveredHashrateAvg) * algMultiplier
+    rental.deliveredHashrateAvg != null
+      ? toNum(rental.deliveredHashrateAvg) * algMultiplier
       : 0;
   let displayHashrateH = live.effectiveHashrateH;
   if (displayHashrateH === 0) {
@@ -721,10 +745,10 @@ router.get("/rentals/:id/live", async (req, res) => {
     poolAuthFailed: live.poolAuthFailed,
     currentHashrateH: displayHashrateH,
     currentHashrate: displayHashrateH / algMultiplier,
-    sharesAccepted: live.sharesAccepted,
-    sharesRejected: live.sharesRejected,
+    sharesAccepted: totalSharesAccepted,
+    sharesRejected: totalSharesRejected,
     currentDifficulty: live.currentDifficulty,
-    lastShareAt: live.lastShareAt?.toISOString() ?? null,
+    lastShareAt: effectiveLastShareAt?.toISOString() ?? null,
     deliveryRatio,
     secondsRemaining:
       rental.status === "active"
@@ -921,9 +945,10 @@ router.post("/rentals/:id/cancel", async (req, res) => {
   if (session) {
     session.deactivateRental();
   } else {
-    // No live session — clean up the share window so the flush loop stops
-    // inserting samples for this finished rental.
-    proxyState.removeShareWindow(rental.id);
+    // No live session — flush any unflushed share counters into the rentals
+    // row, then clean up the share window so the flush loop stops inserting
+    // samples for this finished rental.
+    await flushAndRemoveRentalWindow(rental.id);
   }
 
   const detail = await loadRentalDetail(rental.id);

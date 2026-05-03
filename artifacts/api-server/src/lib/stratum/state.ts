@@ -132,7 +132,67 @@ class ProxyState {
       lastShareAt: null,
       sharesAcceptedLifetime: 0,
       sharesRejectedLifetime: 0,
+      sharesAcceptedAtLastFlush: 0,
+      sharesRejectedAtLastFlush: 0,
     };
+  }
+
+  /**
+   * Read the un-persisted share delta without consuming it. Used by the
+   * read-side endpoints to combine the DB-persisted cumulative totals with
+   * the in-memory shares received since the last flush. Clamps to ≥ 0
+   * because a transient negative value (late-reject between flushes) would
+   * make the live counter dip; the next flush will reconcile it on the DB
+   * side via a signed delta.
+   */
+  peekUnflushedShareDelta(rentalId: number): {
+    deltaAccepted: number;
+    deltaRejected: number;
+  } {
+    const w = this.shareWindows.get(rentalId);
+    if (!w) return { deltaAccepted: 0, deltaRejected: 0 };
+    return {
+      deltaAccepted: Math.max(0, w.sharesAcceptedLifetime - w.sharesAcceptedAtLastFlush),
+      deltaRejected: Math.max(0, w.sharesRejectedLifetime - w.sharesRejectedAtLastFlush),
+    };
+  }
+
+  /**
+   * Take a snapshot of the rental's current cumulative counters for
+   * persistence. Does NOT advance the flush marker — the caller MUST call
+   * `advanceShareFlushMarker` only after the DB write succeeds, otherwise
+   * the deltas would be silently dropped on a transient DB error or crash.
+   * Signed deltas are returned so late-reject corrections (which decrement
+   * sharesAcceptedLifetime) can flow through to the DB on the next flush.
+   */
+  snapshotShareCounters(rentalId: number): {
+    acceptedSnapshot: number;
+    rejectedSnapshot: number;
+    deltaAccepted: number;
+    deltaRejected: number;
+    lastShareAt: Date | null;
+  } | null {
+    const w = this.shareWindows.get(rentalId);
+    if (!w) return null;
+    return {
+      acceptedSnapshot: w.sharesAcceptedLifetime,
+      rejectedSnapshot: w.sharesRejectedLifetime,
+      deltaAccepted: w.sharesAcceptedLifetime - w.sharesAcceptedAtLastFlush,
+      deltaRejected: w.sharesRejectedLifetime - w.sharesRejectedAtLastFlush,
+      lastShareAt: w.lastShareAt,
+    };
+  }
+
+  /** Advance the flush marker after the DB row was successfully updated. */
+  advanceShareFlushMarker(
+    rentalId: number,
+    acceptedTo: number,
+    rejectedTo: number,
+  ): void {
+    const w = this.shareWindows.get(rentalId);
+    if (!w) return;
+    w.sharesAcceptedAtLastFlush = acceptedTo;
+    w.sharesRejectedAtLastFlush = rejectedTo;
   }
 
   private _pruneSamples(samples: ShareSample[], nowMs: number): void {

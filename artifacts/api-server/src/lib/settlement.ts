@@ -8,6 +8,7 @@ import {
 } from "@workspace/db";
 import { round6, toNum, toUsdString, computeDeliveryRatio } from "./money";
 import { proxyState } from "./stratum/state";
+import { flushAndRemoveRentalWindow } from "./stratum/persistence";
 
 /**
  * Settle any active rentals whose `endsAt` has passed.
@@ -140,9 +141,10 @@ export async function settleExpiredRentals(): Promise<number> {
       // removes the share window.
       session.deactivateRental();
     } else {
-      // No live session — rig offline at time of settlement. Just remove
-      // the share window so the flush loop stops inserting samples.
-      proxyState.removeShareWindow(id);
+      // No live session — rig offline at time of settlement. Flush any
+      // unflushed share counters first so the renter's UI keeps a complete
+      // total post-settlement, then remove the window.
+      await flushAndRemoveRentalWindow(id);
     }
   }
 

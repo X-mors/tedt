@@ -58,6 +58,12 @@ export const rentalsTable = pgTable("rentals", {
     precision: 18,
     scale: 6,
   }),
+  // Cumulative share counters persisted across server restarts so the renter's
+  // live UI doesn't reset to 0 on deploys. Updated on each flush by adding
+  // the delta from the in-memory rolling window.
+  sharesAccepted: integer("shares_accepted").notNull().default(0),
+  sharesRejected: integer("shares_rejected").notNull().default(0),
+  lastShareAt: timestamp("last_share_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

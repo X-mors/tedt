@@ -65,9 +65,16 @@ export interface ShareWindow {
   currentDifficulty: number;
   /** Most recent accepted-share timestamp — used by display-stability grace. */
   lastShareAt: Date | null;
-  /** Cumulative totals for the whole rental lifetime — never reset. */
+  /** Cumulative totals for this in-memory window. Reset to 0 when the server
+   *  restarts — durable totals live on the rentals row in the DB. */
   sharesAcceptedLifetime: number;
   sharesRejectedLifetime: number;
+  /** Marker of how many shares have already been persisted to the rentals row
+   *  via the flush loop. The flush loop updates the DB with
+   *  (sharesAcceptedLifetime − sharesAcceptedAtLastFlush) and then advances
+   *  the marker. This prevents double-counting across flushes. */
+  sharesAcceptedAtLastFlush: number;
+  sharesRejectedAtLastFlush: number;
 }
 
 export interface ProxyRigEntry {

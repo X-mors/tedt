@@ -15,6 +15,8 @@ import { DownstreamSession } from "./downstream";
 import { round6, toNum, toUsdString, unitMultiplier, computeDeliveryRatio } from "../money";
 import { getProxySettings } from "../platformSettings";
 
+import { persistRentalShareDelta, flushAndRemoveRentalWindow } from "./persistence";
+
 const FLUSH_INTERVAL_MS = 60_000;
 
 export class StratumServer {
@@ -106,6 +108,12 @@ export class StratumServer {
             )`,
           })
           .where(eq(rentalsTable.id, snapshot.rentalId));
+
+        // Persist cumulative share counters on the rentals row so the
+        // renter's live UI survives server restarts. Done as a separate,
+        // commit-after-success step so a transient failure here doesn't
+        // drop deltas — they stay in-memory for the next flush.
+        await persistRentalShareDelta(snapshot.rentalId);
 
         await this._checkLowDelivery(snapshot.rentalId);
       } catch (err) {
@@ -307,9 +315,11 @@ export class StratumServer {
         proxyState.getSessionByRentalId(rental.id) ??
         proxyState.getRigSession(rental.rigId);
       if (session) {
+        // deactivateRental will flush + remove the share window itself.
         session.deactivateRental();
       } else {
-        proxyState.removeShareWindow(rental.id);
+        // No live session — flush unflushed counters before removing.
+        await flushAndRemoveRentalWindow(rental.id);
       }
       this.algUnitCache.delete(rental.id);
     } catch (err) {
