@@ -20,6 +20,12 @@ export interface CreateRigBody {
    * @exclusiveMinimum true
    */
   hashrate: number;
+  /**
+   * Optional owner-set base price per unit per 24h, in USD (e.g. $/TH/day). Null, omitted, or 0 → algorithm default is used.
+   * @minimum 0
+   * @nullable
+   */
+  pricePerUnitPerDay?: number | null;
   /** @minimum 1 */
   minRentalHours: number;
   /** @minimum 1 */

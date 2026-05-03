@@ -147,6 +147,7 @@ router.post("/rentals/quote", async (req, res) => {
       maxRentalHours: rigsTable.maxRentalHours,
       status: rigsTable.status,
       basePrice: algorithmsTable.basePricePerUnitPerHour,
+      ownerPricePerDay: rigsTable.pricePerUnitPerDay,
       algorithmUnit: algorithmsTable.unit,
     })
     .from(rigsTable)
@@ -159,7 +160,11 @@ router.post("/rentals/quote", async (req, res) => {
   }
   const commission = await getCommission();
   const hashrate = toNum(rigRow.hashrate);
-  const basePrice = toNum(rigRow.basePrice);
+  // Owner override: pricePerUnitPerDay/24 takes precedence over algorithm default.
+  const basePrice =
+    rigRow.ownerPricePerDay != null
+      ? toNum(rigRow.ownerPricePerDay) / 24
+      : toNum(rigRow.basePrice);
   const pricing = priceForRental({
     hashrate,
     hours: body.hours,
@@ -209,6 +214,7 @@ router.post("/rentals", async (req, res) => {
       approvalStatus: rigsTable.approvalStatus,
       lastSeenAt: rigsTable.lastSeenAt,
       basePrice: algorithmsTable.basePricePerUnitPerHour,
+      ownerPricePerDay: rigsTable.pricePerUnitPerDay,
     })
     .from(rigsTable)
     .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
@@ -259,7 +265,11 @@ router.post("/rentals", async (req, res) => {
 
   const commission = await getCommission();
   const hashrate = toNum(rigRow.hashrate);
-  const basePrice = toNum(rigRow.basePrice);
+  // Owner override: pricePerUnitPerDay/24 takes precedence over algorithm default.
+  const basePrice =
+    rigRow.ownerPricePerDay != null
+      ? toNum(rigRow.ownerPricePerDay) / 24
+      : toNum(rigRow.basePrice);
   const pricing = priceForRental({
     hashrate,
     hours: body.hours,

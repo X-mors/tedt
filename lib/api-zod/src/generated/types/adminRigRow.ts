@@ -20,6 +20,11 @@ export interface AdminRigRow {
   algorithmUnit: string;
   hashrate: number;
   pricePerUnitPerHour: number;
+  /**
+   * Owner-set base price per unit per 24h, in USD. Null → algorithm default is used.
+   * @nullable
+   */
+  pricePerUnitPerDay?: number | null;
   region: string;
   status: RigStatus;
   approvalStatus: RigApprovalStatus;

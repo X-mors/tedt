@@ -124,8 +124,13 @@ export interface RigSummary {
   algorithmUnit: string;
   /** Advertised hashrate in the algorithm's unit */
   hashrate: number;
-  /** Renter-facing price (already includes the renter commission) */
+  /** Renter-facing price per unit per HOUR (already includes the renter commission). Computed from the owner's pricePerUnitPerDay if set, otherwise from the algorithm's default. */
   pricePerUnitPerHour: number;
+  /**
+   * Owner-set custom base price per unit per 24h, in USD. Null → algorithm default is used.
+   * @nullable
+   */
+  pricePerUnitPerDay?: number | null;
   minRentalHours: number;
   maxRentalHours: number;
   status: RigStatus;
@@ -152,7 +157,13 @@ export interface RigDetail {
   algorithmName: string;
   algorithmUnit: string;
   hashrate: number;
+  /** Renter-facing price per unit per HOUR (already includes the renter commission). */
   pricePerUnitPerHour: number;
+  /**
+   * Owner-set custom base price per unit per 24h, in USD. Null → algorithm default is used.
+   * @nullable
+   */
+  pricePerUnitPerDay?: number | null;
   minRentalHours: number;
   maxRentalHours: number;
   status: RigStatus;
@@ -214,6 +225,12 @@ export interface CreateRigBody {
    * @exclusiveMinimum true
    */
   hashrate: number;
+  /**
+   * Optional owner-set base price per unit per 24h, in USD (e.g. $/TH/day). Null, omitted, or 0 → algorithm default is used.
+   * @minimum 0
+   * @nullable
+   */
+  pricePerUnitPerDay?: number | null;
   /** @minimum 1 */
   minRentalHours: number;
   /** @minimum 1 */
@@ -246,6 +263,12 @@ export interface UpdateRigBody {
    * @exclusiveMinimum true
    */
   hashrate?: number;
+  /**
+   * Owner-set base price per unit per 24h, in USD. Send null (or 0) to clear and revert to the algorithm default.
+   * @minimum 0
+   * @nullable
+   */
+  pricePerUnitPerDay?: number | null;
   /** @minimum 1 */
   minRentalHours?: number;
   /** @minimum 1 */
@@ -916,6 +939,11 @@ export interface AdminRigRow {
   algorithmUnit: string;
   hashrate: number;
   pricePerUnitPerHour: number;
+  /**
+   * Owner-set base price per unit per 24h, in USD. Null → algorithm default is used.
+   * @nullable
+   */
+  pricePerUnitPerDay?: number | null;
   region: string;
   status: RigStatus;
   approvalStatus: RigApprovalStatus;

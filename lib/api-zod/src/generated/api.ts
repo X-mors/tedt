@@ -173,7 +173,15 @@ export const GetMarketplaceFeaturedResponseItem = zod.object({
     .describe("Advertised hashrate in the algorithm's unit"),
   pricePerUnitPerHour: zod
     .number()
-    .describe("Renter-facing price (already includes the renter commission)"),
+    .describe(
+      "Renter-facing price per unit per HOUR (already includes the renter commission). Computed from the owner's pricePerUnitPerDay if set, otherwise from the algorithm's default.",
+    ),
+  pricePerUnitPerDay: zod
+    .number()
+    .nullish()
+    .describe(
+      "Owner-set custom base price per unit per 24h, in USD. Null → algorithm default is used.",
+    ),
   minRentalHours: zod.number(),
   maxRentalHours: zod.number(),
   status: zod.enum(["available", "rented", "offline", "paused"]),
@@ -251,7 +259,13 @@ export const GetMarketplaceSummaryResponse = zod.object({
       pricePerUnitPerHour: zod
         .number()
         .describe(
-          "Renter-facing price (already includes the renter commission)",
+          "Renter-facing price per unit per HOUR (already includes the renter commission). Computed from the owner's pricePerUnitPerDay if set, otherwise from the algorithm's default.",
+        ),
+      pricePerUnitPerDay: zod
+        .number()
+        .nullish()
+        .describe(
+          "Owner-set custom base price per unit per 24h, in USD. Null → algorithm default is used.",
         ),
       minRentalHours: zod.number(),
       maxRentalHours: zod.number(),
@@ -332,7 +346,15 @@ export const ListRigsResponseItem = zod.object({
     .describe("Advertised hashrate in the algorithm's unit"),
   pricePerUnitPerHour: zod
     .number()
-    .describe("Renter-facing price (already includes the renter commission)"),
+    .describe(
+      "Renter-facing price per unit per HOUR (already includes the renter commission). Computed from the owner's pricePerUnitPerDay if set, otherwise from the algorithm's default.",
+    ),
+  pricePerUnitPerDay: zod
+    .number()
+    .nullish()
+    .describe(
+      "Owner-set custom base price per unit per 24h, in USD. Null → algorithm default is used.",
+    ),
   minRentalHours: zod.number(),
   maxRentalHours: zod.number(),
   status: zod.enum(["available", "rented", "offline", "paused"]),
@@ -374,7 +396,17 @@ export const GetRigResponse = zod.object({
   algorithmName: zod.string(),
   algorithmUnit: zod.string(),
   hashrate: zod.number(),
-  pricePerUnitPerHour: zod.number(),
+  pricePerUnitPerHour: zod
+    .number()
+    .describe(
+      "Renter-facing price per unit per HOUR (already includes the renter commission).",
+    ),
+  pricePerUnitPerDay: zod
+    .number()
+    .nullish()
+    .describe(
+      "Owner-set custom base price per unit per 24h, in USD. Null → algorithm default is used.",
+    ),
   minRentalHours: zod.number(),
   maxRentalHours: zod.number(),
   status: zod.enum(["available", "rented", "offline", "paused"]),
@@ -489,7 +521,15 @@ export const ListMyRigsResponseItem = zod.object({
     .describe("Advertised hashrate in the algorithm's unit"),
   pricePerUnitPerHour: zod
     .number()
-    .describe("Renter-facing price (already includes the renter commission)"),
+    .describe(
+      "Renter-facing price per unit per HOUR (already includes the renter commission). Computed from the owner's pricePerUnitPerDay if set, otherwise from the algorithm's default.",
+    ),
+  pricePerUnitPerDay: zod
+    .number()
+    .nullish()
+    .describe(
+      "Owner-set custom base price per unit per 24h, in USD. Null → algorithm default is used.",
+    ),
   minRentalHours: zod.number(),
   maxRentalHours: zod.number(),
   status: zod.enum(["available", "rented", "offline", "paused"]),
@@ -523,6 +563,8 @@ export const createRigBodyDescriptionMax = 1000;
 
 export const createRigBodyHashrateExclusiveMin = 0;
 
+export const createRigBodyPricePerUnitPerDayMin = 0;
+
 export const createRigBodyFallbackPoolPortMax = 65535;
 
 export const CreateRigBody = zod.object({
@@ -530,6 +572,13 @@ export const CreateRigBody = zod.object({
   description: zod.string().max(createRigBodyDescriptionMax),
   algorithmId: zod.number(),
   hashrate: zod.number().gt(createRigBodyHashrateExclusiveMin),
+  pricePerUnitPerDay: zod
+    .number()
+    .min(createRigBodyPricePerUnitPerDayMin)
+    .nullish()
+    .describe(
+      "Optional owner-set base price per unit per 24h, in USD (e.g. $\/TH\/day). Null, omitted, or 0 → algorithm default is used.",
+    ),
   minRentalHours: zod.number().min(1),
   maxRentalHours: zod.number().min(1),
   region: zod.string().min(1),
@@ -571,7 +620,17 @@ export const GetMyRigResponse = zod.object({
   algorithmName: zod.string(),
   algorithmUnit: zod.string(),
   hashrate: zod.number(),
-  pricePerUnitPerHour: zod.number(),
+  pricePerUnitPerHour: zod
+    .number()
+    .describe(
+      "Renter-facing price per unit per HOUR (already includes the renter commission).",
+    ),
+  pricePerUnitPerDay: zod
+    .number()
+    .nullish()
+    .describe(
+      "Owner-set custom base price per unit per 24h, in USD. Null → algorithm default is used.",
+    ),
   minRentalHours: zod.number(),
   maxRentalHours: zod.number(),
   status: zod.enum(["available", "rented", "offline", "paused"]),
@@ -663,12 +722,21 @@ export const updateMyRigBodyDescriptionMax = 1000;
 
 export const updateMyRigBodyHashrateExclusiveMin = 0;
 
+export const updateMyRigBodyPricePerUnitPerDayMin = 0;
+
 export const updateMyRigBodyFallbackPoolPortMax = 65535;
 
 export const UpdateMyRigBody = zod.object({
   name: zod.string().min(1).max(updateMyRigBodyNameMax).optional(),
   description: zod.string().max(updateMyRigBodyDescriptionMax).optional(),
   hashrate: zod.number().gt(updateMyRigBodyHashrateExclusiveMin).optional(),
+  pricePerUnitPerDay: zod
+    .number()
+    .min(updateMyRigBodyPricePerUnitPerDayMin)
+    .nullish()
+    .describe(
+      "Owner-set base price per unit per 24h, in USD. Send null (or 0) to clear and revert to the algorithm default.",
+    ),
   minRentalHours: zod.number().min(1).optional(),
   maxRentalHours: zod.number().min(1).optional(),
   region: zod.string().min(1).optional(),
@@ -704,7 +772,17 @@ export const UpdateMyRigResponse = zod.object({
   algorithmName: zod.string(),
   algorithmUnit: zod.string(),
   hashrate: zod.number(),
-  pricePerUnitPerHour: zod.number(),
+  pricePerUnitPerHour: zod
+    .number()
+    .describe(
+      "Renter-facing price per unit per HOUR (already includes the renter commission).",
+    ),
+  pricePerUnitPerDay: zod
+    .number()
+    .nullish()
+    .describe(
+      "Owner-set custom base price per unit per 24h, in USD. Null → algorithm default is used.",
+    ),
   minRentalHours: zod.number(),
   maxRentalHours: zod.number(),
   status: zod.enum(["available", "rented", "offline", "paused"]),
@@ -1825,6 +1903,12 @@ export const ListAdminRigsResponseItem = zod.object({
   algorithmUnit: zod.string(),
   hashrate: zod.number(),
   pricePerUnitPerHour: zod.number(),
+  pricePerUnitPerDay: zod
+    .number()
+    .nullish()
+    .describe(
+      "Owner-set base price per unit per 24h, in USD. Null → algorithm default is used.",
+    ),
   region: zod.string(),
   status: zod.enum(["available", "rented", "offline", "paused"]),
   approvalStatus: zod.enum(["pending", "approved", "rejected"]),
@@ -1859,6 +1943,12 @@ export const ApproveRigResponse = zod.object({
   algorithmUnit: zod.string(),
   hashrate: zod.number(),
   pricePerUnitPerHour: zod.number(),
+  pricePerUnitPerDay: zod
+    .number()
+    .nullish()
+    .describe(
+      "Owner-set base price per unit per 24h, in USD. Null → algorithm default is used.",
+    ),
   region: zod.string(),
   status: zod.enum(["available", "rented", "offline", "paused"]),
   approvalStatus: zod.enum(["pending", "approved", "rejected"]),
@@ -1892,6 +1982,12 @@ export const RejectRigResponse = zod.object({
   algorithmUnit: zod.string(),
   hashrate: zod.number(),
   pricePerUnitPerHour: zod.number(),
+  pricePerUnitPerDay: zod
+    .number()
+    .nullish()
+    .describe(
+      "Owner-set base price per unit per 24h, in USD. Null → algorithm default is used.",
+    ),
   region: zod.string(),
   status: zod.enum(["available", "rented", "offline", "paused"]),
   approvalStatus: zod.enum(["pending", "approved", "rejected"]),
@@ -1923,6 +2019,12 @@ export const SetAdminRigStatusResponse = zod.object({
   algorithmUnit: zod.string(),
   hashrate: zod.number(),
   pricePerUnitPerHour: zod.number(),
+  pricePerUnitPerDay: zod
+    .number()
+    .nullish()
+    .describe(
+      "Owner-set base price per unit per 24h, in USD. Null → algorithm default is used.",
+    ),
   region: zod.string(),
   status: zod.enum(["available", "rented", "offline", "paused"]),
   approvalStatus: zod.enum(["pending", "approved", "rejected"]),

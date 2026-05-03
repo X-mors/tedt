@@ -503,6 +503,7 @@ async function loadAdminRig(id: number) {
       algorithmName: algorithmsTable.name,
       algorithmUnit: algorithmsTable.unit,
       basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
+      pricePerUnitPerDay: rigsTable.pricePerUnitPerDay,
       hashrate: rigsTable.hashrate,
       region: rigsTable.region,
       status: rigsTable.status,
@@ -518,6 +519,8 @@ async function loadAdminRig(id: number) {
   if (!row) return null;
   const c = await getCommission();
   const renterMultiplier = 1 + c.renterFeePct / 100;
+  const ownerPerDay = row.pricePerUnitPerDay == null ? null : toNum(row.pricePerUnitPerDay);
+  const effectivePerHour = ownerPerDay != null ? ownerPerDay / 24 : toNum(row.basePricePerUnitPerHour);
   return {
     id: row.id,
     name: row.name,
@@ -529,7 +532,8 @@ async function loadAdminRig(id: number) {
     algorithmName: row.algorithmName,
     algorithmUnit: row.algorithmUnit,
     hashrate: toNum(row.hashrate),
-    pricePerUnitPerHour: toNum(row.basePricePerUnitPerHour) * renterMultiplier,
+    pricePerUnitPerHour: effectivePerHour * renterMultiplier,
+    pricePerUnitPerDay: ownerPerDay,
     region: row.region,
     status: row.status,
     approvalStatus: row.approvalStatus,
@@ -556,6 +560,7 @@ router.get("/admin/rigs", async (req, res) => {
       algorithmName: algorithmsTable.name,
       algorithmUnit: algorithmsTable.unit,
       basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
+      pricePerUnitPerDay: rigsTable.pricePerUnitPerDay,
       hashrate: rigsTable.hashrate,
       region: rigsTable.region,
       status: rigsTable.status,
@@ -575,7 +580,10 @@ router.get("/admin/rigs", async (req, res) => {
     .orderBy(desc(rigsTable.createdAt));
 
   const data = ListAdminRigsResponse.parse(
-    rows.map((r) => ({
+    rows.map((r) => {
+      const ownerPerDay = r.pricePerUnitPerDay == null ? null : toNum(r.pricePerUnitPerDay);
+      const effectivePerHour = ownerPerDay != null ? ownerPerDay / 24 : toNum(r.basePricePerUnitPerHour);
+      return {
       id: r.id,
       name: r.name,
       description: r.description,
@@ -586,15 +594,16 @@ router.get("/admin/rigs", async (req, res) => {
       algorithmName: r.algorithmName,
       algorithmUnit: r.algorithmUnit,
       hashrate: toNum(r.hashrate),
-      pricePerUnitPerHour:
-        toNum(r.basePricePerUnitPerHour) * renterMultiplier,
+      pricePerUnitPerHour: effectivePerHour * renterMultiplier,
+      pricePerUnitPerDay: ownerPerDay,
       region: r.region,
       status: r.status,
       approvalStatus: r.approvalStatus,
       approvalNote: r.approvalNote,
       approvedAt: r.approvedAt ? r.approvedAt.toISOString() : null,
       createdAt: r.createdAt.toISOString(),
-    })),
+      };
+    }),
   );
   res.json(data);
 });

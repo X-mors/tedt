@@ -1719,7 +1719,10 @@ components:
           description: Advertised hashrate in the algorithm's unit
         pricePerUnitPerHour:
           type: number
-          description: Renter-facing price (already includes the renter commission)
+          description: Renter-facing price per unit per HOUR (already includes the renter commission). Computed from the owner's pricePerUnitPerDay if set, otherwise from the algorithm's default.
+        pricePerUnitPerDay:
+          type: ["number", "null"]
+          description: Owner-set custom base price per unit per 24h, in USD. Null → algorithm default is used.
         minRentalHours:
           type: integer
         maxRentalHours:
@@ -1789,6 +1792,10 @@ components:
           type: number
         pricePerUnitPerHour:
           type: number
+          description: Renter-facing price per unit per HOUR (already includes the renter commission).
+        pricePerUnitPerDay:
+          type: ["number", "null"]
+          description: Owner-set custom base price per unit per 24h, in USD. Null → algorithm default is used.
         minRentalHours:
           type: integer
         maxRentalHours:
@@ -1904,6 +1911,10 @@ components:
           type: number
           minimum: 0
           exclusiveMinimum: true
+        pricePerUnitPerDay:
+          type: ["number", "null"]
+          minimum: 0
+          description: Optional owner-set base price per unit per 24h, in USD (e.g. $/TH/day). Null, omitted, or 0 → algorithm default is used.
         minRentalHours:
           type: integer
           minimum: 1
@@ -1949,6 +1960,10 @@ components:
           type: number
           minimum: 0
           exclusiveMinimum: true
+        pricePerUnitPerDay:
+          type: ["number", "null"]
+          minimum: 0
+          description: Owner-set base price per unit per 24h, in USD. Send null (or 0) to clear and revert to the algorithm default.
         minRentalHours:
           type: integer
           minimum: 1
@@ -3097,6 +3112,9 @@ components:
           type: number
         pricePerUnitPerHour:
           type: number
+        pricePerUnitPerDay:
+          type: ["number", "null"]
+          description: Owner-set base price per unit per 24h, in USD. Null → algorithm default is used.
         region:
           type: string
         status:

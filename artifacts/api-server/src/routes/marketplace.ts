@@ -78,6 +78,7 @@ router.get("/marketplace/featured", async (req, res) => {
       algorithmUnit: algorithmsTable.unit,
       hashrate: rigsTable.hashrate,
       basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
+      pricePerUnitPerDay: rigsTable.pricePerUnitPerDay,
       minRentalHours: rigsTable.minRentalHours,
       maxRentalHours: rigsTable.maxRentalHours,
       status: rigsTable.status,
@@ -101,7 +102,10 @@ router.get("/marketplace/featured", async (req, res) => {
     .limit(limit);
 
   const data = GetMarketplaceFeaturedResponse.parse(
-    rows.map((r) => ({
+    rows.map((r) => {
+      const ownerPerDay = r.pricePerUnitPerDay == null ? null : toNum(r.pricePerUnitPerDay);
+      const effectivePerHour = ownerPerDay != null ? ownerPerDay / 24 : toNum(r.basePricePerUnitPerHour);
+      return {
       id: r.id,
       name: r.name,
       ownerId: r.ownerId,
@@ -110,7 +114,8 @@ router.get("/marketplace/featured", async (req, res) => {
       algorithmName: r.algorithmName,
       algorithmUnit: r.algorithmUnit,
       hashrate: toNum(r.hashrate),
-      pricePerUnitPerHour: toNum(r.basePricePerUnitPerHour) * renterMultiplier,
+      pricePerUnitPerHour: effectivePerHour * renterMultiplier,
+      pricePerUnitPerDay: ownerPerDay,
       minRentalHours: r.minRentalHours,
       maxRentalHours: r.maxRentalHours,
       status: r.status,
@@ -121,7 +126,8 @@ router.get("/marketplace/featured", async (req, res) => {
       averageRating: r.averageRating == null ? null : Number(toNum(r.averageRating).toFixed(2)),
       reviewCount: Number(r.reviewCount),
       createdAt: r.createdAt.toISOString(),
-    })),
+      };
+    }),
   );
 
   res.json(data);
@@ -232,6 +238,7 @@ router.get("/marketplace/summary", async (_req, res) => {
       algorithmUnit: algorithmsTable.unit,
       hashrate: rigsTable.hashrate,
       basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
+      pricePerUnitPerDay: rigsTable.pricePerUnitPerDay,
       minRentalHours: rigsTable.minRentalHours,
       maxRentalHours: rigsTable.maxRentalHours,
       status: rigsTable.status,
@@ -269,7 +276,10 @@ router.get("/marketplace/summary", async (_req, res) => {
       averagePricePerUnitPerHour:
         toNum(b.basePricePerUnitPerHour) * renterMultiplier,
     })),
-    topRigs: topRigsRaw.map((r) => ({
+    topRigs: topRigsRaw.map((r) => {
+      const ownerPerDay = r.pricePerUnitPerDay == null ? null : toNum(r.pricePerUnitPerDay);
+      const effectivePerHour = ownerPerDay != null ? ownerPerDay / 24 : toNum(r.basePricePerUnitPerHour);
+      return {
       id: r.id,
       name: r.name,
       ownerId: r.ownerId,
@@ -278,8 +288,8 @@ router.get("/marketplace/summary", async (_req, res) => {
       algorithmName: r.algorithmName,
       algorithmUnit: r.algorithmUnit,
       hashrate: toNum(r.hashrate),
-      pricePerUnitPerHour:
-        toNum(r.basePricePerUnitPerHour) * renterMultiplier,
+      pricePerUnitPerHour: effectivePerHour * renterMultiplier,
+      pricePerUnitPerDay: ownerPerDay,
       minRentalHours: r.minRentalHours,
       maxRentalHours: r.maxRentalHours,
       status: r.status,
@@ -291,7 +301,8 @@ router.get("/marketplace/summary", async (_req, res) => {
         r.averageRating == null ? null : Number(toNum(r.averageRating).toFixed(2)),
       reviewCount: Number(r.reviewCount),
       createdAt: r.createdAt.toISOString(),
-    })),
+      };
+    }),
   });
 
   res.json(data);

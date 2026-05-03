@@ -50,6 +50,7 @@ router.get("/rigs", async (req, res) => {
       algorithmName: algorithmsTable.name,
       algorithmUnit: algorithmsTable.unit,
       basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
+      pricePerUnitPerDay: rigsTable.pricePerUnitPerDay,
       hashrate: rigsTable.hashrate,
       minRentalHours: rigsTable.minRentalHours,
       maxRentalHours: rigsTable.maxRentalHours,
@@ -68,21 +69,21 @@ router.get("/rigs", async (req, res) => {
     .where(and(...filters))
     .groupBy(rigsTable.id, usersTable.id, algorithmsTable.id);
 
+  // Effective per-hour base price: owner override (per-day / 24) wins over algorithm default.
+  const effectiveBase = (r: { basePricePerUnitPerHour: string; pricePerUnitPerDay: string | null }) =>
+    r.pricePerUnitPerDay != null
+      ? toNum(r.pricePerUnitPerDay) / 24
+      : toNum(r.basePricePerUnitPerHour);
+
   // Apply sort in memory because price depends on commission.
   const sortKey = typeof sort === "string" ? sort : "newest";
   const sorted = [...rows];
   switch (sortKey) {
     case "price_asc":
-      sorted.sort(
-        (a, b) =>
-          toNum(a.basePricePerUnitPerHour) - toNum(b.basePricePerUnitPerHour),
-      );
+      sorted.sort((a, b) => effectiveBase(a) - effectiveBase(b));
       break;
     case "price_desc":
-      sorted.sort(
-        (a, b) =>
-          toNum(b.basePricePerUnitPerHour) - toNum(a.basePricePerUnitPerHour),
-      );
+      sorted.sort((a, b) => effectiveBase(b) - effectiveBase(a));
       break;
     case "hashrate_desc":
       sorted.sort((a, b) => toNum(b.hashrate) - toNum(a.hashrate));
@@ -110,7 +111,8 @@ router.get("/rigs", async (req, res) => {
       algorithmName: r.algorithmName,
       algorithmUnit: r.algorithmUnit,
       hashrate: toNum(r.hashrate),
-      pricePerUnitPerHour: toNum(r.basePricePerUnitPerHour) * renterMultiplier,
+      pricePerUnitPerHour: effectiveBase(r) * renterMultiplier,
+      pricePerUnitPerDay: r.pricePerUnitPerDay == null ? null : toNum(r.pricePerUnitPerDay),
       minRentalHours: r.minRentalHours,
       maxRentalHours: r.maxRentalHours,
       status: r.status,
@@ -151,6 +153,7 @@ router.get("/rigs/:id", async (req, res) => {
       algorithmName: algorithmsTable.name,
       algorithmUnit: algorithmsTable.unit,
       basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
+      pricePerUnitPerDay: rigsTable.pricePerUnitPerDay,
       hashrate: rigsTable.hashrate,
       minRentalHours: rigsTable.minRentalHours,
       maxRentalHours: rigsTable.maxRentalHours,
@@ -189,7 +192,12 @@ router.get("/rigs/:id", async (req, res) => {
     algorithmName: row.algorithmName,
     algorithmUnit: row.algorithmUnit,
     hashrate: toNum(row.hashrate),
-    pricePerUnitPerHour: toNum(row.basePricePerUnitPerHour) * renterMultiplier,
+    pricePerUnitPerHour:
+      (row.pricePerUnitPerDay != null
+        ? toNum(row.pricePerUnitPerDay) / 24
+        : toNum(row.basePricePerUnitPerHour)) * renterMultiplier,
+    pricePerUnitPerDay:
+      row.pricePerUnitPerDay == null ? null : toNum(row.pricePerUnitPerDay),
     minRentalHours: row.minRentalHours,
     maxRentalHours: row.maxRentalHours,
     status: row.status,

@@ -20,6 +20,12 @@ export interface UpdateRigBody {
    * @exclusiveMinimum true
    */
   hashrate?: number;
+  /**
+   * Owner-set base price per unit per 24h, in USD. Send null (or 0) to clear and revert to the algorithm default.
+   * @minimum 0
+   * @nullable
+   */
+  pricePerUnitPerDay?: number | null;
   /** @minimum 1 */
   minRentalHours?: number;
   /** @minimum 1 */

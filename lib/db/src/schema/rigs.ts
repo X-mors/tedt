@@ -23,6 +23,10 @@ export const rigsTable = pgTable("rigs", {
   description: text("description").notNull().default(""),
   // Hashrate expressed in the algorithm's unit (e.g. 100 = 100 TH/s).
   hashrate: numeric("hashrate", { precision: 18, scale: 6 }).notNull(),
+  // Owner-set custom price per algorithm-unit per 24h, in USD (e.g. $/TH/day).
+  // Null → fall back to the algorithm's default basePricePerUnitPerHour × 24.
+  // Stored per-day to match the lessor-facing input; converted to per-hour at quote/charge time.
+  pricePerUnitPerDay: numeric("price_per_unit_per_day", { precision: 18, scale: 6 }),
   minRentalHours: integer("min_rental_hours").notNull().default(1),
   maxRentalHours: integer("max_rental_hours").notNull().default(168),
   region: text("region").notNull().default("Global"),

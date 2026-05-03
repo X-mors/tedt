@@ -79,6 +79,7 @@ export default function RigForm() {
     description: "",
     algorithmId: "",
     hashrate: "",
+    pricePerUnitPerDay: "",
     minRentalHours: "1",
     maxRentalHours: "24",
     region: "",
@@ -96,6 +97,8 @@ export default function RigForm() {
         description: rig.description,
         algorithmId: rig.algorithmId.toString(),
         hashrate: rig.hashrate.toString(),
+        pricePerUnitPerDay:
+          rig.pricePerUnitPerDay != null ? rig.pricePerUnitPerDay.toString() : "",
         minRentalHours: rig.minRentalHours.toString(),
         maxRentalHours: rig.maxRentalHours.toString(),
         region: rig.region,
@@ -114,12 +117,18 @@ export default function RigForm() {
     const fallbackHost = formData.fallbackPoolHost.trim();
     const fallbackPort = formData.fallbackPoolPort ? parseInt(formData.fallbackPoolPort) : undefined;
 
+    const customPriceTrim = formData.pricePerUnitPerDay.trim();
+    const customPrice =
+      customPriceTrim === "" ? null : parseFloat(customPriceTrim);
+
     if (isEditing) {
       const validStatuses = ["available", "paused"] as const;
       const data = {
         name: formData.name || undefined,
         description: formData.description,
         hashrate: parseFloat(formData.hashrate),
+        pricePerUnitPerDay:
+          customPrice == null || isNaN(customPrice) ? null : customPrice,
         minRentalHours: parseInt(formData.minRentalHours),
         maxRentalHours: parseInt(formData.maxRentalHours),
         ...(formData.region && { region: formData.region }),
@@ -149,6 +158,9 @@ export default function RigForm() {
         description: formData.description,
         algorithmId: parseInt(formData.algorithmId),
         hashrate: parseFloat(formData.hashrate),
+        ...(customPrice != null && !isNaN(customPrice) && customPrice > 0 && {
+          pricePerUnitPerDay: customPrice,
+        }),
         minRentalHours: parseInt(formData.minRentalHours),
         maxRentalHours: parseInt(formData.maxRentalHours),
         region: formData.region,
@@ -398,6 +410,43 @@ export default function RigForm() {
                 </div>
               </div>
             </div>
+
+            {/* Owner-set price override */}
+            {(() => {
+              const algo = algorithms?.find(a => a.id.toString() === formData.algorithmId);
+              const unit = algo?.unit || "UNIT";
+              const defaultPerDay = algo
+                ? (Number(algo.basePricePerUnitPerHour) * 24).toFixed(4)
+                : null;
+              return (
+                <div className="space-y-2">
+                  <Label htmlFor="pricePerUnitPerDay">
+                    Price per {unit} / 24h <span className="text-muted-foreground font-normal">(optional)</span>
+                  </Label>
+                  <div className="relative">
+                    <div className="absolute left-3 top-2.5 text-xs text-muted-foreground font-mono">$</div>
+                    <Input
+                      id="pricePerUnitPerDay"
+                      type="number"
+                      step="0.0001"
+                      min="0"
+                      className="bg-background font-mono text-sm pl-7 pr-28"
+                      placeholder={defaultPerDay ? `default ${defaultPerDay}` : "e.g. 0.05"}
+                      value={formData.pricePerUnitPerDay}
+                      onChange={e => set("pricePerUnitPerDay", e.target.value)}
+                    />
+                    <div className="absolute right-3 top-2.5 text-xs text-muted-foreground font-mono uppercase">
+                      / {unit} / 24h
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Set your own rental rate. Leave empty to use the platform default
+                    {defaultPerDay ? ` (~$${defaultPerDay} per ${unit} per 24h)` : ""}.
+                    Renters see this price plus the service fee. Existing rentals keep their original rate.
+                  </p>
+                </div>
+              );
+            })()}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">

@@ -18,7 +18,13 @@ export interface RigDetail {
   algorithmName: string;
   algorithmUnit: string;
   hashrate: number;
+  /** Renter-facing price per unit per HOUR (already includes the renter commission). */
   pricePerUnitPerHour: number;
+  /**
+   * Owner-set custom base price per unit per 24h, in USD. Null → algorithm default is used.
+   * @nullable
+   */
+  pricePerUnitPerDay?: number | null;
   minRentalHours: number;
   maxRentalHours: number;
   status: RigStatus;

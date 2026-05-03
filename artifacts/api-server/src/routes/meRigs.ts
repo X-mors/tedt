@@ -83,6 +83,7 @@ async function selectMyRigs(ownerId: number) {
       algorithmName: algorithmsTable.name,
       algorithmUnit: algorithmsTable.unit,
       basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
+      pricePerUnitPerDay: rigsTable.pricePerUnitPerDay,
       hashrate: rigsTable.hashrate,
       minRentalHours: rigsTable.minRentalHours,
       maxRentalHours: rigsTable.maxRentalHours,
@@ -105,7 +106,10 @@ async function selectMyRigs(ownerId: number) {
     .groupBy(rigsTable.id, usersTable.id, algorithmsTable.id)
     .orderBy(desc(rigsTable.createdAt));
 
-  return rows.map((r) => ({
+  return rows.map((r) => {
+    const ownerPerDay = r.pricePerUnitPerDay == null ? null : toNum(r.pricePerUnitPerDay);
+    const effectivePerHour = ownerPerDay != null ? ownerPerDay / 24 : toNum(r.basePricePerUnitPerHour);
+    return {
     id: r.id,
     name: r.name,
     ownerId: r.ownerId,
@@ -114,7 +118,8 @@ async function selectMyRigs(ownerId: number) {
     algorithmName: r.algorithmName,
     algorithmUnit: r.algorithmUnit,
     hashrate: toNum(r.hashrate),
-    pricePerUnitPerHour: toNum(r.basePricePerUnitPerHour) * renterMultiplier,
+    pricePerUnitPerHour: effectivePerHour * renterMultiplier,
+    pricePerUnitPerDay: ownerPerDay,
     minRentalHours: r.minRentalHours,
     maxRentalHours: r.maxRentalHours,
     status: r.status,
@@ -129,7 +134,8 @@ async function selectMyRigs(ownerId: number) {
         : Number(toNum(r.averageRating).toFixed(2)),
     reviewCount: Number(r.reviewCount),
     createdAt: r.createdAt.toISOString(),
-  }));
+  };
+  });
 }
 
 async function selectMyRigDetail(ownerId: number, rigId: number) {
@@ -148,6 +154,7 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
       algorithmName: algorithmsTable.name,
       algorithmUnit: algorithmsTable.unit,
       basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
+      pricePerUnitPerDay: rigsTable.pricePerUnitPerDay,
       hashrate: rigsTable.hashrate,
       minRentalHours: rigsTable.minRentalHours,
       maxRentalHours: rigsTable.maxRentalHours,
@@ -189,7 +196,12 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
     algorithmName: row.algorithmName,
     algorithmUnit: row.algorithmUnit,
     hashrate: toNum(row.hashrate),
-    pricePerUnitPerHour: toNum(row.basePricePerUnitPerHour) * renterMultiplier,
+    pricePerUnitPerHour:
+      (row.pricePerUnitPerDay != null
+        ? toNum(row.pricePerUnitPerDay) / 24
+        : toNum(row.basePricePerUnitPerHour)) * renterMultiplier,
+    pricePerUnitPerDay:
+      row.pricePerUnitPerDay == null ? null : toNum(row.pricePerUnitPerDay),
     minRentalHours: row.minRentalHours,
     maxRentalHours: row.maxRentalHours,
     status: row.status,
@@ -257,6 +269,9 @@ router.post("/me/rigs", async (req, res) => {
       name: body.name,
       description: body.description,
       hashrate: toUsdString(body.hashrate),
+      ...(body.pricePerUnitPerDay != null && body.pricePerUnitPerDay > 0 && {
+        pricePerUnitPerDay: toUsdString(body.pricePerUnitPerDay),
+      }),
       minRentalHours: body.minRentalHours,
       maxRentalHours: body.maxRentalHours,
       region: body.region,
@@ -336,6 +351,13 @@ router.patch("/me/rigs/:id", async (req, res) => {
   if (body.name !== undefined) patch["name"] = body.name;
   if (body.description !== undefined) patch["description"] = body.description;
   if (body.hashrate !== undefined) patch["hashrate"] = toUsdString(body.hashrate);
+  // Owner-set custom price: null/0 → revert to algorithm default.
+  if (body.pricePerUnitPerDay !== undefined) {
+    patch["pricePerUnitPerDay"] =
+      body.pricePerUnitPerDay == null || body.pricePerUnitPerDay <= 0
+        ? null
+        : toUsdString(body.pricePerUnitPerDay);
+  }
   if (body.minRentalHours !== undefined)
     patch["minRentalHours"] = body.minRentalHours;
   if (body.maxRentalHours !== undefined)
