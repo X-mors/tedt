@@ -179,7 +179,7 @@ export class DownstreamSession extends EventEmitter {
    * a difficulty below the floor declared in mining.configure.
    */
   private _setDifficulty(diff: number): void {
-    const safe = Math.max(diff, this.minDifficulty, 1);
+    const safe = Math.max(diff, 1);
     this.currentDifficulty = safe;
     this._notify("mining.set_difficulty", [safe]);
   }
@@ -252,13 +252,9 @@ export class DownstreamSession extends EventEmitter {
         result["version-rolling.mask"] = this.versionRollingMask;
         result["version-rolling.min-bit-count"] = minBits;
       } else if (ext === "minimum-difficulty") {
-        // Capture the floor so we never push set_difficulty below it.
-        const v = params["minimum-difficulty.value"];
-        if (typeof v === "number" && v > 0) {
-          this.minDifficulty = v;
-          if (this.currentDifficulty < v) this.currentDifficulty = v;
-        }
-        result["minimum-difficulty"] = true;
+        // Decline the floor: we want the miner to follow the upstream pool's
+        // difficulty (vardiff) verbatim, not be clamped to a hard minimum.
+        result["minimum-difficulty"] = false;
       } else if (ext === "subscribe-extranonce") {
         result["subscribe-extranonce"] = true;
       } else {
