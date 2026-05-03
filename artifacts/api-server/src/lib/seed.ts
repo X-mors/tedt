@@ -43,15 +43,26 @@ export async function seedDatabase(): Promise<void> {
     // Existing rigs keep their algorithmId pointer (it now resolves to the
     // renamed row), so behaviour is preserved.
     // ---------------------------------------------------------------------
-    const [legacyRow] = await db
-      .select({ id: algorithmsTable.id, name: algorithmsTable.name })
+    // Only run the rename if no `sha256asicboost` row exists yet — otherwise
+    // a second deploy would match the freshly-inserted legacy SHA-256 row
+    // (slug=sha256, name="SHA-256") and try to rename IT to a slug already
+    // taken by id=1, hitting algorithms_slug_unique. Guarding here keeps the
+    // migration strictly one-shot per database.
+    const [alreadyMigrated] = await db
+      .select({ id: algorithmsTable.id })
       .from(algorithmsTable)
-      .where(
-        and(
-          eq(algorithmsTable.slug, "sha256"),
-          eq(algorithmsTable.name, "SHA-256"),
-        ),
-      );
+      .where(eq(algorithmsTable.slug, "sha256asicboost"));
+    const [legacyRow] = alreadyMigrated
+      ? [null as null]
+      : await db
+          .select({ id: algorithmsTable.id, name: algorithmsTable.name })
+          .from(algorithmsTable)
+          .where(
+            and(
+              eq(algorithmsTable.slug, "sha256"),
+              eq(algorithmsTable.name, "SHA-256"),
+            ),
+          );
     if (legacyRow) {
       logger.info(
         { id: legacyRow.id },

@@ -1,0 +1,102 @@
+ in 5.1s using pnpm v10.33.2
+> @workspace/api-server@0.0.0 build /var/www/livehashrate.com/artifacts/api-serv
+er
+> node ./build.mjs
+root@vmi3202752:/var/www/livehashrate.com# pm2 logs tedt-api --lines 40 --nostre
+am
+[TAILING] Tailing last 40 lines for [tedt-api] process (change the value with --
+lines option)
+/root/.pm2/logs/tedt-api-error.log last 40 lines:
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm
+/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/
+.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/rou
+ter@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/ro
+uter@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/
+router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.
+2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.p
+npm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/a
+pp.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/co
+rs@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnp
+m/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm
+/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/
+.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/rou
+ter@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/ro
+uter@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/
+router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.
+2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.p
+npm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/a
+pp.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/co
+rs@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnp
+m/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm
+/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/
+.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/rou
+ter@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/ro
+uter@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/
+router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.
+2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.p
+npm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/a
+pp.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/co
+rs@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnp
+m/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm
+/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/
+.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/rou
+ter@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/ro
+uter@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/
+router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.
+2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.p
+npm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+/root/.pm2/logs/tedt-api-out.log last 40 lines:
+0|tedt-api | oost),sha256asicboost,2026-05-03T14:46:23.238Z,6: duplicate key val
+ue violates unique constraint \"algorithms_slug_unique\"","stack":"Error: Failed
+ query: update \"algorithms\" set \"name\" = $1, \"slug\" = $2, \"updated_at\" =
+ $3 where \"algorithms\".\"id\" = $4\nparams: SHA-256 (AsicBoost),sha256asicboos
+t,2026-05-03T14:46:23.238Z,6\n    at NodePgPreparedQuery.queryWithCache (/var/ww
+w/livehashrate.com/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.18.0_pg@8.2
+0.0/node_modules/src/pg-core/session.ts:73:11)\n    at process.processTicksAndRe
+jections (node:internal/process/task_queues:104:5)\n    at async seedDatabase (/
+var/www/livehashrate.com/artifacts/api-server/src/lib/seed.ts:60:7)\ncaused by:
+error: duplicate key value violates unique constraint \"algorithms_slug_unique\"
+\n    at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/pg-pool@3.13.
+0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)\n    at process.processTicksAnd
+Rejections (node:internal/process/task_queues:104:5)\n    at async <anonymous> (
+/var/www/livehashrate.com/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.18.0
+_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)\n    at async NodeP
