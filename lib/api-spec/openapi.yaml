@@ -2214,6 +2214,13 @@ components:
           type: integer
         renterTotalUsd:
           type: number
+        netPaidUsd:
+          type: number
+          description: |
+            What the renter actually paid out of pocket for this rental
+            (renterTotalUsd minus all refunds). For active or completed
+            rentals this equals renterTotalUsd; for cancelled / disputed
+            rentals it reflects partial refunds.
         ownerEarningsUsd:
           type: number
         status:
@@ -2239,6 +2246,7 @@ components:
         - hashrate
         - hours
         - renterTotalUsd
+        - netPaidUsd
         - ownerEarningsUsd
         - status
         - startedAt

@@ -52,7 +52,7 @@ export default function MyRentals() {
 
   const active = rentals?.filter(r => r.status === "active") ?? [];
   const history = rentals?.filter(r => r.status !== "active") ?? [];
-  const totalSpent = rentals?.reduce((s, r) => s + r.renterTotalUsd, 0) ?? 0;
+  const totalSpent = rentals?.reduce((s, r) => s + r.netPaidUsd, 0) ?? 0;
 
   return (
     <div className="container py-8 px-4 max-w-5xl mx-auto space-y-8">
@@ -204,7 +204,12 @@ export default function MyRentals() {
                           </div>
                         )}
                         <div className="text-right">
-                          <div className="font-mono text-sm font-medium">{formatMoney(rental.renterTotalUsd)}</div>
+                          <div className="font-mono text-sm font-medium">{formatMoney(rental.netPaidUsd)}</div>
+                          {rental.netPaidUsd < rental.renterTotalUsd ? (
+                            <div className="text-[10px] font-mono text-green-500">
+                              refunded {formatMoney(rental.renterTotalUsd - rental.netPaidUsd)}
+                            </div>
+                          ) : null}
                           <div className="text-[10px] text-muted-foreground">{formatDistanceToNow(new Date(rental.startedAt), { addSuffix: true })}</div>
                         </div>
                         <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />

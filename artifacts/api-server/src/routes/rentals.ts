@@ -1136,6 +1136,31 @@ router.get("/me/rentals", async (req, res) => {
     .where(eq(rentalsTable.renterId, req.currentUser!.id))
     .orderBy(desc(rentalsTable.createdAt));
 
+  // Sum refunds per rental so we can show actual amount paid
+  // (renterTotal − refunds). Cancelled / disputed rentals partially refund
+  // the renter, so the original `renterTotalUsd` overstates what they spent.
+  const rentalIds = rows.map((r) => r.id);
+  const refundRows = rentalIds.length
+    ? await db
+        .select({
+          rentalId: walletTransactionsTable.relatedRentalId,
+          total: sql<string>`COALESCE(SUM(${walletTransactionsTable.amountUsd}), 0)`,
+        })
+        .from(walletTransactionsTable)
+        .where(
+          and(
+            eq(walletTransactionsTable.userId, req.currentUser!.id),
+            eq(walletTransactionsTable.type, "rental_refund"),
+            inArray(walletTransactionsTable.relatedRentalId, rentalIds),
+          ),
+        )
+        .groupBy(walletTransactionsTable.relatedRentalId)
+    : [];
+  const refundMap = new Map<number, number>();
+  for (const r of refundRows) {
+    if (r.rentalId != null) refundMap.set(r.rentalId, toNum(r.total));
+  }
+
   const ownerIds = Array.from(new Set(rows.map((r) => r.ownerId)));
   const owners = ownerIds.length
     ? await db
@@ -1159,6 +1184,9 @@ router.get("/me/rentals", async (req, res) => {
       hashrate: toNum(r.hashrate),
       hours: r.hours,
       renterTotalUsd: toNum(r.renterTotalUsd),
+      netPaidUsd: round6(
+        Math.max(0, toNum(r.renterTotalUsd) - (refundMap.get(r.id) ?? 0)),
+      ),
       ownerEarningsUsd: toNum(r.ownerEarningsUsd),
       status: r.status,
       startedAt: r.startedAt.toISOString(),

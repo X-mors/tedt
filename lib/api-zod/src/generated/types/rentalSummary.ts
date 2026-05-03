@@ -20,6 +20,12 @@ export interface RentalSummary {
   hashrate: number;
   hours: number;
   renterTotalUsd: number;
+  /** What the renter actually paid out of pocket for this rental
+(renterTotalUsd minus all refunds). For active or completed
+rentals this equals renterTotalUsd; for cancelled / disputed
+rentals it reflects partial refunds.
+ */
+  netPaidUsd: number;
   ownerEarningsUsd: number;
   status: RentalStatus;
   startedAt: Date;

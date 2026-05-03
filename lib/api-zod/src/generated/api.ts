@@ -806,6 +806,11 @@ export const ListLessorRentalsResponseItem = zod.object({
   hashrate: zod.number(),
   hours: zod.number(),
   renterTotalUsd: zod.number(),
+  netPaidUsd: zod
+    .number()
+    .describe(
+      "What the renter actually paid out of pocket for this rental\n(renterTotalUsd minus all refunds). For active or completed\nrentals this equals renterTotalUsd; for cancelled \/ disputed\nrentals it reflects partial refunds.\n",
+    ),
   ownerEarningsUsd: zod.number(),
   status: zod.enum(["pending", "active", "completed", "cancelled", "disputed"]),
   startedAt: zod.coerce.date(),
@@ -1085,6 +1090,11 @@ export const ListMyRentalsResponseItem = zod.object({
   hashrate: zod.number(),
   hours: zod.number(),
   renterTotalUsd: zod.number(),
+  netPaidUsd: zod
+    .number()
+    .describe(
+      "What the renter actually paid out of pocket for this rental\n(renterTotalUsd minus all refunds). For active or completed\nrentals this equals renterTotalUsd; for cancelled \/ disputed\nrentals it reflects partial refunds.\n",
+    ),
   ownerEarningsUsd: zod.number(),
   status: zod.enum(["pending", "active", "completed", "cancelled", "disputed"]),
   startedAt: zod.coerce.date(),
