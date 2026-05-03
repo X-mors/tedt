@@ -28,8 +28,12 @@ router.get("/rigs", async (req, res) => {
   const commission = await getCommission();
   const renterMultiplier = 1 + commission.renterFeePct / 100;
 
-  // Public marketplace only ever lists approved rigs.
-  const filters = [eq(rigsTable.approvalStatus, "approved")];
+  // Public marketplace only ever lists approved rigs that are currently
+  // online/connected. Offline rigs are hidden from the public listing.
+  const filters = [
+    eq(rigsTable.approvalStatus, "approved"),
+    eq(rigsTable.isOnline, true),
+  ];
   if (algorithmIdRaw && !Number.isNaN(Number(algorithmIdRaw))) {
     filters.push(eq(rigsTable.algorithmId, Number(algorithmIdRaw)));
   }
