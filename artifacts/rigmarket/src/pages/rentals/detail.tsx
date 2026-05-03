@@ -11,6 +11,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Activity, Server, CheckCircle2, Wifi, WifiOff, BarChart2, ShieldAlert } from "lucide-react";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
+
+const toNum = (v: string | number | null | undefined): number => {
+  if (v == null) return 0;
+  const n = typeof v === 'string' ? parseFloat(v) : v;
+  return Number.isFinite(n) ? n : 0;
+};
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -428,19 +435,42 @@ export default function RentalCockpit() {
                   </div>
 
                   {stats && stats.samples.length > 1 ? (
-                    <div className="flex items-end gap-0.5 h-16 bg-background/30 rounded-md border border-border/30 px-3 py-2">
-                      {stats.samples.map((s, i) => {
-                        const max = Math.max(...stats.samples.map((x) => x.hashrate), 1);
-                        const h = Math.max(4, (s.hashrate / max) * 100);
-                        return (
-                          <div
-                            key={i}
-                            title={`${formatHashrate(s.hashrate, rental.algorithmUnit)}`}
-                            style={{ height: `${h}%` }}
-                            className={`flex-1 rounded-sm min-w-[2px] ${rental.status === 'active' ? 'bg-cyan-400/80' : 'bg-primary/60'}`}
+                    <div className="h-32 bg-background/30 rounded-md border border-border/30 px-2 py-2">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={stats.samples} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                          <defs>
+                            <linearGradient id="hashrateFill" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#f0b90b" stopOpacity={0.45} />
+                              <stop offset="100%" stopColor="#f0b90b" stopOpacity={0.02} />
+                            </linearGradient>
+                          </defs>
+                          <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax * 1.15, toNum(rental.hashrate) * 1.05)]} />
+                          <Tooltip
+                            cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '3 3' }}
+                            contentStyle={{
+                              background: 'hsl(var(--background))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontFamily: 'var(--font-mono)',
+                              padding: '4px 8px',
+                            }}
+                            labelStyle={{ color: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                            formatter={(v: number) => [formatHashrate(v, rental.algorithmUnit), 'Hashrate']}
+                            labelFormatter={(t: string) => new Date(t).toLocaleTimeString()}
                           />
-                        );
-                      })}
+                          <Area
+                            type="monotone"
+                            dataKey="hashrate"
+                            stroke="#f0b90b"
+                            strokeWidth={1.6}
+                            fill="url(#hashrateFill)"
+                            isAnimationActive={false}
+                            dot={false}
+                            activeDot={{ r: 3, fill: '#f0b90b', stroke: 'hsl(var(--background))', strokeWidth: 1.5 }}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
                     </div>
                   ) : (
                     <div className="flex items-center justify-center gap-2 h-16 bg-background/30 rounded-md border border-dashed border-border/30 text-muted-foreground">
