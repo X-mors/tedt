@@ -1132,7 +1132,7 @@ router.get("/admin/proxy/settings", async (_req, res) => {
 router.put("/admin/proxy/settings", async (req, res) => {
   const body = req.body as Record<string, unknown>;
   const allowed: Record<string, (v: number) => boolean> = {
-    low_delivery_threshold_pct: (v) => v > 0 && v <= 1,
+    low_delivery_threshold_pct: (v) => v >= 0 && v <= 1,
     low_delivery_window_sec: (v) => v >= 60 && v <= 86400,
     min_shares_for_check: (v) => v >= 0 && v <= 10000,
   };
