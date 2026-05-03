@@ -614,89 +614,6 @@ export default function AdminDashboard() {
             </DialogContent>
           </Dialog>
 
-          <Dialog open={disputeRental !== null} onOpenChange={(open) => { if (!open) { setDisputeRental(null); setDisputeNote(""); } }}>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Resolve Disputed Cancellation</DialogTitle>
-              </DialogHeader>
-              {disputeRental ? (
-                <div className="space-y-4 py-2">
-                  <div className="text-sm space-y-1 p-3 rounded-md border border-border/50 bg-muted/30 font-mono">
-                    <div>Rental #{disputeRental.id} · {disputeRental.rigName}</div>
-                    <div className="text-muted-foreground text-xs">Renter: {disputeRental.renterEmail}</div>
-                    <div className="text-muted-foreground text-xs">Owner: {disputeRental.ownerEmail}</div>
-                    <div className="pt-2">Renter paid: {formatMoney(disputeRental.netRenterPaidUsd)} of {formatMoney(disputeRental.renterTotalUsd)}</div>
-                    <div className="text-xs text-yellow-500">Frozen pending decision: {formatMoney(disputeRental.netRenterPaidUsd)}</div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="font-mono text-xs">Admin note (optional)</Label>
-                    <Input
-                      placeholder="Reason / evidence reference…"
-                      value={disputeNote}
-                      onChange={(e) => setDisputeNote(e.target.value)}
-                      className="font-mono text-xs"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      Pick the side that gets the frozen amount. Choosing the
-                      owner means the rig under-delivered for reasons outside
-                      its control (e.g. renter's pool was misconfigured) and
-                      no discount applies.
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        variant="outline"
-                        className="font-mono text-xs"
-                        disabled={resolveDispute.isPending}
-                        onClick={async () => {
-                          if (!disputeRental) return;
-                          try {
-                            await resolveDispute.mutateAsync({
-                              id: disputeRental.id,
-                              data: { award: "renter", note: disputeNote || undefined },
-                            });
-                            toast({ title: "Refunded to renter", description: `Rental #${disputeRental.id} resolved` });
-                            queryClient.invalidateQueries({ queryKey: getListAdminRentalsQueryKey() });
-                            queryClient.invalidateQueries({ queryKey: getListAdminWalletTransactionsQueryKey() });
-                            setDisputeRental(null);
-                            setDisputeNote("");
-                          } catch (e) {
-                            toast({ title: "Error", description: (e as Error).message, variant: "destructive" });
-                          }
-                        }}
-                      >
-                        REFUND_RENTER
-                      </Button>
-                      <Button
-                        className="font-mono text-xs"
-                        disabled={resolveDispute.isPending}
-                        onClick={async () => {
-                          if (!disputeRental) return;
-                          try {
-                            await resolveDispute.mutateAsync({
-                              id: disputeRental.id,
-                              data: { award: "owner", note: disputeNote || undefined },
-                            });
-                            toast({ title: "Paid to owner", description: `Rental #${disputeRental.id} resolved` });
-                            queryClient.invalidateQueries({ queryKey: getListAdminRentalsQueryKey() });
-                            queryClient.invalidateQueries({ queryKey: getListAdminWalletTransactionsQueryKey() });
-                            setDisputeRental(null);
-                            setDisputeNote("");
-                          } catch (e) {
-                            toast({ title: "Error", description: (e as Error).message, variant: "destructive" });
-                          }
-                        }}
-                      >
-                        PAY_OWNER
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </DialogContent>
-          </Dialog>
-
           <Card className="bg-card/50 border-border/50">
             <CardContent className="p-0">
               <Table>
@@ -1402,6 +1319,93 @@ export default function AdminDashboard() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={disputeRental !== null} onOpenChange={(open) => { if (!open) { setDisputeRental(null); setDisputeNote(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Resolve Disputed Cancellation</DialogTitle>
+          </DialogHeader>
+          {disputeRental ? (
+            <div className="space-y-4 py-2">
+              <div className="text-sm space-y-1 p-3 rounded-md border border-border/50 bg-muted/30 font-mono">
+                <div>Rental #{disputeRental.id} · {disputeRental.rigName}</div>
+                <div className="text-muted-foreground text-xs">Renter: {disputeRental.renterEmail}</div>
+                <div className="text-muted-foreground text-xs">Owner: {disputeRental.ownerEmail}</div>
+                <div className="pt-2">Renter paid: {formatMoney(disputeRental.netRenterPaidUsd)} of {formatMoney(disputeRental.renterTotalUsd)}</div>
+                <div className="text-xs text-yellow-500">Frozen pending decision: {formatMoney(disputeRental.netRenterPaidUsd)}</div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-mono text-xs">Admin note (optional)</Label>
+                <Input
+                  placeholder="Reason / evidence reference…"
+                  value={disputeNote}
+                  onChange={(e) => setDisputeNote(e.target.value)}
+                  className="font-mono text-xs"
+                />
+              </div>
+              <div className="space-y-3">
+                <div className="rounded-md border border-border/50 p-3 space-y-2">
+                  <div className="font-mono text-xs font-bold">RIG FAULT — refund the renter</div>
+                  <p className="text-xs text-muted-foreground">
+                    The rig under-delivered the advertised hashrate. Refund the frozen used-time amount back to the renter; the owner gets nothing.
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="font-mono text-xs w-full"
+                    disabled={resolveDispute.isPending}
+                    onClick={async () => {
+                      if (!disputeRental) return;
+                      try {
+                        await resolveDispute.mutateAsync({
+                          id: disputeRental.id,
+                          data: { award: "renter", note: disputeNote || undefined },
+                        });
+                        toast({ title: "Refunded to renter", description: `Rental #${disputeRental.id} resolved` });
+                        queryClient.invalidateQueries({ queryKey: getListAdminRentalsQueryKey() });
+                        queryClient.invalidateQueries({ queryKey: getListAdminWalletTransactionsQueryKey() });
+                        setDisputeRental(null);
+                        setDisputeNote("");
+                      } catch (e) {
+                        toast({ title: "Error", description: (e as Error).message, variant: "destructive" });
+                      }
+                    }}
+                  >
+                    REFUND_RENTER
+                  </Button>
+                </div>
+                <div className="rounded-md border border-border/50 p-3 space-y-2">
+                  <div className="font-mono text-xs font-bold">POOL FAULT — pay the owner</div>
+                  <p className="text-xs text-muted-foreground">
+                    The shortfall was on the renter's mining pool, not the rig. Release the frozen amount to the owner with no discount applied.
+                  </p>
+                  <Button
+                    className="font-mono text-xs w-full"
+                    disabled={resolveDispute.isPending}
+                    onClick={async () => {
+                      if (!disputeRental) return;
+                      try {
+                        await resolveDispute.mutateAsync({
+                          id: disputeRental.id,
+                          data: { award: "owner", note: disputeNote || undefined },
+                        });
+                        toast({ title: "Paid to owner", description: `Rental #${disputeRental.id} resolved` });
+                        queryClient.invalidateQueries({ queryKey: getListAdminRentalsQueryKey() });
+                        queryClient.invalidateQueries({ queryKey: getListAdminWalletTransactionsQueryKey() });
+                        setDisputeRental(null);
+                        setDisputeNote("");
+                      } catch (e) {
+                        toast({ title: "Error", description: (e as Error).message, variant: "destructive" });
+                      }
+                    }}
+                  >
+                    PAY_OWNER
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
