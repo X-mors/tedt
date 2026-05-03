@@ -165,6 +165,29 @@ export class StratumServer {
       }
     }
 
+    // Sweep ALL active rentals (not just those that produced shares this
+    // cycle) so that a totally-disconnected rig — which never enters the
+    // snapshot loop above — still gets evaluated and auto-cancelled when
+    // its delivery is below the admin threshold.
+    try {
+      const checkedThisCycle = new Set<number>(
+        windows.map((w) => w.rentalId),
+      );
+      const activeRentals = await db
+        .select({ id: rentalsTable.id })
+        .from(rentalsTable)
+        .where(eq(rentalsTable.status, "active"));
+      for (const r of activeRentals) {
+        if (checkedThisCycle.has(r.id)) continue;
+        await this._checkLowDelivery(r.id);
+      }
+    } catch (err) {
+      logger.error(
+        { err },
+        "stratum:server low-delivery sweep error",
+      );
+    }
+
     // Per-rig fallback samples — for rigs mining to the owner's pool with
     // no active rental. These never reach the rental table but are
     // essential for the owner's continuous 14-day history chart.
@@ -262,19 +285,26 @@ export class StratumServer {
       (s, r) => s + r.sharesAccepted,
       0,
     );
-    if (totalShares < minSharesForCheck) return;
 
     const avgHashrateH =
-      recentSamples.reduce(
-        (s, r) => s + toNum(r.effectiveHashrateH ?? "0"),
-        0,
-      ) / Math.max(1, recentSamples.length);
-    if (avgHashrateH === 0) return;
+      recentSamples.length === 0
+        ? 0
+        : recentSamples.reduce(
+            (s, r) => s + toNum(r.effectiveHashrateH ?? "0"),
+            0,
+          ) / recentSamples.length;
 
     const algUnit = await this._getAlgUnit(rentalId);
     const mult = unitMultiplier(algUnit);
     const advertisedH = toNum(rental.hashrate) * mult;
-    const ratio = avgHashrateH / advertisedH;
+    const ratio = advertisedH > 0 ? avgHashrateH / advertisedH : 1;
+
+    // If the rig is producing some shares but below the configured minimum,
+    // wait — too few samples to judge. But if there are zero shares AND
+    // zero samples for the whole window past the grace period, treat it as
+    // 0% delivery and trigger the auto-cancel directly.
+    const totallyDark = recentSamples.length === 0 && totalShares === 0;
+    if (!totallyDark && totalShares < minSharesForCheck) return;
 
     if (ratio < lowDeliveryThresholdPct) {
       logger.warn(
