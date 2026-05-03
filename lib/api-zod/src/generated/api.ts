@@ -1275,6 +1275,12 @@ export const TestPoolConnectionBody = zod.object({
     .string()
     .describe("Worker \/ username as required by the pool"),
   poolPassword: zod.string().optional().describe("Pool password (often 'x')"),
+  algorithmSlug: zod
+    .string()
+    .optional()
+    .describe(
+      "Optional algorithm slug (e.g. 'sha256asicboost' or 'sha256') so the test enforces the same protocol mode the rig will actually use — when 'sha256asicboost' the test requires the pool to accept version-rolling, when 'sha256' it forbids version-rolling.",
+    ),
 });
 
 export const TestPoolConnectionResponse = zod

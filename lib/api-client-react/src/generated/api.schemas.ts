@@ -639,6 +639,8 @@ export interface PoolTestBody {
   poolWorker: string;
   /** Pool password (often 'x') */
   poolPassword?: string;
+  /** Optional algorithm slug (e.g. 'sha256asicboost' or 'sha256') so the test enforces the same protocol mode the rig will actually use — when 'sha256asicboost' the test requires the pool to accept version-rolling, when 'sha256' it forbids version-rolling. */
+  algorithmSlug?: string;
 }
 
 /**

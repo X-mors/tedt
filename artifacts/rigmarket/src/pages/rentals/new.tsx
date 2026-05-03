@@ -61,7 +61,14 @@ export default function NewRental() {
     }
     setPoolTestResult(null);
     testPool.mutate(
-      { data: { poolUrl, poolWorker, poolPassword: poolPassword || "x" } },
+      {
+        data: {
+          poolUrl,
+          poolWorker,
+          poolPassword: poolPassword || "x",
+          algorithmSlug: rig?.algorithmSlug ?? undefined,
+        },
+      },
       {
         onSuccess: (result) => setPoolTestResult(result),
         onError: (err) => setPoolTestResult({ success: false, authFailed: false, message: err.message, latencyMs: null }),

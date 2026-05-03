@@ -10,7 +10,12 @@ const PoolTestBody = z.object({
   poolUrl: z.string().min(1),
   poolWorker: z.string().min(1),
   poolPassword: z.string().optional().default("x"),
+  algorithmSlug: z.string().optional(),
 });
+
+// Reasonable default mask used by all current asicboost ASICs (S19 family,
+// Whatsminer, etc.). Pools that support version-rolling will accept this.
+const DEFAULT_VERSION_ROLLING_MASK = "1fffe000";
 
 /**
  * POST /pool/test
@@ -34,11 +39,19 @@ router.post("/pool/test", requireAuth, async (req, res) => {
     authFailed: boolean;
     errorMessage: string | null;
   }>((resolve) => {
+    // Pair the test with the rig's actual algorithm so the test fails fast
+    // if the user pasted a pool URL meant for a different stratum mode
+    // (e.g. an AsicBoost rig pointed at a legacy-only port, or vice versa).
+    const isAsicboost = body.algorithmSlug === "sha256asicboost";
+    const isLegacy = body.algorithmSlug === "sha256";
+    const strictConfigure = isAsicboost || isLegacy;
     const upstream = new UpstreamClient(
       body.poolUrl,
       body.poolWorker,
       body.poolPassword,
       0,
+      isAsicboost ? DEFAULT_VERSION_ROLLING_MASK : undefined,
+      strictConfigure,
     );
 
     const cleanup = (outcome: {

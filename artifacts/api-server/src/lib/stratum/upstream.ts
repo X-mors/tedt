@@ -38,6 +38,14 @@ export class UpstreamClient extends EventEmitter {
     private readonly rentalId: number,
     /** If set, send mining.configure with version-rolling before subscribing. */
     private readonly versionRollingMask?: string,
+    /**
+     * If true, await the mining.configure response and treat a refusal (or no
+     * reply) as a fatal error. Used by the pool-test endpoint to enforce that
+     * an asicboost rig is paired with a pool that actually supports
+     * version-rolling, and that a legacy-sha256 rig is paired with a pool that
+     * does NOT advertise version-rolling.
+     */
+    private readonly strictConfigure: boolean = false,
   ) {
     super();
   }
@@ -254,18 +262,78 @@ export class UpstreamClient extends EventEmitter {
       // in its job notifications.
       if (this.versionRollingMask) {
         const cfgId = this._nextId();
-        this._send({
-          id: cfgId,
-          method: "mining.configure",
-          params: [
+        if (this.strictConfigure) {
+          // Pool-test path: await the response and verify the pool actually
+          // accepted version-rolling. This guarantees the rig's algorithm
+          // (sha256asicboost) matches the pool's capabilities.
+          let cfgResp: unknown;
+          try {
+            cfgResp = await this._request(cfgId, "mining.configure", [
+              ["version-rolling"],
+              { "version-rolling.mask": this.versionRollingMask, "version-rolling.min-bit-count": 2 },
+            ]);
+          } catch {
+            this.emit(
+              "error",
+              new Error(
+                "Pool did not respond to mining.configure (version-rolling) — this pool/port does not support AsicBoost. Use the legacy SHA-256 port instead.",
+              ),
+            );
+            return;
+          }
+          const ok =
+            typeof cfgResp === "object" &&
+            cfgResp !== null &&
+            (cfgResp as Record<string, unknown>)["version-rolling"] === true;
+          if (!ok) {
+            this.emit(
+              "error",
+              new Error(
+                "Pool refused version-rolling — this pool/port does not support AsicBoost. Use the legacy SHA-256 port instead.",
+              ),
+            );
+            return;
+          }
+        } else {
+          this._send({
+            id: cfgId,
+            method: "mining.configure",
+            params: [
+              ["version-rolling"],
+              { "version-rolling.mask": this.versionRollingMask, "version-rolling.min-bit-count": 2 },
+            ],
+          });
+          logger.debug(
+            { rentalId: this.rentalId, mask: this.versionRollingMask },
+            "stratum:upstream sent mining.configure (version-rolling) to pool (fire-and-forget)",
+          );
+        }
+      } else if (this.strictConfigure) {
+        // Legacy-sha256 test path: probe the pool with mining.configure and
+        // require it to NOT advertise version-rolling support. If it does, the
+        // user picked an asicboost endpoint by mistake.
+        const cfgId = this._nextId();
+        try {
+          const cfgResp = await this._request(cfgId, "mining.configure", [
             ["version-rolling"],
-            { "version-rolling.mask": this.versionRollingMask, "version-rolling.min-bit-count": 2 },
-          ],
-        });
-        logger.debug(
-          { rentalId: this.rentalId, mask: this.versionRollingMask },
-          "stratum:upstream sent mining.configure (version-rolling) to pool (fire-and-forget)",
-        );
+            { "version-rolling.mask": "ffffffff", "version-rolling.min-bit-count": 2 },
+          ]);
+          const advertises =
+            typeof cfgResp === "object" &&
+            cfgResp !== null &&
+            (cfgResp as Record<string, unknown>)["version-rolling"] === true;
+          if (advertises) {
+            this.emit(
+              "error",
+              new Error(
+                "This pool/port advertises AsicBoost (version-rolling) but the rig is configured for legacy SHA-256. Use the AsicBoost port instead, or pick a legacy-only pool URL.",
+              ),
+            );
+            return;
+          }
+        } catch {
+          // Pool ignored mining.configure — perfectly fine for a legacy pool.
+        }
       }
 
       const subId = this._nextId();

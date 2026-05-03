@@ -204,12 +204,16 @@ export default function RigForm() {
       return;
     }
     setPoolTestResult(null);
+    const selectedAlgo = algorithms?.find(
+      (a) => a.id.toString() === formData.algorithmId,
+    );
     testPool.mutate(
       {
         data: {
           poolUrl: `stratum+tcp://${host}:${port}`,
           poolWorker: worker,
           poolPassword: formData.fallbackPoolPassword || "x",
+          algorithmSlug: selectedAlgo?.slug ?? undefined,
         },
       },
       {
