@@ -3106,8 +3106,19 @@ components:
           type: integer
         renterTotalUsd:
           type: number
+        netRenterPaidUsd:
+          type: number
+          description: |
+            What the renter actually paid out of pocket
+            (renterTotalUsd minus all refunds for this rental).
         ownerEarningsUsd:
           type: number
+        netOwnerEarnedUsd:
+          type: number
+          description: |
+            What the owner has actually been credited for this rental
+            (sum of rental_payout entries). Zero while a rental is active
+            or disputed and pending admin resolution.
         platformFeeUsd:
           type: number
         status:
@@ -3140,7 +3151,9 @@ components:
         - hashrate
         - hours
         - renterTotalUsd
+        - netRenterPaidUsd
         - ownerEarningsUsd
+        - netOwnerEarnedUsd
         - platformFeeUsd
         - status
         - startedAt

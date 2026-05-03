@@ -1837,7 +1837,17 @@ export const ListAdminRentalsResponseItem = zod.object({
   hashrate: zod.number(),
   hours: zod.number(),
   renterTotalUsd: zod.number(),
+  netRenterPaidUsd: zod
+    .number()
+    .describe(
+      "What the renter actually paid out of pocket\n(renterTotalUsd minus all refunds for this rental).\n",
+    ),
   ownerEarningsUsd: zod.number(),
+  netOwnerEarnedUsd: zod
+    .number()
+    .describe(
+      "What the owner has actually been credited for this rental\n(sum of rental_payout entries). Zero while a rental is active\nor disputed and pending admin resolution.\n",
+    ),
   platformFeeUsd: zod.number(),
   status: zod.enum(["pending", "active", "completed", "cancelled", "disputed"]),
   startedAt: zod.coerce.date(),

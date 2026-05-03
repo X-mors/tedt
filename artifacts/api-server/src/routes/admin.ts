@@ -701,6 +701,36 @@ router.get("/admin/rentals", async (_req, res) => {
     .innerJoin(usersTable, eq(usersTable.id, rentalsTable.renterId))
     .orderBy(desc(rentalsTable.createdAt));
 
+  // Compute the actual money that has moved per rental so the admin sees
+  // what was really paid / earned, not just the contract amounts.
+  const rentalIds = rows.map((r) => r.id);
+  const txRows = rentalIds.length
+    ? await db
+        .select({
+          rentalId: walletTransactionsTable.relatedRentalId,
+          type: walletTransactionsTable.type,
+          total: sql<string>`COALESCE(SUM(${walletTransactionsTable.amountUsd}), 0)`,
+        })
+        .from(walletTransactionsTable)
+        .where(
+          and(
+            inArray(walletTransactionsTable.relatedRentalId, rentalIds),
+            inArray(walletTransactionsTable.type, [
+              "rental_refund",
+              "rental_payout",
+            ]),
+          ),
+        )
+        .groupBy(walletTransactionsTable.relatedRentalId, walletTransactionsTable.type)
+    : [];
+  const refundMap = new Map<number, number>();
+  const payoutMap = new Map<number, number>();
+  for (const t of txRows) {
+    if (t.rentalId == null) continue;
+    if (t.type === "rental_refund") refundMap.set(t.rentalId, toNum(t.total));
+    else if (t.type === "rental_payout") payoutMap.set(t.rentalId, toNum(t.total));
+  }
+
   const ownerIds = Array.from(new Set(rows.map((r) => r.ownerId)));
   const owners = ownerIds.length
     ? await db
@@ -724,7 +754,11 @@ router.get("/admin/rentals", async (_req, res) => {
       hashrate: toNum(r.hashrate),
       hours: r.hours,
       renterTotalUsd: toNum(r.renterTotalUsd),
+      netRenterPaidUsd: round6(
+        Math.max(0, toNum(r.renterTotalUsd) - (refundMap.get(r.id) ?? 0)),
+      ),
       ownerEarningsUsd: toNum(r.ownerEarningsUsd),
+      netOwnerEarnedUsd: round6(payoutMap.get(r.id) ?? 0),
       platformFeeUsd: toNum(r.platformFeeUsd),
       status: r.status,
       startedAt: r.startedAt.toISOString(),

@@ -20,7 +20,16 @@ export interface AdminRentalRow {
   hashrate: number;
   hours: number;
   renterTotalUsd: number;
+  /** What the renter actually paid out of pocket
+(renterTotalUsd minus all refunds for this rental).
+ */
+  netRenterPaidUsd: number;
   ownerEarningsUsd: number;
+  /** What the owner has actually been credited for this rental
+(sum of rental_payout entries). Zero while a rental is active
+or disputed and pending admin resolution.
+ */
+  netOwnerEarnedUsd: number;
   platformFeeUsd: number;
   status: RentalStatus;
   startedAt: Date;
