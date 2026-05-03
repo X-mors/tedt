@@ -120,14 +120,20 @@ function priceForRental(opts: {
   };
 }
 
-function buildProxyCreds() {
+function buildProxyCreds(algorithmSlug?: string | null) {
   // STRATUM_HOST should be set on the VPS (e.g. livehashrate.com).
   // Falls back to REPLIT_DEV_DOMAIN for local dev, then a safe placeholder.
   const host =
     process.env["STRATUM_HOST"] ??
     process.env["REPLIT_DEV_DOMAIN"] ??
     "livehashrate.com";
-  const port = process.env["STRATUM_PORT"] ?? "3333";
+  // Legacy `sha256` rigs (no ASICBoost) are served on a separate listener
+  // that refuses version-rolling — use that port so renters wire their
+  // mining client to the correct endpoint for the rig they're booking.
+  const isLegacy = algorithmSlug === "sha256";
+  const port = isLegacy
+    ? process.env["STRATUM_LEGACY_PORT"] ?? "3334"
+    : process.env["STRATUM_PORT"] ?? "3333";
   return {
     stratumProxyUrl: `stratum+tcp://${host}:${port}`,
     proxyWorker: `worker.${randomBytes(4).toString("hex")}`,
@@ -215,6 +221,7 @@ router.post("/rentals", async (req, res) => {
       lastSeenAt: rigsTable.lastSeenAt,
       basePrice: algorithmsTable.basePricePerUnitPerHour,
       ownerPricePerDay: rigsTable.pricePerUnitPerDay,
+      algorithmSlug: algorithmsTable.slug,
     })
     .from(rigsTable)
     .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
@@ -320,7 +327,7 @@ router.post("/rentals", async (req, res) => {
         .returning({ id: rigsTable.id });
       if (!reserved) throw new TxError("unavailable");
 
-      const proxy = buildProxyCreds();
+      const proxy = buildProxyCreds(rigRow.algorithmSlug);
       const startedAt = new Date();
       const endsAt = new Date(startedAt.getTime() + body.hours * 3600 * 1000);
 

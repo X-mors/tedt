@@ -31,27 +31,46 @@ export class StratumServer {
   private algUnitCache = new Map<number, string>();
   private lastRigSamplePruneMs = 0;
 
-  constructor(private readonly port: number) {
+  private readonly legacyMode: boolean;
+  /**
+   * @param port      TCP port to listen on.
+   * @param options   `legacyMode` true → refuse ASICBoost / version-rolling and
+   *                  only accept rigs listed under the `sha256` algorithm.
+   *                  Used to expose a separate listener for legacy hardware.
+   *                  `startFlushLoop` false → skip the periodic sample-flush
+   *                  loop. Set on secondary listeners so we don't double-flush.
+   */
+  constructor(
+    private readonly port: number,
+    options: { legacyMode?: boolean; startFlushLoop?: boolean } = {},
+  ) {
+    this.legacyMode = options.legacyMode === true;
+    const startFlushLoop = options.startFlushLoop !== false;
     this.tcpServer = net.createServer((socket: net.Socket) => {
       logger.info(
-        { remoteAddress: socket.remoteAddress },
+        { remoteAddress: socket.remoteAddress, legacyMode: this.legacyMode },
         "stratum:server new connection",
       );
-      new DownstreamSession(socket);
+      new DownstreamSession(socket, { legacyMode: this.legacyMode });
     });
 
     this.tcpServer.on("error", (err: Error) => {
-      logger.error({ err }, "stratum:server TCP error");
+      logger.error({ err, legacyMode: this.legacyMode }, "stratum:server TCP error");
     });
+    this._startFlushLoop = startFlushLoop;
   }
+
+  private readonly _startFlushLoop: boolean;
 
   start(): void {
     this.tcpServer.listen(this.port, "0.0.0.0", () => {
-      logger.info({ port: this.port }, "stratum:server listening");
+      logger.info({ port: this.port, legacyMode: this.legacyMode }, "stratum:server listening");
     });
-    this.flushTimer = setInterval(() => {
-      void this._flushSamples();
-    }, FLUSH_INTERVAL_MS);
+    if (this._startFlushLoop) {
+      this.flushTimer = setInterval(() => {
+        void this._flushSamples();
+      }, FLUSH_INTERVAL_MS);
+    }
   }
 
   stop(): void {

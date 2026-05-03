@@ -25,7 +25,18 @@ import { proxyState } from "../lib/stratum/state";
 import { randomBytes } from "node:crypto";
 
 const PROXY_HOST = process.env["STRATUM_PROXY_HOST"] ?? "proxy.rigmarket.dev";
-const PROXY_PORT = process.env["STRATUM_PROXY_PORT"] ?? "3333";
+const PROXY_PORT = process.env["STRATUM_PROXY_PORT"] ?? process.env["STRATUM_PORT"] ?? "3333";
+const PROXY_LEGACY_PORT =
+  process.env["STRATUM_PROXY_LEGACY_PORT"] ?? process.env["STRATUM_LEGACY_PORT"] ?? "3334";
+
+/**
+ * Pick the right Stratum port for a rig based on its algorithm slug. Legacy
+ * `sha256` rigs must use the no-ASICBoost listener; everything else uses the
+ * default ASICBoost-capable listener.
+ */
+function stratumPortForSlug(slug: string | null | undefined): string {
+  return slug === "sha256" ? PROXY_LEGACY_PORT : PROXY_PORT;
+}
 
 function slugifyRigName(name: string): string {
   return name
@@ -50,6 +61,7 @@ async function uniqueStratumName(ownerId: number, base: string): Promise<string>
 function ownerStratumFields(
   stratumUsername: string | null,
   stratumName: string | null,
+  algorithmSlug: string | null,
 ) {
   const worker =
     stratumUsername && stratumName
@@ -59,7 +71,7 @@ function ownerStratumFields(
   // surface or rely on the legacy per-user stratumToken. The constant "x" is
   // the conventional Stratum placeholder password.
   return {
-    ownerStratumUrl: `stratum+tcp://${PROXY_HOST}:${PROXY_PORT}`,
+    ownerStratumUrl: `stratum+tcp://${PROXY_HOST}:${stratumPortForSlug(algorithmSlug)}`,
     ownerWorker: worker,
     ownerPassword: worker ? "x" : null,
   };
@@ -152,6 +164,7 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
       ownerStratumUsername: usersTable.stratumUsername,
       algorithmId: algorithmsTable.id,
       algorithmName: algorithmsTable.name,
+      algorithmSlug: algorithmsTable.slug,
       algorithmUnit: algorithmsTable.unit,
       basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
       pricePerUnitPerDay: rigsTable.pricePerUnitPerDay,
@@ -231,6 +244,7 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
     ...ownerStratumFields(
       row.ownerStratumUsername ?? null,
       row.stratumName ?? null,
+      row.algorithmSlug ?? null,
     ),
   };
 }

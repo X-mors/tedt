@@ -23,7 +23,17 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 const stratumPort = Number(process.env["STRATUM_PORT"] ?? "3333");
+const stratumLegacyPort = Number(process.env["STRATUM_LEGACY_PORT"] ?? "3334");
+// Default port: ASICBoost-capable, accepts only rigs whose algorithm is NOT
+// the legacy `sha256` slug (i.e. `sha256asicboost`, `scrypt`, …).
 const stratumServer = new StratumServer(stratumPort);
+// Legacy port: refuses version-rolling and only accepts rigs listed under
+// the legacy `sha256` algorithm — for old ASICs without ASICBoost support.
+// Shares the in-process flush loop with the default server (don't double-run).
+const stratumLegacyServer = new StratumServer(stratumLegacyPort, {
+  legacyMode: true,
+  startFlushLoop: false,
+});
 
 if (!process.env["NOWPAYMENTS_API_KEY"]) {
   logger.warn("NOWPAYMENTS_API_KEY is not set — crypto deposits and payouts are disabled");
@@ -40,6 +50,7 @@ seedDatabase()
   .then(() => logger.info("startup: reset all rigs to offline"))
   .then(() => {
     stratumServer.start();
+    stratumLegacyServer.start();
     startDepositWorker();
 
     // Sync isOnline in DB with actual proxy connections every 5 minutes.

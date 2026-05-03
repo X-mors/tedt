@@ -83,8 +83,15 @@ export class DownstreamSession extends EventEmitter {
    *  real change we force-close the miner socket so it picks up the new prefix from a
    *  fresh subscribe handshake. */
   private upstreamExtranonce1: string | null = null;
-  constructor(private readonly socket: net.Socket) {
+  /**
+   * True when this session was accepted on the legacy SHA-256 listener (no
+   * ASICBoost). Forces version-rolling OFF at mining.configure regardless of
+   * what the miner asks, and constrains rigs to the legacy `sha256` algorithm.
+   */
+  private readonly legacyMode: boolean;
+  constructor(private readonly socket: net.Socket, opts: { legacyMode?: boolean } = {}) {
     super();
+    this.legacyMode = opts.legacyMode === true;
     socket.setEncoding("utf8");
     // 10-min idle timeout — tolerates high-difficulty pools that produce only
     // a share every several minutes. Detection of truly dead sockets is handled
@@ -238,6 +245,13 @@ export class DownstreamSession extends EventEmitter {
     const result: Record<string, unknown> = {};
     for (const ext of extensions) {
       if (ext === "version-rolling") {
+        if (this.legacyMode) {
+          // Legacy SHA-256 listener: refuse version-rolling unconditionally so
+          // the miner runs in plain Stratum V1 mode and the upstream pool
+          // never sees any rolled-version bits it can't verify.
+          result["version-rolling"] = false;
+          continue;
+        }
         // Honor the miner's requested mask (intersected with our supported bits).
         // Hardcoding 1fffe000 confused proxies that negotiated a smaller mask.
         const requested = typeof params["version-rolling.mask"] === "string"
@@ -436,13 +450,24 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
 
-    // Auto-create: use the first algorithm as a placeholder — admin sets the
-    // correct algorithm and hashrate during the approval process.
-    const [firstAlgo] = await db
+    // Auto-create: pick the algorithm matching the listener mode so the
+    // newly-created rig is consistent with the port the miner is using.
+    //   • Legacy port → slug "sha256" (no ASICBoost).
+    //   • Default port → slug "sha256asicboost" if present, else fall back to
+    //     the first algorithm by id (covers fresh dev DBs without that slug).
+    const desiredSlug = this.legacyMode ? "sha256" : "sha256asicboost";
+    const [matchedAlgo] = await db
       .select({ id: algorithmsTable.id })
       .from(algorithmsTable)
-      .orderBy(asc(algorithmsTable.id))
-      .limit(1);
+      .where(eq(algorithmsTable.slug, desiredSlug));
+    const [fallbackAlgo] = matchedAlgo
+      ? [matchedAlgo]
+      : await db
+          .select({ id: algorithmsTable.id })
+          .from(algorithmsTable)
+          .orderBy(asc(algorithmsTable.id))
+          .limit(1);
+    const firstAlgo = fallbackAlgo;
 
     if (!firstAlgo) {
       logger.error("stratum:downstream new auth: no algorithms in DB — cannot auto-create rig");
@@ -509,6 +534,44 @@ export class DownstreamSession extends EventEmitter {
     stratumUser: string;
     stratumPassword: string;
   }): Promise<void> {
+    // Enforce the algorithm/listener separation: a rig listed as "sha256"
+    // (legacy, no ASICBoost) must connect on the legacy port (3334), and
+    // any other algorithm — including "sha256asicboost" — must connect on
+    // the default port (3333). Mismatches are rejected with a clear hint.
+    const [algoRow] = await db
+      .select({ slug: algorithmsTable.slug })
+      .from(algorithmsTable)
+      .innerJoin(rigsTable, eq(rigsTable.algorithmId, algorithmsTable.id))
+      .where(eq(rigsTable.id, rig.id));
+    const slug = algoRow?.slug ?? null;
+    const isLegacySlug = slug === "sha256";
+    if (this.legacyMode && !isLegacySlug) {
+      logger.warn(
+        { rigId: rig.id, slug, port: "legacy" },
+        "stratum:downstream rejected: rig algorithm requires the default ASICBoost port",
+      );
+      this._recordAuthFailure(rig.id, `Algorithm ${slug ?? "?"} not allowed on legacy port`);
+      this._reply(msg.id, false, [
+        24,
+        "This rig is listed for ASICBoost — connect on the default Stratum port instead of the legacy port.",
+      ]);
+      this._close();
+      return;
+    }
+    if (!this.legacyMode && isLegacySlug) {
+      logger.warn(
+        { rigId: rig.id, slug, port: "default" },
+        "stratum:downstream rejected: legacy rig must use the legacy port",
+      );
+      this._recordAuthFailure(rig.id, "Legacy SHA-256 rig connected on ASICBoost port");
+      this._reply(msg.id, false, [
+        24,
+        "This rig is listed as legacy SHA-256 — connect on the legacy Stratum port (no ASICBoost) instead of the default port.",
+      ]);
+      this._close();
+      return;
+    }
+
     this.rigId = rig.id;
     this.ownerId = rig.ownerId;
     this.authorized = true;
