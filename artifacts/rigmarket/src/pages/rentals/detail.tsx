@@ -394,39 +394,80 @@ export default function RentalCockpit() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {rental.status === 'active' && live && !live.minerConnected ? (
-                <div className="text-center py-12 flex flex-col items-center justify-center border border-dashed border-border/50 rounded-lg bg-muted/10">
-                  <WifiOff className="w-8 h-8 text-muted-foreground mb-4" />
-                  <p className="font-mono text-sm text-muted-foreground uppercase">AWAITING_MINER — owner's rig is not connected yet.</p>
-                  <p className="text-xs text-muted-foreground mt-2">Hashrate will flow to your pool once the rig connects. Polling every 5s.</p>
-                </div>
-              ) : rental.status === 'active' && live && live.minerConnected && poolAuthFailed ? (
-                <div className="text-center py-12 flex flex-col items-center justify-center border border-dashed border-red-500/20 rounded-lg bg-red-500/5">
-                  <ShieldAlert className="w-8 h-8 text-red-500 mb-4" />
-                  <p className="font-mono text-sm text-red-500 uppercase">POOL_AUTH_FAILED — credentials rejected</p>
-                  <p className="text-xs text-muted-foreground mt-2 max-w-sm">Your pool rejected the worker name or password. Go back and edit the rental pool details, or contact pool support.</p>
-                </div>
-              ) : rental.status === 'active' && live && live.minerConnected && !live.upstreamConnected ? (
-                <div className="text-center py-12 flex flex-col items-center justify-center border border-dashed border-border/50 rounded-lg bg-muted/10">
-                  <Wifi className="w-8 h-8 text-yellow-500 animate-pulse mb-4" />
-                  <p className="font-mono text-sm text-yellow-500 uppercase">MINER_CONNECTED — ESTABLISHING POOL LINK</p>
-                  <p className="text-xs text-muted-foreground mt-2">Proxy is connecting to your destination pool. Hash will start flowing shortly.</p>
-                </div>
-              ) : rental.status === 'active' && live ? (
+              {(() => {
+                if (rental.status !== 'active' || !live) return null;
+                // Has the rig EVER produced data for this rental? If yes,
+                // we always render the stats panel — even when the miner is
+                // momentarily offline — using DB-persisted values, so the
+                // renter doesn't lose visibility on what's happened so far.
+                const hasHistory =
+                  (stats && stats.samples.length > 0) ||
+                  (live.sharesAccepted ?? 0) > 0 ||
+                  rental.deliveredHashrateAvg != null;
+                if (!live.minerConnected && !hasHistory) {
+                  return (
+                    <div className="text-center py-12 flex flex-col items-center justify-center border border-dashed border-border/50 rounded-lg bg-muted/10">
+                      <WifiOff className="w-8 h-8 text-muted-foreground mb-4" />
+                      <p className="font-mono text-sm text-muted-foreground uppercase">AWAITING_MINER — owner's rig is not connected yet.</p>
+                      <p className="text-xs text-muted-foreground mt-2">Hashrate will flow to your pool once the rig connects. Polling every 5s.</p>
+                    </div>
+                  );
+                }
+                if (live.minerConnected && poolAuthFailed) {
+                  return (
+                    <div className="text-center py-12 flex flex-col items-center justify-center border border-dashed border-red-500/20 rounded-lg bg-red-500/5">
+                      <ShieldAlert className="w-8 h-8 text-red-500 mb-4" />
+                      <p className="font-mono text-sm text-red-500 uppercase">POOL_AUTH_FAILED — credentials rejected</p>
+                      <p className="text-xs text-muted-foreground mt-2 max-w-sm">Your pool rejected the worker name or password. Go back and edit the rental pool details, or contact pool support.</p>
+                    </div>
+                  );
+                }
+                // Either fully connected, OR temporarily disconnected but
+                // has past shares — render the live stats panel either way.
+                const showOffline = !live.minerConnected;
+                const showEstablishing =
+                  live.minerConnected && !live.upstreamConnected;
+                const avgHashrateDisplay = stats
+                  ? formatHashrate(stats.averageHashrate, rental.algorithmUnit)
+                  : rental.deliveredHashrateAvg != null
+                    ? formatHashrate(rental.deliveredHashrateAvg, rental.algorithmUnit)
+                    : '—';
+                const deliveryRatioDisplay = stats
+                  ? stats.deliveryRatio
+                  : live.deliveryRatio;
+                return (
                 <div className="space-y-6">
+                  {showOffline ? (
+                    <div className="flex items-center gap-3 rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3">
+                      <WifiOff className="w-5 h-5 text-yellow-500 shrink-0" />
+                      <div className="text-xs">
+                        <div className="font-mono font-bold text-yellow-500 uppercase">Rig offline — reconnecting</div>
+                        <div className="text-muted-foreground">Showing the most recent data from this rental. Live values resume the moment the rig sends a share.</div>
+                      </div>
+                    </div>
+                  ) : null}
+                  {showEstablishing ? (
+                    <div className="flex items-center gap-3 rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3">
+                      <Wifi className="w-5 h-5 text-yellow-500 shrink-0 animate-pulse" />
+                      <div className="text-xs">
+                        <div className="font-mono font-bold text-yellow-500 uppercase">Miner connected — establishing pool link</div>
+                        <div className="text-muted-foreground">Proxy is connecting to your destination pool. Hash will start flowing shortly.</div>
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">Current Hashrate</span>
-                      <span className="font-mono text-lg font-bold text-primary">{formatHashrate(live.currentHashrate, rental.algorithmUnit)}</span>
+                      <span className={`font-mono text-lg font-bold ${showOffline ? 'text-muted-foreground' : 'text-primary'}`}>{formatHashrate(live.currentHashrate, rental.algorithmUnit)}</span>
                     </div>
                     <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">Avg Hashrate</span>
-                      <span className="font-mono text-lg font-bold">{stats ? formatHashrate(stats.averageHashrate, rental.algorithmUnit) : '—'}</span>
+                      <span className="font-mono text-lg font-bold">{avgHashrateDisplay}</span>
                     </div>
                     <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">Delivery Ratio</span>
-                      <span className={`font-mono text-lg font-bold ${live.deliveryRatio >= 0.95 ? 'text-green-500' : live.deliveryRatio >= 0.8 ? 'text-yellow-500' : 'text-destructive'}`}>
-                        {(live.deliveryRatio * 100).toFixed(1)}%
+                      <span className={`font-mono text-lg font-bold ${deliveryRatioDisplay >= 0.95 ? 'text-green-500' : deliveryRatioDisplay >= 0.8 ? 'text-yellow-500' : 'text-destructive'}`}>
+                        {(deliveryRatioDisplay * 100).toFixed(1)}%
                       </span>
                     </div>
                     <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
@@ -491,7 +532,9 @@ export default function RentalCockpit() {
                     <Progress value={Math.min(100, Math.max(0, elapsedPercent))} className="h-2" />
                   </div>
                 </div>
-              ) : rental.status === 'disputed' ? (
+                );
+              })()}
+              {rental.status === 'disputed' ? (
                 <div className="space-y-4">
                   <div className="text-center pb-2">
                     <ShieldAlert className="w-10 h-10 text-yellow-500 mx-auto mb-3" />
@@ -516,7 +559,8 @@ export default function RentalCockpit() {
                     ) : null}
                   </div>
                 </div>
-              ) : rental.status === 'completed' || rental.status === 'cancelled' ? (
+              ) : null}
+              {rental.status === 'completed' || rental.status === 'cancelled' ? (
                 <div className="space-y-6">
                   <div className="text-center pb-2">
                     {rental.status === 'completed' ? <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-3" /> : <ShieldAlert className="w-10 h-10 text-muted-foreground mx-auto mb-3" />}
@@ -591,11 +635,12 @@ export default function RentalCockpit() {
                     </div>
                   )}
                 </div>
-              ) : (
+              ) : null}
+              {rental.status === 'active' && !live ? (
                 <div className="text-center py-10 text-muted-foreground font-mono text-sm">
                   INITIALIZING_PROXY_CONNECTION...
                 </div>
-              )}
+              ) : null}
             </CardContent>
           </Card>
         </div>
