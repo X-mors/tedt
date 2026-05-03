@@ -49,7 +49,7 @@ export class DownstreamSession extends EventEmitter {
   private rentalId: number | null = null;
   private upstream: UpstreamClient | null = null;
   private extranonce1 = "";
-  private extranonce2Size = 8;
+  private extranonce2Size = 4;
   private subscribed = false;
   private authorized = false;
   private currentDifficulty = 1;
@@ -275,13 +275,15 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
     this.subscribed = true;
-    // Use 8-byte extranonce1 to match the size handed out by major upstream
-    // pools (viabtc, f2pool, antpool). This avoids a mid-session
-    // extranonce2_size change via mining.set_extranonce, which proxies like
-    // stratum-proxy/0.9.0 cannot tolerate (they pre-split nonce ranges based
-    // on the size negotiated at subscribe time and disconnect on change).
-    this.extranonce1 = randomBytes(8).toString("hex");
-    this.extranonce2Size = 8;
+    // Use 4-byte extranonce1 / extranonce2_size=4 — the long-standing default
+    // that every Stratum V1 ASIC firmware (Antminer S9/S17/S19, Whatsminer M30S,
+    // Goldshell, IceRiver, …) and every miner proxy (cgminer, bfgminer,
+    // stratum-proxy) accepts unconditionally. Older firmwares hard-code size=4
+    // and either refuse to subscribe or silently drop shares when offered 8.
+    // If the upstream pool negotiates a different size, _applyUpstreamExtranonce
+    // keeps the miner-facing size as-is and only forwards a new extranonce1.
+    this.extranonce1 = randomBytes(4).toString("hex");
+    this.extranonce2Size = 4;
 
     this._reply(msg.id, [
       [["mining.set_difficulty", `sub-diff-${this.msgIdCounter}`]],
