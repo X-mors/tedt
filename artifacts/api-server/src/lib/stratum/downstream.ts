@@ -1164,7 +1164,7 @@ export class DownstreamSession extends EventEmitter {
     // over each handle and empties the queue.
     this._clearSubmitBuffer();
     if (this.rigId != null) {
-      proxyState.removeRig(this.rigId);
+      proxyState.removeRig(this.rigId, this);
       // Mark rig offline in DB (best-effort — do not await to avoid blocking).
       void db
         .update(rigsTable)

@@ -218,6 +218,18 @@ class ProxyState {
   // ──────────────────────────────────────────────────────────────────────────
 
   addRig(rigId: number, ownerId: number, session: DownstreamSession, rigName: string): void {
+    // CRITICAL: if a previous session is still registered for this rigId, force
+    // it to disconnect BEFORE we overwrite the map entry. Otherwise the old
+    // session's upstream (e.g. owner's fallback to viabtc as `ahmed.m30`) keeps
+    // mining in parallel with the new session's upstream (renter's pool as
+    // `AhmadSamir.y`), producing two simultaneous TCP connections to the pool
+    // and inconsistent stats. Also when the orphaned old session eventually
+    // closes, its _onClose calls removeRig(rigId) and accidentally evicts the
+    // NEW session's entry from the map.
+    const existing = this.rigConnections.get(rigId);
+    if (existing && existing.session !== session) {
+      existing.session.disconnect("replaced by new connection for same rigId");
+    }
     // If we have a recent snapshot for this rigId, restore lifetime counters
     // so a quick reconnect doesn't reset shares-accepted/rejected display.
     const snap = this.lastSeenRigEntries.get(rigId);
@@ -261,8 +273,12 @@ class ProxyState {
     if (conn) conn.entry.upstreamDisconnects++;
   }
 
-  removeRig(rigId: number): void {
+  removeRig(rigId: number, session?: DownstreamSession): void {
     const conn = this.rigConnections.get(rigId);
+    // Guard against the orphaned-session race: if a previous session for the
+    // same rigId is closing AFTER a new session has already taken over the
+    // map entry, do nothing — otherwise we would evict the live session.
+    if (conn && session && conn.session !== session) return;
     if (conn) {
       // Snapshot so the owner UI keeps showing share counts and lastShareAt
       // during the reconnect grace window. Mark upstream as disconnected
@@ -275,8 +291,8 @@ class ProxyState {
         },
         seenAt: Date.now(),
       });
+      this.rigConnections.delete(rigId);
     }
-    this.rigConnections.delete(rigId);
   }
 
   getRigSession(rigId: number): DownstreamSession | undefined {
