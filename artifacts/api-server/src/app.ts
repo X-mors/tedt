@@ -49,6 +49,12 @@ const allowedOrigins = new Set<string>(
     ...(process.env["FRONTEND_ORIGIN"]
       ? process.env["FRONTEND_ORIGIN"].split(",").map((s) => s.trim())
       : []),
+    // Production domains hard-coded as a safety net so the site keeps
+    // working when FRONTEND_ORIGIN is not set on the VPS — the apex and
+    // www variants are both accepted regardless of which one the user
+    // happened to hit.
+    "https://livehashrate.com",
+    "https://www.livehashrate.com",
     "http://localhost:5173",
     "http://localhost:3000",
   ].filter((s): s is string => Boolean(s)),
