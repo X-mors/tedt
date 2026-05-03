@@ -100,6 +100,11 @@ export class StratumServer {
     // this flush cycle so the rental loop and the fallback loop don't
     // double-insert if a rig somehow appears in both maps.
     const rigSampledThisCycle = new Set<number>();
+    // Track which rentals had _checkLowDelivery actually invoked so the
+    // post-loop sweep can skip them. NOTE: we add only on real calls below,
+    // NOT for every window — windows whose snapshot is null produce no
+    // shares this cycle and must still be evaluated by the sweep.
+    const lowDeliveryCheckedThisCycle = new Set<number>();
 
     const windows = proxyState.getAllWindows();
     for (const window of windows) {
@@ -157,6 +162,7 @@ export class StratumServer {
         await persistRentalShareDelta(snapshot.rentalId);
 
         await this._checkLowDelivery(snapshot.rentalId);
+        lowDeliveryCheckedThisCycle.add(snapshot.rentalId);
       } catch (err) {
         logger.error(
           { err, rentalId: snapshot.rentalId },
@@ -170,15 +176,12 @@ export class StratumServer {
     // snapshot loop above — still gets evaluated and auto-cancelled when
     // its delivery is below the admin threshold.
     try {
-      const checkedThisCycle = new Set<number>(
-        windows.map((w) => w.rentalId),
-      );
       const activeRentals = await db
         .select({ id: rentalsTable.id })
         .from(rentalsTable)
         .where(eq(rentalsTable.status, "active"));
       for (const r of activeRentals) {
-        if (checkedThisCycle.has(r.id)) continue;
+        if (lowDeliveryCheckedThisCycle.has(r.id)) continue;
         await this._checkLowDelivery(r.id);
       }
     } catch (err) {
