@@ -129,6 +129,12 @@ export class StratumServer {
     // Read admin-configurable thresholds on each check (cached 60 s).
     const settings = await getProxySettings();
     const { lowDeliveryThresholdPct, lowDeliveryWindowSec, minSharesForCheck } = settings;
+    // Auto-cancel disabled when threshold <= 0. Renter is already protected
+    // by delivery-ratio settlement at rental end (or on manual cancel), so
+    // forcing termination on short hashrate dips just frustrates renters
+    // whose rigs reconnect after a brief outage. Owners and admins can
+    // re-enable by setting low_delivery_threshold_pct > 0.
+    if (lowDeliveryThresholdPct <= 0) return;
 
     const [rental] = await db
       .select({

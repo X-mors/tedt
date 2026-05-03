@@ -11,7 +11,7 @@ export interface ProxySettings {
 }
 
 const PROXY_DEFAULTS: ProxySettings = {
-  lowDeliveryThresholdPct: 0.70,
+  lowDeliveryThresholdPct: 0,
   lowDeliveryWindowSec: 1800,
   minSharesForCheck: 5,
 };
