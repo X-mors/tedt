@@ -58,6 +58,8 @@ export * from "./notFoundResponse";
 export * from "./nowpaymentsWebhook200";
 export * from "./ownerDashboardSummary";
 export * from "./ownerRigLive";
+export * from "./ownerRigStats";
+export * from "./ownerRigStatsSamplesItem";
 export * from "./poolTestBody";
 export * from "./poolTestResult";
 export * from "./proxyConnectedRig";

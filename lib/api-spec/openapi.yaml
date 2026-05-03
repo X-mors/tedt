@@ -839,6 +839,25 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /me/rigs/{id}/stats:
+    get:
+      operationId: getMyRigStats
+      tags: [rigs]
+      summary: Hashrate history for an owner's rig (up to 14 days, downsampled for chart)
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Owner-side hashrate samples with rental periods
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerRigStats"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   # ========================================================================
   # Dashboard summaries (authenticated)
   # ========================================================================
@@ -2075,6 +2094,37 @@ components:
         - currentHashrate
         - lastShareAt
         - rentalActive
+
+    OwnerRigStats:
+      type: object
+      properties:
+        rigId:
+          type: integer
+        algorithmUnit:
+          type: string
+        advertisedHashrate:
+          type: number
+        retentionDays:
+          type: integer
+        samples:
+          type: array
+          items:
+            type: object
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+              hashrate:
+                type: number
+              hasRental:
+                type: boolean
+            required: [timestamp, hashrate, hasRental]
+      required:
+        - rigId
+        - algorithmUnit
+        - advertisedHashrate
+        - retentionDays
+        - samples
 
     RentalStatus:
       type: string

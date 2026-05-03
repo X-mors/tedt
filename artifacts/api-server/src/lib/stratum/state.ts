@@ -678,6 +678,38 @@ class ProxyState {
     return Array.from(this.shareWindows.values());
   }
 
+  /**
+   * Snapshot the rig's fallback (no-rental) window over the standard
+   * 60-second flush lookback. Used by the stratum flush loop to persist a
+   * per-rig hashrate sample even when the rig is mining to its owner pool
+   * (no rental). Returns null if no fallback window exists for this rig.
+   */
+  flushFallbackSnapshot(rigId: number): FlushSnapshot | null {
+    const w = this.fallbackWindows.get(rigId);
+    if (!w) return null;
+    const nowMs = Date.now();
+    const calc = this._calcHashrate(
+      w.recentSamples,
+      FLUSH_SNAPSHOT_LOOKBACK_MS,
+      nowMs,
+    );
+    return {
+      rentalId: 0,
+      rigId,
+      startedAt: nowMs - calc.elapsedSec * 1000,
+      sharesAccepted: calc.sharesAccepted,
+      sharesRejected: calc.sharesRejected,
+      difficultySum: calc.difficultySum,
+      effectiveHashrateH: calc.effectiveHashrateH,
+      windowSeconds: Math.round(calc.elapsedSec),
+    };
+  }
+
+  /** Rig IDs that currently have a fallback window (idle mining buffer). */
+  getFallbackRigIds(): number[] {
+    return Array.from(this.fallbackWindows.keys());
+  }
+
   getAdminStatus(): ProxyAdminStatus {
     const entries = Array.from(this.rigConnections.values()).map(
       (c) => c.entry,

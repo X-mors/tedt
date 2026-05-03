@@ -56,6 +56,7 @@ import type {
   NowpaymentsWebhook200,
   OwnerDashboardSummary,
   OwnerRigLive,
+  OwnerRigStats,
   PoolTestBody,
   PoolTestResult,
   ProxyStatus,
@@ -3479,6 +3480,95 @@ export function useGetMyRigLive<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetMyRigLiveQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Hashrate history for an owner's rig (up to 14 days, downsampled for chart)
+ */
+export const getGetMyRigStatsUrl = (id: number) => {
+  return `/api/me/rigs/${id}/stats`;
+};
+
+export const getMyRigStats = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OwnerRigStats> => {
+  return customFetch<OwnerRigStats>(getGetMyRigStatsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMyRigStatsQueryKey = (id: number) => {
+  return [`/api/me/rigs/${id}/stats`] as const;
+};
+
+export const getGetMyRigStatsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyRigStats>>,
+  TError = ErrorType<UnauthorizedResponse | NotFoundResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMyRigStats>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMyRigStatsQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyRigStats>>> = ({
+    signal,
+  }) => getMyRigStats(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyRigStats>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMyRigStatsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyRigStats>>
+>;
+export type GetMyRigStatsQueryError = ErrorType<
+  UnauthorizedResponse | NotFoundResponse
+>;
+
+/**
+ * @summary Hashrate history for an owner's rig (up to 14 days, downsampled for chart)
+ */
+
+export function useGetMyRigStats<
+  TData = Awaited<ReturnType<typeof getMyRigStats>>,
+  TError = ErrorType<UnauthorizedResponse | NotFoundResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMyRigStats>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMyRigStatsQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

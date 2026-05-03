@@ -4,11 +4,13 @@ import {
   db,
   rentalsTable,
   rentalHashSamplesTable,
+  rigHashSamplesTable,
   rigsTable,
   algorithmsTable,
   usersTable,
   walletTransactionsTable,
 } from "@workspace/db";
+import { lt } from "drizzle-orm";
 import { logger } from "../logger";
 import { proxyState } from "./state";
 import { DownstreamSession } from "./downstream";
@@ -18,11 +20,16 @@ import { getProxySettings } from "../platformSettings";
 import { persistRentalShareDelta, flushAndRemoveRentalWindow } from "./persistence";
 
 const FLUSH_INTERVAL_MS = 60_000;
+/** Maximum age of per-rig samples retained for owner-side history charts. */
+const RIG_SAMPLE_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
+/** Run retention prune at most every hour to avoid hammering the DB. */
+const RIG_SAMPLE_PRUNE_INTERVAL_MS = 60 * 60 * 1000;
 
 export class StratumServer {
   private tcpServer: net.Server;
   private flushTimer: NodeJS.Timeout | null = null;
   private algUnitCache = new Map<number, string>();
+  private lastRigSamplePruneMs = 0;
 
   constructor(private readonly port: number) {
     this.tcpServer = net.createServer((socket: net.Socket) => {
@@ -70,9 +77,12 @@ export class StratumServer {
   }
 
   private async _flushSamples(): Promise<void> {
-    const windows = proxyState.getAllWindows();
-    if (windows.length === 0) return;
+    // Track which rigs we've already written a per-rig sample for during
+    // this flush cycle so the rental loop and the fallback loop don't
+    // double-insert if a rig somehow appears in both maps.
+    const rigSampledThisCycle = new Set<number>();
 
+    const windows = proxyState.getAllWindows();
     for (const window of windows) {
       const snapshot = proxyState.flushAndResetWindow(window.rentalId);
       if (!snapshot) continue;
@@ -93,6 +103,18 @@ export class StratumServer {
           difficultySum: String(snapshot.difficultySum),
           effectiveHashrateH: String(effectiveHashrateH),
         });
+        // Mirror into the per-rig stream so the owner gets a continuous
+        // history regardless of rental state. rentalId is set so the owner
+        // chart can highlight rental periods in yellow.
+        await db.insert(rigHashSamplesTable).values({
+          rigId: snapshot.rigId,
+          rentalId: snapshot.rentalId,
+          windowSeconds: Math.round(elapsedSec),
+          sharesAccepted: snapshot.sharesAccepted,
+          sharesRejected: snapshot.sharesRejected,
+          effectiveHashrateH: String(effectiveHashrateH),
+        });
+        rigSampledThisCycle.add(snapshot.rigId);
 
         // Always update deliveredHashrateAvg — including zero-share windows
         // so stale highs from a previous active period are corrected downward.
@@ -121,6 +143,51 @@ export class StratumServer {
           { err, rentalId: snapshot.rentalId },
           "stratum:server flush error",
         );
+      }
+    }
+
+    // Per-rig fallback samples — for rigs mining to the owner's pool with
+    // no active rental. These never reach the rental table but are
+    // essential for the owner's continuous 14-day history chart.
+    for (const rigId of proxyState.getFallbackRigIds()) {
+      if (rigSampledThisCycle.has(rigId)) continue;
+      const snap = proxyState.flushFallbackSnapshot(rigId);
+      if (!snap) continue;
+      const elapsedSec = Math.max(1, (Date.now() - snap.startedAt) / 1000);
+      const effectiveHashrateH =
+        (snap.difficultySum * 4294967296) / elapsedSec;
+      try {
+        await db.insert(rigHashSamplesTable).values({
+          rigId,
+          rentalId: null,
+          windowSeconds: Math.round(elapsedSec),
+          sharesAccepted: snap.sharesAccepted,
+          sharesRejected: snap.sharesRejected,
+          effectiveHashrateH: String(effectiveHashrateH),
+        });
+      } catch (err) {
+        logger.error(
+          { err, rigId },
+          "stratum:server fallback flush error",
+        );
+      }
+    }
+
+    // Retention: prune per-rig samples older than the retention window.
+    // Cheap to run hourly — uses the (rig_id, sampled_at) index.
+    if (Date.now() - this.lastRigSamplePruneMs >= RIG_SAMPLE_PRUNE_INTERVAL_MS) {
+      this.lastRigSamplePruneMs = Date.now();
+      try {
+        await db
+          .delete(rigHashSamplesTable)
+          .where(
+            lt(
+              rigHashSamplesTable.sampledAt,
+              new Date(Date.now() - RIG_SAMPLE_RETENTION_MS),
+            ),
+          );
+      } catch (err) {
+        logger.error({ err }, "stratum:server rig sample prune error");
       }
     }
   }

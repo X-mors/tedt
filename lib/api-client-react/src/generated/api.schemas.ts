@@ -366,6 +366,20 @@ export interface OwnerRigLive {
   rentalActive: boolean;
 }
 
+export type OwnerRigStatsSamplesItem = {
+  timestamp: string;
+  hashrate: number;
+  hasRental: boolean;
+};
+
+export interface OwnerRigStats {
+  rigId: number;
+  algorithmUnit: string;
+  advertisedHashrate: number;
+  retentionDays: number;
+  samples: OwnerRigStatsSamplesItem[];
+}
+
 export type RentalStatus = (typeof RentalStatus)[keyof typeof RentalStatus];
 
 export const RentalStatus = {

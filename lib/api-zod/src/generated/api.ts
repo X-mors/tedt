@@ -1392,6 +1392,27 @@ export const GetMyRigLiveResponse = zod.object({
 });
 
 /**
+ * @summary Hashrate history for an owner's rig (up to 14 days, downsampled for chart)
+ */
+export const GetMyRigStatsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetMyRigStatsResponse = zod.object({
+  rigId: zod.number(),
+  algorithmUnit: zod.string(),
+  advertisedHashrate: zod.number(),
+  retentionDays: zod.number(),
+  samples: zod.array(
+    zod.object({
+      timestamp: zod.coerce.date(),
+      hashrate: zod.number(),
+      hasRental: zod.boolean(),
+    }),
+  ),
+});
+
+/**
  * @summary Owner dashboard — rig counts, total earnings, active rentals, pending payouts
  */
 export const GetDashboardOwnerSummaryResponse = zod.object({

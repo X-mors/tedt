@@ -4,6 +4,7 @@ export * from "./commissionConfig";
 export * from "./rigs";
 export * from "./rentals";
 export * from "./rentalHashSamples";
+export * from "./rigHashSamples";
 export * from "./walletTransactions";
 export * from "./withdrawals";
 export * from "./reviews";

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
 import {
   db,
   rigsTable,
@@ -7,6 +7,7 @@ import {
   usersTable,
   reviewsTable,
   rentalsTable,
+  rigHashSamplesTable,
 } from "@workspace/db";
 import {
   CreateRigBody,
@@ -15,10 +16,11 @@ import {
   UpdateMyRigBody,
   UpdateMyRigResponse,
   GetMyRigLiveResponse,
+  GetMyRigStatsResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
 import { getCommission } from "../lib/commission";
-import { toNum, toUsdString } from "../lib/money";
+import { toNum, toUsdString, unitMultiplier } from "../lib/money";
 import { proxyState } from "../lib/stratum/state";
 import { randomBytes } from "node:crypto";
 
@@ -462,6 +464,90 @@ router.get("/me/rigs/:id/live", async (req, res) => {
     currentHashrate,
     lastShareAt: effectiveLastShareAt ? effectiveLastShareAt.toISOString() : null,
     rentalActive,
+  });
+  res.json(data);
+});
+
+/**
+ * Owner-side hashrate history for a rig. Returns up to 14 days of per-minute
+ * samples (downsampled with bucket-averaging to MAX_CHART_POINTS) so the
+ * owner can see continuous performance regardless of rental activity. Each
+ * sample carries `hasRental` so the UI can shade rental periods.
+ */
+router.get("/me/rigs/:id/stats", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [rig] = await db
+    .select({
+      id: rigsTable.id,
+      ownerId: rigsTable.ownerId,
+      hashrate: rigsTable.hashrate,
+      algorithmUnit: algorithmsTable.unit,
+    })
+    .from(rigsTable)
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
+    .where(and(eq(rigsTable.id, id), eq(rigsTable.ownerId, req.currentUser!.id)));
+  if (!rig) {
+    res.status(404).json({ error: "Rig not found" });
+    return;
+  }
+
+  const RETENTION_DAYS = 14;
+  const since = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  const dbSamples = await db
+    .select({
+      sampledAt: rigHashSamplesTable.sampledAt,
+      effectiveHashrateH: rigHashSamplesTable.effectiveHashrateH,
+      rentalId: rigHashSamplesTable.rentalId,
+    })
+    .from(rigHashSamplesTable)
+    .where(
+      and(
+        eq(rigHashSamplesTable.rigId, id),
+        gte(rigHashSamplesTable.sampledAt, since),
+      ),
+    )
+    .orderBy(asc(rigHashSamplesTable.sampledAt));
+
+  const algMultiplier = unitMultiplier(rig.algorithmUnit);
+
+  // Bucket-average to keep chart payload bounded. Each output sample carries
+  // hasRental=true if ANY raw sample in the bucket was inside a rental — this
+  // keeps the yellow shading visually contiguous across rental boundaries.
+  const MAX_CHART_POINTS = 720;
+  let samples: { timestamp: string; hashrate: number; hasRental: boolean }[];
+  if (dbSamples.length <= MAX_CHART_POINTS) {
+    samples = dbSamples.map((s) => ({
+      timestamp: s.sampledAt.toISOString(),
+      hashrate: toNum(s.effectiveHashrateH ?? "0") / algMultiplier,
+      hasRental: s.rentalId != null,
+    }));
+  } else {
+    const bucketSize = Math.ceil(dbSamples.length / MAX_CHART_POINTS);
+    samples = [];
+    for (let i = 0; i < dbSamples.length; i += bucketSize) {
+      const bucket = dbSamples.slice(i, i + bucketSize);
+      const sum = bucket.reduce(
+        (s, x) => s + toNum(x.effectiveHashrateH ?? "0"),
+        0,
+      );
+      samples.push({
+        timestamp: bucket[Math.floor(bucket.length / 2)]!.sampledAt.toISOString(),
+        hashrate: sum / bucket.length / algMultiplier,
+        hasRental: bucket.some((x) => x.rentalId != null),
+      });
+    }
+  }
+
+  const data = GetMyRigStatsResponse.parse({
+    rigId: id,
+    algorithmUnit: rig.algorithmUnit,
+    advertisedHashrate: toNum(rig.hashrate),
+    retentionDays: RETENTION_DAYS,
+    samples,
   });
   res.json(data);
 });
