@@ -366,6 +366,46 @@ export interface OwnerRigLive {
   rentalActive: boolean;
 }
 
+/**
+ * "owner" credits the frozen used-time amount to the rig owner (with
+platform fee deducted) — typical when the failure was on the
+renter's pool. "renter" refunds the frozen amount back to the
+renter — typical when the rig itself under-delivered.
+
+ */
+export type ResolveRentalDisputeBodyAward =
+  (typeof ResolveRentalDisputeBodyAward)[keyof typeof ResolveRentalDisputeBodyAward];
+
+export const ResolveRentalDisputeBodyAward = {
+  owner: "owner",
+  renter: "renter",
+} as const;
+
+export interface ResolveRentalDisputeBody {
+  /** "owner" credits the frozen used-time amount to the rig owner (with
+platform fee deducted) — typical when the failure was on the
+renter's pool. "renter" refunds the frozen amount back to the
+renter — typical when the rig itself under-delivered.
+ */
+  award: ResolveRentalDisputeBodyAward;
+  /** Free-text admin note recorded on the wallet ledger entry. */
+  note?: string;
+}
+
+export type ResolveRentalDisputeResponseAward =
+  (typeof ResolveRentalDisputeResponseAward)[keyof typeof ResolveRentalDisputeResponseAward];
+
+export const ResolveRentalDisputeResponseAward = {
+  owner: "owner",
+  renter: "renter",
+} as const;
+
+export interface ResolveRentalDisputeResponse {
+  rentalId: number;
+  award: ResolveRentalDisputeResponseAward;
+  amountUsd: number;
+}
+
 export type OwnerRigStatsSamplesItem = {
   timestamp: string;
   hashrate: number;

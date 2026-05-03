@@ -68,6 +68,8 @@ import type {
   RentalStats,
   RentalSummary,
   RenterDashboardSummary,
+  ResolveRentalDisputeBody,
+  ResolveRentalDisputeResponse,
   Review,
   RigDetail,
   RigSummary,
@@ -4955,6 +4957,112 @@ export function useListAdminRentals<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Manually resolve a disputed cancellation in favour of the owner or the renter
+ */
+export const getResolveRentalDisputeUrl = (id: number) => {
+  return `/api/admin/rentals/${id}/resolve-dispute`;
+};
+
+export const resolveRentalDispute = async (
+  id: number,
+  resolveRentalDisputeBody: ResolveRentalDisputeBody,
+  options?: RequestInit,
+): Promise<ResolveRentalDisputeResponse> => {
+  return customFetch<ResolveRentalDisputeResponse>(
+    getResolveRentalDisputeUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(resolveRentalDisputeBody),
+    },
+  );
+};
+
+export const getResolveRentalDisputeMutationOptions = <
+  TError = ErrorType<
+    | BadRequestResponse
+    | UnauthorizedResponse
+    | ForbiddenResponse
+    | NotFoundResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resolveRentalDispute>>,
+    TError,
+    { id: number; data: BodyType<ResolveRentalDisputeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resolveRentalDispute>>,
+  TError,
+  { id: number; data: BodyType<ResolveRentalDisputeBody> },
+  TContext
+> => {
+  const mutationKey = ["resolveRentalDispute"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resolveRentalDispute>>,
+    { id: number; data: BodyType<ResolveRentalDisputeBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return resolveRentalDispute(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResolveRentalDisputeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resolveRentalDispute>>
+>;
+export type ResolveRentalDisputeMutationBody =
+  BodyType<ResolveRentalDisputeBody>;
+export type ResolveRentalDisputeMutationError = ErrorType<
+  | BadRequestResponse
+  | UnauthorizedResponse
+  | ForbiddenResponse
+  | NotFoundResponse
+>;
+
+/**
+ * @summary Manually resolve a disputed cancellation in favour of the owner or the renter
+ */
+export const useResolveRentalDispute = <
+  TError = ErrorType<
+    | BadRequestResponse
+    | UnauthorizedResponse
+    | ForbiddenResponse
+    | NotFoundResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resolveRentalDispute>>,
+    TError,
+    { id: number; data: BodyType<ResolveRentalDisputeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof resolveRentalDispute>>,
+  TError,
+  { id: number; data: BodyType<ResolveRentalDisputeBody> },
+  TContext
+> => {
+  return useMutation(getResolveRentalDisputeMutationOptions(options));
+};
 
 /**
  * @summary Real-time Stratum proxy status — connected rigs and active routes

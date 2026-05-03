@@ -1,4 +1,4 @@
-import { and, eq, lte, sql } from "drizzle-orm";
+import { and, eq, isNotNull, lte, sql } from "drizzle-orm";
 import {
   db,
   rentalsTable,
@@ -9,6 +9,11 @@ import {
 import { round6, toNum, toUsdString, computeDeliveryRatio } from "./money";
 import { proxyState } from "./stratum/state";
 import { flushAndRemoveRentalWindow } from "./stratum/persistence";
+import { logger } from "./logger";
+
+/** Admin window to manually resolve a disputed cancellation. After this the
+ *  frozen amount is auto-refunded to the renter ("judgment for the renter"). */
+const DISPUTE_AUTO_RESOLVE_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Settle any active rentals whose `endsAt` has passed.
@@ -23,6 +28,14 @@ import { flushAndRemoveRentalWindow } from "./stratum/persistence";
  * issues outside their control.
  */
 export async function settleExpiredRentals(): Promise<number> {
+  // Piggy-back the dispute auto-resolver on every settlement sweep so it
+  // runs on the same cadence as expiry settlement (every API request that
+  // touches rentals, plus admin actions). No separate timer required.
+  try {
+    await settleExpiredDisputes();
+  } catch (err) {
+    logger.error({ err }, "settlement: dispute auto-resolver failed");
+  }
   const now = new Date();
 
   const expired = await db
@@ -149,4 +162,95 @@ export async function settleExpiredRentals(): Promise<number> {
   }
 
   return settled;
+}
+
+/**
+ * Auto-resolve disputed cancellations whose 24-hour admin window has elapsed.
+ * Default outcome: refund the renter the frozen used-time portion (judgment
+ * for the renter). Owner receives nothing — they had their chance to await
+ * admin review and the rig under-delivered the advertised hashrate.
+ *
+ * The unused-time portion was already refunded at cancel time; here we only
+ * release the frozen used-time portion: renterTotal × usedRatio.
+ */
+export async function settleExpiredDisputes(): Promise<number> {
+  const cutoff = new Date(Date.now() - DISPUTE_AUTO_RESOLVE_MS);
+
+  const expired = await db
+    .select({
+      id: rentalsTable.id,
+      renterId: rentalsTable.renterId,
+      renterTotalUsd: rentalsTable.renterTotalUsd,
+      startedAt: rentalsTable.startedAt,
+      endsAt: rentalsTable.endsAt,
+      cancelledAt: rentalsTable.cancelledAt,
+    })
+    .from(rentalsTable)
+    .where(
+      and(
+        eq(rentalsTable.status, "disputed"),
+        isNotNull(rentalsTable.cancelledAt),
+        lte(rentalsTable.cancelledAt, cutoff),
+      ),
+    );
+
+  if (expired.length === 0) return 0;
+
+  let resolved = 0;
+  for (const r of expired) {
+    const ok = await db.transaction(async (tx) => {
+      // Atomic claim — only the first concurrent caller wins.
+      const [claimed] = await tx
+        .update(rentalsTable)
+        .set({ status: "cancelled", settledAt: new Date() })
+        .where(
+          and(
+            eq(rentalsTable.id, r.id),
+            eq(rentalsTable.status, "disputed"),
+          ),
+        )
+        .returning();
+      if (!claimed) return false;
+
+      const totalSec = (r.endsAt.getTime() - r.startedAt.getTime()) / 1000;
+      const cancelledAt = r.cancelledAt ?? new Date();
+      const usedSec = Math.max(
+        0,
+        Math.min(totalSec, (cancelledAt.getTime() - r.startedAt.getTime()) / 1000),
+      );
+      const usedRatio = totalSec > 0 ? usedSec / totalSec : 1;
+      const frozenRefund = round6(toNum(r.renterTotalUsd) * usedRatio);
+
+      if (frozenRefund > 0) {
+        const refundStr = toUsdString(frozenRefund);
+        const [credited] = await tx
+          .update(usersTable)
+          .set({
+            balanceUsd: sql`${usersTable.balanceUsd} + ${refundStr}`,
+            totalSpentUsd: sql`GREATEST(0, ${usersTable.totalSpentUsd} - ${refundStr})`,
+          })
+          .where(eq(usersTable.id, r.renterId))
+          .returning({ balanceUsd: usersTable.balanceUsd });
+
+        if (credited) {
+          await tx.insert(walletTransactionsTable).values({
+            userId: r.renterId,
+            type: "rental_refund",
+            amountUsd: refundStr,
+            balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
+            memo: `Auto-resolved dispute for rental #${r.id} — admin did not respond within 24h, judgment for renter`,
+            relatedRentalId: r.id,
+          });
+        }
+      }
+      return true;
+    });
+
+    if (ok) {
+      resolved++;
+      logger.info({ rentalId: r.id }, "settlement: auto-resolved dispute for renter");
+    }
+  }
+
+  return resolved;
 }

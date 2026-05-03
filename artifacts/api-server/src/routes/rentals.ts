@@ -909,15 +909,56 @@ router.post("/rentals/:id/cancel", async (req, res) => {
       .where(eq(rigsTable.id, rental.rigId));
 
     if (isDisputed) {
-      // No fund movement. Renter's already-debited balance and owner's
-      // pending earnings stay frozen on this rental row; admin will settle
-      // manually.
+      // Two-bucket dispute model:
+      //   • Unused-time portion: NOT in dispute — refund the renter
+      //     immediately. They never received service for that time.
+      //   • Used-time portion: FROZEN. Admin has 24h to award it to either
+      //     party. Auto-resolves in renter's favour (full refund of the
+      //     frozen amount) if no admin action by then.
+      // Owner is NEVER auto-paid on a dispute — they receive funds only
+      // after explicit admin approval.
+      const totalSecondsD =
+        (rental.endsAt.getTime() - rental.startedAt.getTime()) / 1000;
+      const usedSecondsD = Math.max(
+        0,
+        Math.min(totalSecondsD, (now.getTime() - rental.startedAt.getTime()) / 1000),
+      );
+      const usedRatioD = totalSecondsD > 0 ? usedSecondsD / totalSecondsD : 1;
+      const unusedRefund = round6(toNum(rental.renterTotalUsd) * (1 - usedRatioD));
+      const frozenAmount = round6(toNum(rental.renterTotalUsd) * usedRatioD);
+
+      if (unusedRefund > 0) {
+        const refundStr = toUsdString(unusedRefund);
+        const [credited] = await tx
+          .update(usersTable)
+          .set({
+            balanceUsd: sql`${usersTable.balanceUsd} + ${refundStr}`,
+            totalSpentUsd: sql`GREATEST(0, ${usersTable.totalSpentUsd} - ${refundStr})`,
+          })
+          .where(eq(usersTable.id, rental.renterId))
+          .returning({ balanceUsd: usersTable.balanceUsd });
+        if (credited) {
+          await tx.insert(walletTransactionsTable).values({
+            userId: rental.renterId,
+            type: "rental_refund",
+            amountUsd: refundStr,
+            balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
+            memo: `Unused-time refund for disputed rental #${rental.id} (${Math.round((1 - usedRatioD) * 100)}% of booked time was unused)`,
+            relatedRentalId: rental.id,
+          });
+        }
+      }
+
+      // Audit-only marker for the frozen amount. The renter's balance is NOT
+      // touched here — the funds were already debited when the rental
+      // started. This entry just documents what is on hold pending admin
+      // review (or auto-release in 24h).
       await tx.insert(walletTransactionsTable).values({
         userId: rental.renterId,
         type: "rental_dispute",
         amountUsd: "0.000000",
         balanceAfterUsd: toUsdString(0),
-        memo: `Cancellation frozen for review — delivered ${Math.round(deliveryRatio * 100)}% of advertised hashrate (below ${Math.round(FULL_DELIVERY_THRESHOLD * 100)}% threshold)`,
+        memo: `Frozen $${frozenAmount.toFixed(6)} pending admin review — delivered ${Math.round(deliveryRatio * 100)}% of advertised hashrate (below ${Math.round(FULL_DELIVERY_THRESHOLD * 100)}% threshold). Auto-refunds to renter in 24h if unresolved.`,
         relatedRentalId: rental.id,
       });
       return;

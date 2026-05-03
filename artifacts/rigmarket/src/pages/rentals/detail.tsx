@@ -491,6 +491,31 @@ export default function RentalCockpit() {
                     <Progress value={Math.min(100, Math.max(0, elapsedPercent))} className="h-2" />
                   </div>
                 </div>
+              ) : rental.status === 'disputed' ? (
+                <div className="space-y-4">
+                  <div className="text-center pb-2">
+                    <ShieldAlert className="w-10 h-10 text-yellow-500 mx-auto mb-3" />
+                    <h3 className="font-medium text-lg">Cancellation Under Review</h3>
+                  </div>
+                  <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm space-y-2">
+                    <p>
+                      The rig delivered <span className="font-mono font-bold">{stats ? `${(stats.deliveryRatio * 100).toFixed(1)}%` : '—'}</span> of the advertised hashrate (below the 95% threshold).
+                    </p>
+                    <p>
+                      The unused-time portion of your payment was refunded immediately. The remaining used-time portion is <span className="font-bold">frozen</span> while an admin reviews this rental.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      • If the issue was on your mining pool, the frozen amount may be released to the rig owner.<br />
+                      • If the rig itself underperformed, the frozen amount will be refunded to you.<br />
+                      • If no admin acts within 24 hours of cancellation, the frozen amount is automatically refunded to you.
+                    </p>
+                    {rental.cancelledAt ? (
+                      <p className="text-xs font-mono text-muted-foreground pt-1">
+                        Auto-resolves at: {new Date(new Date(rental.cancelledAt).getTime() + 24 * 60 * 60 * 1000).toLocaleString()}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
               ) : rental.status === 'completed' || rental.status === 'cancelled' ? (
                 <div className="space-y-6">
                   <div className="text-center pb-2">

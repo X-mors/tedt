@@ -1206,6 +1206,35 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /admin/rentals/{id}/resolve-dispute:
+    post:
+      operationId: resolveRentalDispute
+      tags: [admin]
+      summary: Manually resolve a disputed cancellation in favour of the owner or the renter
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveRentalDisputeBody"
+      responses:
+        "200":
+          description: Dispute resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResolveRentalDisputeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /admin/proxy:
     get:
       operationId: getAdminProxy
@@ -2094,6 +2123,34 @@ components:
         - currentHashrate
         - lastShareAt
         - rentalActive
+
+    ResolveRentalDisputeBody:
+      type: object
+      properties:
+        award:
+          type: string
+          enum: [owner, renter]
+          description: |
+            "owner" credits the frozen used-time amount to the rig owner (with
+            platform fee deducted) — typical when the failure was on the
+            renter's pool. "renter" refunds the frozen amount back to the
+            renter — typical when the rig itself under-delivered.
+        note:
+          type: string
+          description: Free-text admin note recorded on the wallet ledger entry.
+      required: [award]
+
+    ResolveRentalDisputeResponse:
+      type: object
+      properties:
+        rentalId:
+          type: integer
+        award:
+          type: string
+          enum: [owner, renter]
+        amountUsd:
+          type: number
+      required: [rentalId, award, amountUsd]
 
     OwnerRigStats:
       type: object

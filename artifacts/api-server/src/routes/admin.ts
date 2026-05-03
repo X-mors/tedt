@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -50,6 +50,8 @@ import {
   RejectRigResponse,
   RejectWithdrawalBody,
   RejectWithdrawalResponse,
+  ResolveRentalDisputeBody,
+  ResolveRentalDisputeResponse,
   UpdateAlgorithmBody,
   UpdateAlgorithmResponse,
   UpdateCommissionConfigBody,
@@ -1220,6 +1222,134 @@ router.put("/admin/wallet/settings", async (req, res) => {
   }
   const updated = await getWalletSettings();
   res.json({ ok: true, settings: updated });
+});
+
+// ============================================================================
+// Manually resolve a disputed cancellation
+// ============================================================================
+router.post("/admin/rentals/:id/resolve-dispute", async (req, res) => {
+  const rentalId = Number(req.params.id);
+  if (!Number.isFinite(rentalId)) {
+    res.status(400).json({ error: "Invalid rental id" });
+    return;
+  }
+
+  const parsed = ResolveRentalDisputeBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { award, note } = parsed.data;
+
+  const result = await db.transaction(async (tx) => {
+    const [rental] = await tx
+      .select()
+      .from(rentalsTable)
+      .where(eq(rentalsTable.id, rentalId))
+      .limit(1);
+    if (!rental) return { error: "not_found" as const };
+    if (rental.status !== "disputed") {
+      return { error: "not_disputed" as const };
+    }
+
+    // Compute the frozen amount = renterTotal × usedRatio at cancel time.
+    const totalSec =
+      (rental.endsAt.getTime() - rental.startedAt.getTime()) / 1000;
+    const cancelledAt = rental.cancelledAt ?? new Date();
+    const usedSec = Math.max(
+      0,
+      Math.min(totalSec, (cancelledAt.getTime() - rental.startedAt.getTime()) / 1000),
+    );
+    const usedRatio = totalSec > 0 ? usedSec / totalSec : 1;
+    const frozen = round6(toNum(rental.renterTotalUsd) * usedRatio);
+
+    // Atomic claim — flip status away from disputed.
+    const [claimed] = await tx
+      .update(rentalsTable)
+      .set({ status: "cancelled", settledAt: new Date() })
+      .where(
+        and(eq(rentalsTable.id, rentalId), eq(rentalsTable.status, "disputed")),
+      )
+      .returning({ id: rentalsTable.id });
+    if (!claimed) return { error: "race" as const };
+
+    if (award === "renter") {
+      // Refund the frozen used-time portion to the renter.
+      if (frozen > 0) {
+        const refundStr = toUsdString(frozen);
+        const [credited] = await tx
+          .update(usersTable)
+          .set({
+            balanceUsd: sql`${usersTable.balanceUsd} + ${refundStr}`,
+            totalSpentUsd: sql`GREATEST(0, ${usersTable.totalSpentUsd} - ${refundStr})`,
+          })
+          .where(eq(usersTable.id, rental.renterId))
+          .returning({ balanceUsd: usersTable.balanceUsd });
+        if (credited) {
+          await tx.insert(walletTransactionsTable).values({
+            userId: rental.renterId,
+            type: "rental_refund",
+            amountUsd: refundStr,
+            balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
+            memo: `Admin resolved dispute for rental #${rental.id} in renter's favour${note ? ` — ${note}` : ""}`,
+            relatedRentalId: rental.id,
+          });
+        }
+      }
+      return { ok: true as const, amount: frozen };
+    }
+
+    // award === "owner": the failure was on the renter's side (e.g. their
+    // pool). Credit the owner's earnings share of the frozen used-time
+    // amount, with the platform fee applied at the rental's original split.
+    const ownerShare =
+      toNum(rental.renterTotalUsd) > 0
+        ? toNum(rental.ownerEarningsUsd) / toNum(rental.renterTotalUsd)
+        : 0;
+    const ownerCredit = round6(frozen * ownerShare);
+
+    if (ownerCredit > 0) {
+      const creditStr = toUsdString(ownerCredit);
+      const [credited] = await tx
+        .update(usersTable)
+        .set({
+          balanceUsd: sql`${usersTable.balanceUsd} + ${creditStr}`,
+          totalEarnedUsd: sql`${usersTable.totalEarnedUsd} + ${creditStr}`,
+        })
+        .where(eq(usersTable.id, rental.ownerId))
+        .returning({ balanceUsd: usersTable.balanceUsd });
+      if (credited) {
+        await tx.insert(walletTransactionsTable).values({
+          userId: rental.ownerId,
+          type: "rental_payout",
+          amountUsd: creditStr,
+          balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
+          memo: `Admin resolved dispute for rental #${rental.id} in owner's favour${note ? ` — ${note}` : ""}`,
+          relatedRentalId: rental.id,
+        });
+      }
+    }
+    return { ok: true as const, amount: ownerCredit };
+  });
+
+  if ("error" in result) {
+    if (result.error === "not_found") {
+      res.status(404).json({ error: "Rental not found" });
+    } else if (result.error === "not_disputed") {
+      res.status(400).json({ error: "Rental is not in disputed state" });
+    } else {
+      res.status(409).json({ error: "Dispute already resolved" });
+    }
+    return;
+  }
+
+  res.json(
+    ResolveRentalDisputeResponse.parse({
+      rentalId,
+      award,
+      amountUsd: result.amount,
+    }),
+  );
 });
 
 export default router;

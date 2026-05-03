@@ -1839,6 +1839,31 @@ export const ListAdminRentalsResponseItem = zod.object({
 export const ListAdminRentalsResponse = zod.array(ListAdminRentalsResponseItem);
 
 /**
+ * @summary Manually resolve a disputed cancellation in favour of the owner or the renter
+ */
+export const ResolveRentalDisputeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ResolveRentalDisputeBody = zod.object({
+  award: zod
+    .enum(["owner", "renter"])
+    .describe(
+      '\"owner\" credits the frozen used-time amount to the rig owner (with\nplatform fee deducted) — typical when the failure was on the\nrenter\'s pool. \"renter\" refunds the frozen amount back to the\nrenter — typical when the rig itself under-delivered.\n',
+    ),
+  note: zod
+    .string()
+    .optional()
+    .describe("Free-text admin note recorded on the wallet ledger entry."),
+});
+
+export const ResolveRentalDisputeResponse = zod.object({
+  rentalId: zod.number(),
+  award: zod.enum(["owner", "renter"]),
+  amountUsd: zod.number(),
+});
+
+/**
  * @summary Real-time Stratum proxy status — connected rigs and active routes
  */
 export const GetAdminProxyResponse = zod.object({
