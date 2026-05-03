@@ -63,45 +63,99 @@ export class UpstreamClient extends EventEmitter {
 
     // Re-resolve the hostname on every connect attempt and validate the returned
     // IPs to defend against DNS rebinding after rental creation.
-    let resolvedHost: string = host;
+    // Resolve BOTH IPv4 and IPv6 addresses so we can fall back at the connect
+    // layer — many VPS providers (e.g. Contabo) have working IPv6 routes to
+    // pools like NiceHash but their IPv4 ranges are firewalled by the pool, so
+    // an IPv4-only lookup succeeds yet the TCP connect times out.
+    let candidates: string[] = [];
     try {
-      const { address } = await dns.lookup(host, { family: 4 }).catch(
-        () => dns.lookup(host, { family: 6 }),
-      );
-      if (isPrivateIp(address)) {
-        logger.error(
-          { rentalId: this.rentalId, host, address },
-          "stratum:upstream resolved IP is private/reserved — connection blocked (DNS rebinding guard)",
-        );
-        this.emit("error", new Error(`Pool hostname resolved to private IP: ${address}`));
-        return;
-      }
-      resolvedHost = address;
+      const all = await dns.lookup(host, { all: true, family: 0 });
+      const validated = all
+        .map((r) => r.address)
+        .filter((addr) => {
+          if (isPrivateIp(addr)) {
+            logger.warn(
+              { rentalId: this.rentalId, host, address: addr },
+              "stratum:upstream skipping private/reserved IP (DNS rebinding guard)",
+            );
+            return false;
+          }
+          return true;
+        });
+      // Prefer IPv4 first, then IPv6 — IPv4 is usually faster when reachable,
+      // but we always try the other family if the first fails to connect.
+      const v4 = validated.filter((a) => a.includes("."));
+      const v6 = validated.filter((a) => !a.includes("."));
+      candidates = [...v4, ...v6];
     } catch {
+      // ignore — empty candidates handled below
+    }
+    if (candidates.length === 0) {
       logger.error(
         { rentalId: this.rentalId, host },
         "stratum:upstream hostname resolution failed — scheduling reconnect",
       );
       this.emit("error", new Error(`Pool hostname could not be resolved: ${host}`));
-      // Treat transient DNS failures as temporary; schedule a reconnect so the
-      // upstream recovers automatically once DNS is available again.
       if (!this.destroyed) this._scheduleReconnect();
       return;
     }
 
-    logger.info(
-      { rentalId: this.rentalId, host, resolvedHost, port },
-      "stratum:upstream connecting",
-    );
-    const sock = net.createConnection({ host: resolvedHost, port });
+    // Try each candidate IP in order with a short per-attempt connect budget
+    // so we fall through to the next family quickly when one is firewalled.
+    const PER_ATTEMPT_MS = 5_000;
+    let sock: net.Socket | null = null;
+    let lastErr: Error | null = null;
+    let resolvedHost = candidates[0]!;
+    for (const addr of candidates) {
+      if (this.destroyed) return;
+      logger.info(
+        { rentalId: this.rentalId, host, resolvedHost: addr, port },
+        "stratum:upstream connecting",
+      );
+      const attempt = net.createConnection({ host: addr, port });
+      const ok = await new Promise<boolean>((resolve) => {
+        const t = setTimeout(() => {
+          attempt.destroy();
+          resolve(false);
+        }, PER_ATTEMPT_MS);
+        attempt.once("connect", () => {
+          clearTimeout(t);
+          resolve(true);
+        });
+        attempt.once("error", (e: Error) => {
+          clearTimeout(t);
+          lastErr = e;
+          resolve(false);
+        });
+      });
+      if (ok) {
+        sock = attempt;
+        resolvedHost = addr;
+        break;
+      }
+      logger.warn(
+        { rentalId: this.rentalId, host, tried: addr },
+        "stratum:upstream connect attempt failed — trying next address",
+      );
+    }
+    if (!sock) {
+      this.emit(
+        "error",
+        new Error(
+          `Could not connect to ${host}:${port} via any address (last: ${lastErr?.message ?? "timeout"})`,
+        ),
+      );
+      if (!this.destroyed) this._scheduleReconnect();
+      return;
+    }
     this.socket = sock;
     sock.setEncoding("utf8");
     sock.setTimeout(120_000);
-
-    sock.on("connect", () => {
-      this.reconnectAttempt = 0;
-      this._subscribe();
-    });
+    // Connect already happened in the candidate-loop above, so kick off the
+    // subscribe handshake directly instead of waiting for a "connect" event
+    // that will never fire on this already-open socket.
+    this.reconnectAttempt = 0;
+    this._subscribe();
 
     sock.on("data", (chunk: string) => {
       this.buffer += chunk;
