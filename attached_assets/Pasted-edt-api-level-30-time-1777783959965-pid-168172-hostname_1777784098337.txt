@@ -1,0 +1,120 @@
+edt-api | {"level":30,"time":1777783959965,"pid":168172,"hostname":"vmi3202752","rigId":6,"msg":"stra
+tum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777783959965,"pid":168172,"hostname":"vmi3202752","rentalId":28,"msg":"
+stratum:upstream closed"}
+0|tedt-api | {"level":30,"time":1777783960799,"pid":168172,"hostname":"vmi3202752","req":{"id":234,"meth
+od":"GET","url":"/api/rentals/28"},"res":{"statusCode":304},"responseTime":12,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1777783960943,"pid":168172,"hostname":"vmi3202752","req":{"id":236,"meth
+od":"GET","url":"/api/rentals/28/live"},"res":{"statusCode":200},"responseTime":41,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1777783960946,"pid":168172,"hostname":"vmi3202752","req":{"id":237,"meth
+od":"GET","url":"/api/rentals/28/stats"},"res":{"statusCode":200},"responseTime":33,"msg":"request compl
+eted"}
+0|tedt-api | {"level":30,"time":1777783962725,"pid":168172,"hostname":"vmi3202752","req":{"id":241,"meth
+od":"GET","url":"/api/rentals/28"},"res":{"statusCode":304},"responseTime":91,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1777783962849,"pid":168172,"hostname":"vmi3202752","req":{"id":243,"meth
+od":"GET","url":"/api/rentals/28/live"},"res":{"statusCode":200},"responseTime":21,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1777783962850,"pid":168172,"hostname":"vmi3202752","req":{"id":244,"meth
+od":"GET","url":"/api/rentals/28/stats"},"res":{"statusCode":200},"responseTime":20,"msg":"request compl
+eted"}
+0|tedt-api | {"level":30,"time":1777783966169,"pid":168172,"hostname":"vmi3202752","req":{"id":248,"meth
+od":"GET","url":"/api/rentals/28"},"res":{"statusCode":304},"responseTime":12,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1777783966346,"pid":168172,"hostname":"vmi3202752","req":{"id":250,"meth
+od":"GET","url":"/api/rentals/28/live"},"res":{"statusCode":200},"responseTime":59,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1777783966402,"pid":168172,"hostname":"vmi3202752","req":{"id":251,"meth
+od":"GET","url":"/api/rentals/28/stats"},"res":{"statusCode":200},"responseTime":108,"msg":"request comp
+leted"}
+0|tedt-api | {"level":30,"time":1777783968241,"pid":168172,"hostname":"vmi3202752","req":{"id":255,"meth
+od":"GET","url":"/api/rentals/28"},"res":{"statusCode":304},"responseTime":14,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1777783968377,"pid":168172,"hostname":"vmi3202752","req":{"id":257,"meth
+od":"GET","url":"/api/rentals/28/live"},"res":{"statusCode":200},"responseTime":12,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1777783968390,"pid":168172,"hostname":"vmi3202752","req":{"id":258,"meth
+od":"GET","url":"/api/rentals/28/stats"},"res":{"statusCode":200},"responseTime":21,"msg":"request compl
+eted"}
+0|tedt-api | {"level":30,"time":1777783971982,"pid":168172,"hostname":"vmi3202752","req":{"id":262,"meth
+od":"GET","url":"/api/rentals/28"},"res":{"statusCode":304},"responseTime":92,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1777783972127,"pid":168172,"hostname":"vmi3202752","req":{"id":265,"meth
+od":"GET","url":"/api/rentals/28/stats"},"res":{"statusCode":200},"responseTime":21,"msg":"request compl
+eted"}
+0|tedt-api | {"level":30,"time":1777783972129,"pid":168172,"hostname":"vmi3202752","req":{"id":264,"meth
+od":"GET","url":"/api/rentals/28/live"},"res":{"statusCode":200},"responseTime":28,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1777783974227,"pid":168172,"hostname":"vmi3202752","req":{"id":269,"meth
+od":"GET","url":"/api/rentals/28"},"res":{"statusCode":304},"responseTime":19,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1777783974342,"pid":168172,"hostname":"vmi3202752","req":{"id":271,"meth
+od":"GET","url":"/api/rentals/28/live"},"res":{"statusCode":200},"responseTime":14,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1777783974347,"pid":168172,"hostname":"vmi3202752","req":{"id":272,"meth
+od":"GET","url":"/api/rentals/28/stats"},"res":{"statusCode":200},"responseTime":16,"msg":"request compl
+eted"}
+0|tedt-api | {"level":30,"time":1777783979543,"pid":168172,"hostname":"vmi3202752","req":{"id":275,"meth
+od":"GET","url":"/api/rentals/28/live"},"res":{"statusCode":200},"responseTime":96,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1777783983123,"pid":168172,"hostname":"vmi3202752","req":{"id":276,"meth
+od":"GET","url":"/api/rentals/28"},"res":{"statusCode":304},"responseTime":43,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1777783983276,"pid":168172,"hostname":"vmi3202752","req":{"id":279,"meth
+od":"GET","url":"/api/rentals/28/stats"},"res":{"statusCode":200},"responseTime":40,"msg":"request compl
+eted"}
+0|tedt-api | {"level":30,"time":1777783983282,"pid":168172,"hostname":"vmi3202752","req":{"id":278,"meth
+od":"GET","url":"/api/rentals/28/live"},"res":{"statusCode":200},"responseTime":53,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1777783984915,"pid":168172,"hostname":"vmi3202752","req":{"id":284,"meth
+od":"GET","url":"/api/rentals/28"},"res":{"statusCode":304},"responseTime":105,"msg":"request completed"
+}
+0|tedt-api | {"level":30,"time":1777783985329,"pid":168172,"hostname":"vmi3202752","req":{"id":286,"meth
+od":"GET","url":"/api/rentals/28/live"},"res":{"statusCode":200},"responseTime":167,"msg":"request compl
+eted"}
+0|tedt-api | {"level":30,"time":1777783985365,"pid":168172,"hostname":"vmi3202752","req":{"id":287,"meth
+od":"GET","url":"/api/rentals/28/stats"},"res":{"statusCode":200},"responseTime":103,"msg":"request comp
+leted"}
+0|tedt-api | {"level":30,"time":1777783987009,"pid":168172,"hostname":"vmi3202752","req":{"id":291,"meth
+od":"GET","url":"/api/rentals/28"},"res":{"statusCode":304},"responseTime":33,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1777783987183,"pid":168172,"hostname":"vmi3202752","req":{"id":293,"meth
+od":"GET","url":"/api/rentals/28/live"},"res":{"statusCode":200},"responseTime":20,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1777783987187,"pid":168172,"hostname":"vmi3202752","req":{"id":294,"meth
+od":"GET","url":"/api/rentals/28/stats"},"res":{"statusCode":200},"responseTime":19,"msg":"request compl
+eted"}
+0|tedt-api | {"level":30,"time":1777783992323,"pid":168172,"hostname":"vmi3202752","req":{"id":297,"meth
+od":"GET","url":"/api/rentals/28/live"},"res":{"statusCode":200},"responseTime":36,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1777783995222,"pid":168172,"hostname":"vmi3202752","req":{"id":299,"meth
+od":"GET","url":"/api/rentals/28"},"res":{"statusCode":304},"responseTime":16,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1777783995377,"pid":168172,"hostname":"vmi3202752","req":{"id":301,"meth
+od":"GET","url":"/api/rentals/28/live"},"res":{"statusCode":200},"responseTime":47,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1777783995442,"pid":168172,"hostname":"vmi3202752","req":{"id":302,"meth
+od":"GET","url":"/api/rentals/28/stats"},"res":{"statusCode":200},"responseTime":109,"msg":"request comp
+leted"}
+0|tedt-api | {"level":30,"time":1777783996956,"pid":168172,"hostname":"vmi3202752","req":{"id":305,"meth
+od":"GET","url":"/api/rentals/28"},"res":{"statusCode":304},"responseTime":44,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1777783997141,"pid":168172,"hostname":"vmi3202752","req":{"id":308,"meth
+od":"GET","url":"/api/rentals/28/live"},"res":{"statusCode":200},"responseTime":72,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1777783997143,"pid":168172,"hostname":"vmi3202752","req":{"id":309,"meth
+od":"GET","url":"/api/rentals/28/stats"},"res":{"statusCode":200},"responseTime":74,"msg":"request compl
+eted"}
+0|tedt-api | {"level":30,"time":1777784004271,"pid":168172,"hostname":"vmi3202752","req":{"id":312,"meth
+od":"GET","url":"/api/rentals/28/live"},"res":{"statusCode":200},"responseTime":16,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1777784022752,"pid":168172,"hostname":"vmi3202752","remoteAddress":"165.
+227.153.169","msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1777784023510,"pid":168172,"hostname":"vmi3202752","rigId":6,"rentalId":
+28,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1777784023511,"pid":168172,"hostname":"vmi3202752","rentalId":28,"host":
+"btc.viabtc.io","resolvedHost":"172.65.24.253","port":3333,"msg":"stratum:upstream connecting"}
+0|tedt-api | {"level":30,"time":1777784023538,"pid":168172,"hostname":"vmi3202752","rentalId":28,"worker
+":"AhmadSamir.y","msg":"stratum:upstream pool auth OK"}
+0|tedt-api | {"level":30,"time":1777784023538,"pid":168172,"hostname":"vmi3202752","rigId":6,"rentalId":
+28,"msg":"stratum:downstream upstream ready"}
+0|tedt-api | {"level":30,"time":1777784024208,"pid":168172,"hostname":"vmi3202752","rigId":6,"rentalId":
+28,"pendingBuffered":0,"msSinceLastData":722,"wasAuthorized":true,"wasFallback":false,"upstreamReady":tr
+ue,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1777784024209,"pid":168172,"hostname":"vmi3202752","rigId":6,"msg":"stra
+tum:downstream closed"}
+0|tedt-api | {"level":30,"time":1777784024209,"pid":168172,"hostname":"vmi3202752","rentalId":28,"msg":"
+stratum:upstream closed"}
+root@vmi3202752:/var/www/livehashrate.com#
