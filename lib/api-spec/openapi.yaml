@@ -2286,8 +2286,14 @@ components:
           type: number
         renterTotalUsd:
           type: number
+        netPaidUsd:
+          type: number
+          description: Actual amount the renter paid (renterTotalUsd minus any refunds from cancellation/dispute settlements).
         ownerEarningsUsd:
           type: number
+        netOwnerEarnedUsd:
+          type: number
+          description: Actual amount credited to the owner so far (sum of rental_payout transactions for this rental).
         platformFeeUsd:
           type: number
         status:
@@ -2339,7 +2345,9 @@ components:
         - renterFeePct
         - ownerFeePct
         - renterTotalUsd
+        - netPaidUsd
         - ownerEarningsUsd
+        - netOwnerEarnedUsd
         - platformFeeUsd
         - status
         - startedAt

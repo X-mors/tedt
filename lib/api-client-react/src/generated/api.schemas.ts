@@ -473,7 +473,11 @@ export interface RentalDetail {
   renterFeePct: number;
   ownerFeePct: number;
   renterTotalUsd: number;
+  /** Actual amount the renter paid (renterTotalUsd minus any refunds from cancellation/dispute settlements). */
+  netPaidUsd: number;
   ownerEarningsUsd: number;
+  /** Actual amount credited to the owner so far (sum of rental_payout transactions for this rental). */
+  netOwnerEarnedUsd: number;
   platformFeeUsd: number;
   status: RentalStatus;
   startedAt: string;

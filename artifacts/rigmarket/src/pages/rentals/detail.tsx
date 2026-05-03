@@ -661,10 +661,38 @@ export default function RentalCockpit() {
                 <span className="text-muted-foreground">Algorithm</span>
                 <span>{rental.algorithmName}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Cost</span>
-                <span className="font-mono font-semibold text-primary">${rental.renterTotalUsd.toFixed(2)}</span>
-              </div>
+              {(() => {
+                const refunded = Math.max(0, rental.renterTotalUsd - rental.netPaidUsd);
+                const showNet = refunded > 0.0001;
+                return (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        {showNet ? "Amount Paid" : "Total Cost"}
+                      </span>
+                      <span className="font-mono font-semibold text-primary">
+                        ${rental.netPaidUsd.toFixed(2)}
+                      </span>
+                    </div>
+                    {showNet ? (
+                      <>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Original Cost</span>
+                          <span className="font-mono text-muted-foreground line-through">
+                            ${rental.renterTotalUsd.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Refunded</span>
+                          <span className="font-mono text-green-500">
+                            +${refunded.toFixed(2)}
+                          </span>
+                        </div>
+                      </>
+                    ) : null}
+                  </>
+                );
+              })()}
             </CardContent>
           </Card>
         </div>

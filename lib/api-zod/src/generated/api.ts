@@ -891,7 +891,17 @@ export const GetRentalResponse = zod.object({
   renterFeePct: zod.number(),
   ownerFeePct: zod.number(),
   renterTotalUsd: zod.number(),
+  netPaidUsd: zod
+    .number()
+    .describe(
+      "Actual amount the renter paid (renterTotalUsd minus any refunds from cancellation\/dispute settlements).",
+    ),
   ownerEarningsUsd: zod.number(),
+  netOwnerEarnedUsd: zod
+    .number()
+    .describe(
+      "Actual amount credited to the owner so far (sum of rental_payout transactions for this rental).",
+    ),
   platformFeeUsd: zod.number(),
   status: zod.enum(["pending", "active", "completed", "cancelled", "disputed"]),
   startedAt: zod.coerce.date(),
@@ -1035,7 +1045,17 @@ export const CancelRentalResponse = zod.object({
   renterFeePct: zod.number(),
   ownerFeePct: zod.number(),
   renterTotalUsd: zod.number(),
+  netPaidUsd: zod
+    .number()
+    .describe(
+      "Actual amount the renter paid (renterTotalUsd minus any refunds from cancellation\/dispute settlements).",
+    ),
   ownerEarningsUsd: zod.number(),
+  netOwnerEarnedUsd: zod
+    .number()
+    .describe(
+      "Actual amount credited to the owner so far (sum of rental_payout transactions for this rental).",
+    ),
   platformFeeUsd: zod.number(),
   status: zod.enum(["pending", "active", "completed", "cancelled", "disputed"]),
   startedAt: zod.coerce.date(),
@@ -1363,7 +1383,17 @@ export const SwitchRentalPoolResponse = zod.object({
   renterFeePct: zod.number(),
   ownerFeePct: zod.number(),
   renterTotalUsd: zod.number(),
+  netPaidUsd: zod
+    .number()
+    .describe(
+      "Actual amount the renter paid (renterTotalUsd minus any refunds from cancellation\/dispute settlements).",
+    ),
   ownerEarningsUsd: zod.number(),
+  netOwnerEarnedUsd: zod
+    .number()
+    .describe(
+      "Actual amount credited to the owner so far (sum of rental_payout transactions for this rental).",
+    ),
   platformFeeUsd: zod.number(),
   status: zod.enum(["pending", "active", "completed", "cancelled", "disputed"]),
   startedAt: zod.coerce.date(),

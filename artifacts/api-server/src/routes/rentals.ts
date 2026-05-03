@@ -439,6 +439,36 @@ async function loadRentalDetail(id: number) {
     .from(usersTable)
     .where(eq(usersTable.id, row.ownerId));
 
+  // Sum any refunds (renter side) and any payouts (owner side) recorded in
+  // the wallet ledger for this rental. Used so the UI can show what was
+  // actually paid / earned, not the contract amounts.
+  const [refundAgg] = await db
+    .select({
+      total: sql<string>`COALESCE(SUM(${walletTransactionsTable.amountUsd}), 0)`,
+    })
+    .from(walletTransactionsTable)
+    .where(
+      and(
+        eq(walletTransactionsTable.userId, row.renterId),
+        eq(walletTransactionsTable.type, "rental_refund"),
+        eq(walletTransactionsTable.relatedRentalId, row.id),
+      ),
+    );
+  const [payoutAgg] = await db
+    .select({
+      total: sql<string>`COALESCE(SUM(${walletTransactionsTable.amountUsd}), 0)`,
+    })
+    .from(walletTransactionsTable)
+    .where(
+      and(
+        eq(walletTransactionsTable.userId, row.ownerId),
+        eq(walletTransactionsTable.type, "rental_payout"),
+        eq(walletTransactionsTable.relatedRentalId, row.id),
+      ),
+    );
+  const refundTotal = toNum(refundAgg?.total ?? "0");
+  const payoutTotal = toNum(payoutAgg?.total ?? "0");
+
   return GetRentalResponse.parse({
     id: row.id,
     rigId: row.rigId,
@@ -455,7 +485,9 @@ async function loadRentalDetail(id: number) {
     renterFeePct: toNum(row.renterFeePct),
     ownerFeePct: toNum(row.ownerFeePct),
     renterTotalUsd: toNum(row.renterTotalUsd),
+    netPaidUsd: round6(Math.max(0, toNum(row.renterTotalUsd) - refundTotal)),
     ownerEarningsUsd: toNum(row.ownerEarningsUsd),
+    netOwnerEarnedUsd: round6(Math.max(0, payoutTotal)),
     platformFeeUsd: toNum(row.platformFeeUsd),
     status: row.status,
     startedAt: row.startedAt.toISOString(),
