@@ -19,6 +19,7 @@ async function main() {
   if (Number(algoCount?.c ?? 0) === 0) {
     console.log("- inserting algorithms");
     await db.insert(algorithmsTable).values([
+      { name: "SHA-256 (AsicBoost)", slug: "sha256asicboost", unit: "TH/s", basePricePerUnitPerHour: "0.012" },
       { name: "SHA-256", slug: "sha256", unit: "TH/s", basePricePerUnitPerHour: "0.012" },
       { name: "Scrypt", slug: "scrypt", unit: "GH/s", basePricePerUnitPerHour: "0.0008" },
       { name: "Ethash", slug: "ethash", unit: "MH/s", basePricePerUnitPerHour: "0.00018" },
@@ -75,7 +76,7 @@ async function main() {
     if (owners.length >= 2 && algos.length >= 4) {
       const owner1 = owners[0]!;
       const owner2 = owners[1]!;
-      const sha = algos.find((a) => a.slug === "sha256")!;
+      const sha = algos.find((a) => a.slug === "sha256asicboost")!;
       const scrypt = algos.find((a) => a.slug === "scrypt")!;
       const ethash = algos.find((a) => a.slug === "ethash")!;
       const randomx = algos.find((a) => a.slug === "randomx")!;

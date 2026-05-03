@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import {
   db,
   algorithmsTable,
@@ -21,12 +21,60 @@ export async function seedDatabase(): Promise<void> {
   if (Number(algoCount?.c ?? 0) === 0) {
     logger.info("Seeding default algorithms");
     await db.insert(algorithmsTable).values([
+      // The default proxy negotiates BIP310 version-rolling (ASICBoost) with
+      // any miner that requests it via mining.configure, so this is the slug
+      // used by modern SHA-256 ASICs (S19+, S21, M30S++, …).
+      { name: "SHA-256 (AsicBoost)", slug: "sha256asicboost", unit: "TH/s", basePricePerUnitPerHour: "0.012" },
+      // Plain SHA-256 listing for legacy hardware that does not support
+      // version-rolling. Such miners simply skip mining.configure on connect,
+      // so the proxy transparently runs without ASICBoost for them.
       { name: "SHA-256", slug: "sha256", unit: "TH/s", basePricePerUnitPerHour: "0.012" },
       { name: "Scrypt", slug: "scrypt", unit: "GH/s", basePricePerUnitPerHour: "0.0008" },
       { name: "Ethash", slug: "ethash", unit: "MH/s", basePricePerUnitPerHour: "0.00018" },
       { name: "RandomX", slug: "randomx", unit: "kH/s", basePricePerUnitPerHour: "0.00045" },
       { name: "kHeavyHash", slug: "kheavyhash", unit: "GH/s", basePricePerUnitPerHour: "0.0011" },
     ]);
+  } else {
+    // ---------------------------------------------------------------------
+    // One-shot, idempotent migration for existing deployments:
+    //   1. Rename the original slug "sha256" → "sha256asicboost" since the
+    //      proxy actually negotiates version-rolling for that listing.
+    //   2. Insert a new "SHA-256" (slug "sha256") row for legacy hardware.
+    // Existing rigs keep their algorithmId pointer (it now resolves to the
+    // renamed row), so behaviour is preserved.
+    // ---------------------------------------------------------------------
+    const [legacyRow] = await db
+      .select({ id: algorithmsTable.id, name: algorithmsTable.name })
+      .from(algorithmsTable)
+      .where(
+        and(
+          eq(algorithmsTable.slug, "sha256"),
+          eq(algorithmsTable.name, "SHA-256"),
+        ),
+      );
+    if (legacyRow) {
+      logger.info(
+        { id: legacyRow.id },
+        "Renaming legacy 'sha256' algorithm row to 'sha256asicboost'",
+      );
+      await db
+        .update(algorithmsTable)
+        .set({ slug: "sha256asicboost", name: "SHA-256 (AsicBoost)" })
+        .where(eq(algorithmsTable.id, legacyRow.id));
+    }
+    const [hasPlainSha] = await db
+      .select({ id: algorithmsTable.id })
+      .from(algorithmsTable)
+      .where(eq(algorithmsTable.slug, "sha256"));
+    if (!hasPlainSha) {
+      logger.info("Adding new 'SHA-256' algorithm for legacy hardware (no version-rolling)");
+      await db.insert(algorithmsTable).values({
+        name: "SHA-256",
+        slug: "sha256",
+        unit: "TH/s",
+        basePricePerUnitPerHour: "0.012",
+      });
+    }
   }
 
   const [commCount] = await db
@@ -69,7 +117,7 @@ export async function seedDatabase(): Promise<void> {
       .returning({ id: usersTable.id });
 
     const algos = await db.select().from(algorithmsTable);
-    const sha = algos.find((a) => a.slug === "sha256");
+    const sha = algos.find((a) => a.slug === "sha256asicboost");
     const scrypt = algos.find((a) => a.slug === "scrypt");
     const ethash = algos.find((a) => a.slug === "ethash");
     const randomx = algos.find((a) => a.slug === "randomx");
