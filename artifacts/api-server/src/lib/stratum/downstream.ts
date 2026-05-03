@@ -82,23 +82,6 @@ export class DownstreamSession extends EventEmitter {
    *  real change we force-close the miner socket so it picks up the new prefix from a
    *  fresh subscribe handshake. */
   private upstreamExtranonce1: string | null = null;
-  /**
-   * When the miner sends mining.subscribe we delay replying until upstream
-   * subscribes and gives us its real extranonce1 — replying with an upstream-
-   * matched extranonce1 from the start avoids a mid-session
-   * mining.set_extranonce, which many ASIC firmwares ignore (and some treat as
-   * a fatal protocol violation, disconnecting after a few hundred ms). If the
-   * upstream is unavailable we fall back to a local random extranonce1 after a
-   * short timeout.
-   */
-  private pendingSubscribeMsgId: number | string | null = null;
-  private subscribeReplied = false;
-  private subscribeReplyTimer: NodeJS.Timeout | null = null;
-  /** Deferred mining.notify (params + isSetDifficulty=false) and set_difficulty
-   *  values we received from upstream BEFORE we replied to the miner's subscribe.
-   *  Replayed in order immediately after _replySubscribe(). */
-  private pendingDifficulty: number | null = null;
-  private pendingFirstNotify: unknown[] | null = null;
   constructor(private readonly socket: net.Socket) {
     super();
     socket.setEncoding("utf8");
@@ -198,55 +181,7 @@ export class DownstreamSession extends EventEmitter {
   private _setDifficulty(diff: number): void {
     const safe = Math.max(diff, this.minDifficulty, 1);
     this.currentDifficulty = safe;
-    if (!this.subscribeReplied) {
-      // Buffer until subscribe reply has been sent. Per stratum convention the
-      // miner expects subscribe response → set_difficulty → notify, in order.
-      this.pendingDifficulty = safe;
-      return;
-    }
     this._notify("mining.set_difficulty", [safe]);
-  }
-
-  /**
-   * Reply to the miner's deferred mining.subscribe with the given extranonce1
-   * (typically pulled from the upstream pool so we never need a mid-session
-   * mining.set_extranonce). Drains any buffered set_difficulty / first
-   * mining.notify that arrived from upstream while we were waiting.
-   */
-  private _replySubscribe(extranonce1: string, extranonce2Size: number): void {
-    if (this.subscribeReplied || this.pendingSubscribeMsgId == null) return;
-    if (this.subscribeReplyTimer) {
-      clearTimeout(this.subscribeReplyTimer);
-      this.subscribeReplyTimer = null;
-    }
-    this.extranonce1 = extranonce1;
-    this.extranonce2Size = extranonce2Size;
-    this.upstreamExtranonce1 = extranonce1;
-    const msgId = this.pendingSubscribeMsgId;
-    this.pendingSubscribeMsgId = null;
-    this.subscribeReplied = true;
-    this._reply(msgId, [
-      [["mining.set_difficulty", `sub-diff-${this.msgIdCounter}`]],
-      extranonce1,
-      extranonce2Size,
-    ]);
-    logger.debug(
-      { rigId: this.rigId, extranonce1, extranonce2Size },
-      "stratum:downstream subscribe reply sent (extranonce sourced from upstream)",
-    );
-    // Drain deferred difficulty/notify in protocol order.
-    if (this.pendingDifficulty != null) {
-      const d = this.pendingDifficulty;
-      this.pendingDifficulty = null;
-      this._notify("mining.set_difficulty", [d]);
-    } else {
-      this._notify("mining.set_difficulty", [this.currentDifficulty]);
-    }
-    if (this.pendingFirstNotify) {
-      const params = this.pendingFirstNotify;
-      this.pendingFirstNotify = null;
-      this._notify("mining.notify", params);
-    }
   }
 
   private async _handleMessage(msg: JsonRpcMessage): Promise<void> {
@@ -343,38 +278,20 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
     this.subscribed = true;
-    this.pendingSubscribeMsgId = msg.id;
-    // Authorize-before-subscribe path: some miners send authorize first, in
-    // which case upstream may already be subscribed by the time we get the
-    // miner's mining.subscribe. If so, reply immediately with the upstream
-    // extranonce1 — no need to wait or risk the timeout fallback.
-    if (this.upstream && this.upstream.currentExtranonce1) {
-      this._replySubscribe(
-        this.upstream.currentExtranonce1,
-        this.upstream.currentExtranonce2Size,
-      );
-      return;
-    }
-    // Otherwise DEFER the response. We will reply with the upstream pool's
-    // extranonce1 once it becomes available (in _wireUpstreamEvents →
-    // "subscribed" handler). Replying with the upstream-matched extranonce1
-    // from the start means we never need to send a mid-session
-    // mining.set_extranonce — many ASIC firmwares ignore those, then
-    // disconnect a few hundred ms later because their internal nonce-range
-    // tracking is out of sync.
-    // Hard cap: if upstream takes too long (or there's no rental and no
-    // fallback at all), reply with a local random extranonce1 so the miner
-    // doesn't time out. 5 s is well above the typical pool subscribe latency
-    // (<200 ms) but well below ASIC firmware subscribe timeouts (~30 s).
-    this.subscribeReplyTimer = setTimeout(() => {
-      if (!this.subscribeReplied && this.pendingSubscribeMsgId != null) {
-        logger.warn(
-          { rigId: this.rigId, rentalId: this.rentalId },
-          "stratum:downstream upstream extranonce not received in time — replying to subscribe with local random extranonce1",
-        );
-        this._replySubscribe(randomBytes(8).toString("hex"), 8);
-      }
-    }, 5000);
+    // Use 8-byte extranonce1 to match the size handed out by major upstream
+    // pools (viabtc, f2pool, antpool). This avoids a mid-session
+    // extranonce2_size change via mining.set_extranonce, which proxies like
+    // stratum-proxy/0.9.0 cannot tolerate (they pre-split nonce ranges based
+    // on the size negotiated at subscribe time and disconnect on change).
+    this.extranonce1 = randomBytes(8).toString("hex");
+    this.extranonce2Size = 8;
+
+    this._reply(msg.id, [
+      [["mining.set_difficulty", `sub-diff-${this.msgIdCounter}`]],
+      this.extranonce1,
+      this.extranonce2Size,
+    ]);
+    this._setDifficulty(this.currentDifficulty);
   }
 
   /**
@@ -611,12 +528,6 @@ export class DownstreamSession extends EventEmitter {
     } else if (rig.stratumHost && rig.stratumPort > 0) {
       await this._startFallbackUpstream(rig);
     } else {
-      // No upstream at all — release the deferred subscribe with a local
-      // random extranonce1 so the miner can finish its handshake and idle
-      // until upstream becomes available.
-      if (this.pendingSubscribeMsgId != null && !this.subscribeReplied) {
-        this._replySubscribe(randomBytes(8).toString("hex"), 8);
-      }
       this._setDifficulty(1);
       logger.info({ rigId: rig.id }, "stratum:downstream no active rental, miner idle");
     }
@@ -858,26 +769,12 @@ export class DownstreamSession extends EventEmitter {
     });
 
     upstream.on("notify", (params: unknown) => {
-      const arr = params as unknown[];
-      this.lastJobId = Array.isArray(arr) ? String(arr[0]) : null;
-      if (!this.subscribeReplied) {
-        // Buffer only the latest notify; older ones become stale once a newer
-        // job arrives (clean_jobs supersedes them anyway).
-        this.pendingFirstNotify = arr;
-        return;
-      }
-      this._notify("mining.notify", arr);
+      this.lastJobId = Array.isArray(params) ? String(params[0]) : null;
+      this._notify("mining.notify", params as unknown[]);
     });
 
     upstream.on("subscribed", ({ extranonce1, extranonce2Size }: { extranonce1: string; extranonce2Size: number }) => {
-      const en1 = extranonce1 ?? this.extranonce1;
-      if (this.pendingSubscribeMsgId != null && !this.subscribeReplied) {
-        // First subscribe of the session — release the deferred miner subscribe
-        // reply with the upstream-matched extranonce1. No set_extranonce needed.
-        this._replySubscribe(en1, extranonce2Size);
-      } else {
-        this._applyUpstreamExtranonce(en1, extranonce2Size, "subscribed");
-      }
+      this._applyUpstreamExtranonce(extranonce1 ?? this.extranonce1, extranonce2Size, "subscribed");
     });
 
     upstream.on("setExtranonce", ({ extranonce1, extranonce2Size }: { extranonce1: string; extranonce2Size: number }) => {
@@ -924,15 +821,6 @@ export class DownstreamSession extends EventEmitter {
       );
       this.upstream = parked;
       this._wireUpstreamEvents(rental.id);
-      // Parked upstream already finished its subscribe handshake — it will
-      // NOT re-emit "subscribed". Manually release the deferred miner
-      // subscribe reply with the parked extranonce so the miner gets a clean
-      // handshake without ever needing mining.set_extranonce.
-      const en1 = parked.currentExtranonce1;
-      const en2Size = parked.currentExtranonce2Size;
-      if (this.pendingSubscribeMsgId != null && !this.subscribeReplied && en1) {
-        this._replySubscribe(en1, en2Size);
-      }
       // Upstream is already connected — mark ready and drain any buffered shares.
       if (this.rigId != null) proxyState.setUpstreamConnected(this.rigId, true);
       void this._flushSubmitBuffer();
@@ -963,25 +851,12 @@ export class DownstreamSession extends EventEmitter {
     });
 
     upstream.on("notify", (params: unknown) => {
-      const arr = params as unknown[];
-      this.lastJobId = Array.isArray(arr) ? String(arr[0]) : null;
-      if (!this.subscribeReplied) {
-        // Buffer only the latest notify; older ones become stale once a newer
-        // job arrives (clean_jobs supersedes them anyway).
-        this.pendingFirstNotify = arr;
-        return;
-      }
-      this._notify("mining.notify", arr);
+      this.lastJobId = Array.isArray(params) ? String(params[0]) : null;
+      this._notify("mining.notify", params as unknown[]);
     });
 
     upstream.on("subscribed", ({ extranonce1, extranonce2Size }: { extranonce1: string; extranonce2Size: number }) => {
-      if (this.pendingSubscribeMsgId != null && !this.subscribeReplied) {
-        // First subscribe of the session — release the deferred miner subscribe
-        // reply with the upstream-matched extranonce1. No set_extranonce needed.
-        this._replySubscribe(extranonce1, extranonce2Size);
-      } else {
-        this._applyUpstreamExtranonce(extranonce1, extranonce2Size, "subscribed");
-      }
+      this._applyUpstreamExtranonce(extranonce1, extranonce2Size, "subscribed");
     });
 
     upstream.on("setExtranonce", ({ extranonce1, extranonce2Size }: { extranonce1: string; extranonce2Size: number }) => {
@@ -1066,17 +941,6 @@ export class DownstreamSession extends EventEmitter {
     this.upstreamExtranonce1 = newExtranonce1;
     this.extranonce1 = newExtranonce1;
     // Intentionally do NOT mutate this.extranonce2Size here.
-    if (!this.subscribeReplied) {
-      // Pre-subscribe-reply: do NOT send mining.set_extranonce. The pending
-      // subscribe response itself will carry the latest extranonce1, so the
-      // miner sees a clean handshake without ever observing a set_extranonce
-      // (which many ASIC firmwares ignore and then disconnect over).
-      logger.debug(
-        { rigId: this.rigId, source, newExtranonce1 },
-        "stratum:downstream upstream extranonce updated pre-subscribe-reply — deferred (will ride in subscribe response)",
-      );
-      return;
-    }
     logger.debug(
       { rigId: this.rigId, source, prevExtranonce1, newExtranonce1 },
       "stratum:downstream upstream extranonce changed — forwarding mining.set_extranonce",
@@ -1280,10 +1144,6 @@ export class DownstreamSession extends EventEmitter {
   }
 
   private _close(): void {
-    if (this.subscribeReplyTimer) {
-      clearTimeout(this.subscribeReplyTimer);
-      this.subscribeReplyTimer = null;
-    }
     if (!this.socket.destroyed) this.socket.destroy();
   }
 
