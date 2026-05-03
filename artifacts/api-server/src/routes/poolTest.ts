@@ -51,13 +51,20 @@ router.post("/pool/test", requireAuth, async (req, res) => {
       resolve(outcome);
     };
 
+    let tcpOk = false;
     const timer = setTimeout(() => {
       cleanup({
         success: false,
         authFailed: false,
-        errorMessage: "Connection timed out after 10 seconds — pool may be unreachable or blocked",
+        errorMessage: tcpOk
+          ? "TCP connected but the pool never replied to mining.subscribe / mining.authorize within 10s — usually means the worker name is in the wrong format (e.g. NiceHash requires a BTC address as the username, not an account name) or the pool silently rejected the credentials"
+          : "Could not open a TCP connection to the pool within 10s — pool may be unreachable, the host/port is wrong, or your VPS network is blocking the route",
       });
     }, 10_000);
+
+    upstream.on("tcpConnected", () => {
+      tcpOk = true;
+    });
 
     upstream.on("ready", () => {
       cleanup({ success: true, authFailed: false, errorMessage: null });

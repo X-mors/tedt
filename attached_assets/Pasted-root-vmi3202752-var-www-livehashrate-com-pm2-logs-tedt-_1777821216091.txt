@@ -1,0 +1,50 @@
+root@vmi3202752:/var/www/livehashrate.com# pm2 logs tedt-api --lines 30 --nostream | grep -i up
+stream
+0|tedt-api | r/src/routes/poolTest.ts:50:16)\n    at Timeout.<anonymous> (/var/www/livehashrate
+.com/artifacts/api-server/src/routes/poolTest.ts:55:7)\n    at listOnTimeout (node:internal/tim
+ers:605:17)\n    at process.processTimers (node:internal/timers:541:7)"},"rentalId":0,"msg":"st
+ratum:upstream subscribe/auth error"}
+0|tedt-api | {"level":50,"time":1777821184604,"pid":213155,"hostname":"vmi3202752","err":{"type
+":"Error","message":"Upstream destroyed","stack":"Error: Upstream destroyed\n    at <anonymous>
+ (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/upstream.ts:460:14)\n    at Ma
+p.forEach (<anonymous>)\n    at _UpstreamClient.destroy (/var/www/livehashrate.com/artifacts/ap
+i-server/src/lib/stratum/upstream.ts:459:26)\n    at cleanup (/var/www/livehashrate.com/artifac
+ts/api-server/src/routes/poolTest.ts:50:16)\n    at Timeout.<anonymous> (/var/www/livehashrate.
+com/artifacts/api-server/src/routes/poolTest.ts:55:7)\n    at listOnTimeout (node:internal/time
+rs:605:17)\n    at process.processTimers (node:internal/timers:541:7)"},"rentalId":0,"msg":"str
+atum:upstream subscribe/auth error"}
+0|tedt-api | {"level":50,"time":1777821184605,"pid":213155,"hostname":"vmi3202752","err":{"type
+":"Error","message":"Upstream destroyed","stack":"Error: Upstream destroyed\n    at <anonymous>
+ (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/upstream.ts:460:14)\n    at Ma
+p.forEach (<anonymous>)\n    at _UpstreamClient.destroy (/var/www/livehashrate.com/artifacts/ap
+i-server/src/lib/stratum/upstream.ts:459:26)\n    at cleanup (/var/www/livehashrate.com/artifac
+ts/api-server/src/routes/poolTest.ts:50:16)\n    at Timeout.<anonymous> (/var/www/livehashrate.
+com/artifacts/api-server/src/routes/poolTest.ts:55:7)\n    at listOnTimeout (node:internal/time
+rs:605:17)\n    at process.processTimers (node:internal/timers:541:7)"},"rentalId":0,"msg":"str
+atum:upstream subscribe/auth error"}
+0|tedt-api | {"level":50,"time":1777821184606,"pid":213155,"hostname":"vmi3202752","err":{"type
+":"Error","message":"Upstream destroyed","stack":"Error: Upstream destroyed\n    at <anonymous>
+ (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/upstream.ts:460:14)\n    at Ma
+p.forEach (<anonymous>)\n    at _UpstreamClient.destroy (/var/www/livehashrate.com/artifacts/ap
+i-server/src/lib/stratum/upstream.ts:459:26)\n    at cleanup (/var/www/livehashrate.com/artifac
+ts/api-server/src/routes/poolTest.ts:50:16)\n    at Timeout.<anonymous> (/var/www/livehashrate.
+com/artifacts/api-server/src/routes/poolTest.ts:55:7)\n    at listOnTimeout (node:internal/time
+rs:605:17)\n    at process.processTimers (node:internal/timers:541:7)"},"rentalId":0,"msg":"str
+atum:upstream subscribe/auth error"}
+0|tedt-api | {"level":50,"time":1777821184606,"pid":213155,"hostname":"vmi3202752","err":{"type
+":"Error","message":"Upstream destroyed","stack":"Error: Upstream destroyed\n    at <anonymous>
+ (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/upstream.ts:460:14)\n    at Ma
+p.forEach (<anonymous>)\n    at _UpstreamClient.destroy (/var/www/livehashrate.com/artifacts/ap
+i-server/src/lib/stratum/upstream.ts:459:26)\n    at cleanup (/var/www/livehashrate.com/artifac
+ts/api-server/src/routes/poolTest.ts:50:16)\n    at Timeout.<anonymous> (/var/www/livehashrate.
+com/artifacts/api-server/src/routes/poolTest.ts:55:7)\n    at listOnTimeout (node:internal/time
+rs:605:17)\n    at process.processTimers (node:internal/timers:541:7)"},"rentalId":0,"msg":"str
+atum:upstream subscribe/auth error"}
+0|tedt-api | {"level":30,"time":1777821189756,"pid":213155,"hostname":"vmi3202752","rentalId":0
+,"host":"btc.viabtc.io","candidates":["172.65.24.253"],"port":3333,"msg":"stratum:upstream conn
+ecting (racing all addresses)"}
+0|tedt-api | {"level":30,"time":1777821189777,"pid":213155,"hostname":"vmi3202752","rentalId":0
+,"worker":"AhmadSamir.xmors","msg":"stratum:upstream pool auth OK"}
+0|tedt-api | {"level":30,"time":1777821189781,"pid":213155,"hostname":"vmi3202752","rentalId":0
+,"msg":"stratum:upstream closed"}
+root@vmi3202752:/var/www/livehashrate.com#

@@ -173,6 +173,7 @@ export class UpstreamClient extends EventEmitter {
     // subscribe handshake directly instead of waiting for a "connect" event
     // that will never fire on this already-open socket.
     this.reconnectAttempt = 0;
+    this.emit("tcpConnected", { resolvedHost });
     this._subscribe();
 
     sock.on("data", (chunk: string) => {
