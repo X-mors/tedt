@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useParams, Link } from "wouter";
-import { useGetRental, useGetRentalStats, useGetRentalLive, getGetRentalLiveQueryKey, getGetRentalStatsQueryKey, useCancelRental, useCreateRentalReview, getGetRentalQueryKey, useSwitchRentalPool, useListMyPools, useGetMe } from "@workspace/api-client-react";
+import { useGetRental, useGetRentalStats, useGetRentalLive, getGetRentalLiveQueryKey, getGetRentalStatsQueryKey, useCancelRental, useCreateRentalReview, getGetRentalQueryKey, useSwitchRentalPool, useListMyPools, useGetMe, useExtendRental } from "@workspace/api-client-react";
 import { SaveAsPoolButton } from "@/components/save-as-pool-button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,7 +10,7 @@ import { formatHashrate, formatSeconds } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Activity, Server, CheckCircle2, Wifi, WifiOff, BarChart2, ShieldAlert } from "lucide-react";
+import { Activity, Server, CheckCircle2, Wifi, WifiOff, BarChart2, ShieldAlert, Clock } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 const toNum = (v: string | number | null | undefined): number => {
@@ -182,6 +182,123 @@ function SwitchPoolDialog({
   );
 }
 
+function ExtendRentalDialog({
+  rentalId,
+  currentHours,
+  maxRentalHours,
+  hashrate,
+  basePricePerUnitPerHour,
+  renterFeePct,
+}: {
+  rentalId: number;
+  currentHours: number;
+  maxRentalHours: number;
+  hashrate: number;
+  basePricePerUnitPerHour: number;
+  renterFeePct: number;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const extendRental = useExtendRental();
+  const [open, setOpen] = useState(false);
+  const remainingCap = Math.max(0, maxRentalHours - currentHours);
+  const [extraHours, setExtraHours] = useState<number>(remainingCap > 0 ? 1 : 0);
+
+  const handleOpen = (next: boolean) => {
+    setOpen(next);
+    if (next) {
+      setExtraHours(remainingCap > 0 ? Math.min(1, remainingCap) : 0);
+    }
+  };
+
+  const subtotal = hashrate * basePricePerUnitPerHour * extraHours;
+  const fee = subtotal * (renterFeePct / 100);
+  const total = subtotal + fee;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (extraHours < 1 || extraHours > remainingCap) {
+      toast({
+        title: "Invalid duration",
+        description: `Add between 1 and ${remainingCap} hour(s).`,
+        variant: "destructive",
+      });
+      return;
+    }
+    extendRental.mutate(
+      { id: rentalId, data: { extraHours } },
+      {
+        onSuccess: () => {
+          toast({ title: "Rental extended", description: `+${extraHours}h added.` });
+          queryClient.invalidateQueries({ queryKey: getGetRentalQueryKey(rentalId) });
+          queryClient.invalidateQueries({ queryKey: getGetRentalLiveQueryKey(rentalId) });
+          setOpen(false);
+        },
+        onError: (err) =>
+          toast({ title: "Extension failed", description: err.message, variant: "destructive" }),
+      },
+    );
+  };
+
+  if (remainingCap <= 0) {
+    return (
+      <Button size="sm" variant="outline" className="font-mono text-xs gap-1.5" disabled title={`Already at the rig owner's cap of ${maxRentalHours}h`}>
+        <Clock className="w-3 h-3" /> AT_MAX_DURATION
+      </Button>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="font-mono text-xs gap-1.5">
+          <Clock className="w-3 h-3" /> EXTEND
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-primary" /> Buy additional hours
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 py-2">
+          <div className="text-xs text-muted-foreground space-y-1 font-mono">
+            <div className="flex justify-between"><span>Current duration</span><span>{currentHours}h</span></div>
+            <div className="flex justify-between"><span>Owner's cap</span><span>{maxRentalHours}h</span></div>
+            <div className="flex justify-between"><span>Available to add</span><span className="text-primary">{remainingCap}h</span></div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="extra-hours">Extra hours</Label>
+            <Input
+              id="extra-hours"
+              type="number"
+              min={1}
+              max={remainingCap}
+              value={extraHours}
+              onChange={(e) => setExtraHours(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+              className="font-mono"
+            />
+          </div>
+          <div className="rounded-md border border-border/50 bg-muted/20 p-3 space-y-1 text-xs font-mono">
+            <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
+            <div className="flex justify-between text-muted-foreground"><span>Service fee ({renterFeePct}%)</span><span>${fee.toFixed(2)}</span></div>
+            <div className="flex justify-between font-bold pt-1 border-t border-border/40"><span>Total to charge</span><span className="text-primary">${total.toFixed(2)}</span></div>
+            <div className="text-[10px] text-muted-foreground pt-1">New end time will be pushed +{extraHours}h. Pricing locked at the rate of your original rental.</div>
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" className="flex-1 font-mono text-xs" onClick={() => setOpen(false)} disabled={extendRental.isPending}>
+              CANCEL
+            </Button>
+            <Button type="submit" className="flex-1 font-mono text-xs" disabled={extendRental.isPending || extraHours < 1}>
+              {extendRental.isPending ? "PROCESSING..." : "PAY_AND_EXTEND"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function StatusDot({ connected, label, sublabel, error }: { connected: boolean; label: string; sublabel?: string; error?: boolean }) {
   return (
     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
@@ -311,7 +428,17 @@ export default function RentalCockpit() {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {rental.status === 'active' && isRenter && (
+            <ExtendRentalDialog
+              rentalId={rental.id}
+              currentHours={rental.hours}
+              maxRentalHours={rental.maxRentalHours}
+              hashrate={rental.hashrate}
+              basePricePerUnitPerHour={rental.basePricePerUnitPerHour}
+              renterFeePct={rental.renterFeePct}
+            />
+          )}
           {rental.status === 'active' && (
             <Button variant="destructive" className="font-mono text-xs" onClick={handleCancel} disabled={cancelRental.isPending}>
               TERMINATE_RENTAL

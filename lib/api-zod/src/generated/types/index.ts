@@ -41,6 +41,7 @@ export * from "./depositAddressItemCurrency";
 export * from "./depositAsset";
 export * from "./depositInstructions";
 export * from "./errorResponse";
+export * from "./extendRentalBody";
 export * from "./forbiddenResponse";
 export * from "./getMarketplaceFeaturedParams";
 export * from "./getProcessorStatus200";

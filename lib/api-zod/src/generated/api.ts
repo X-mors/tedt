@@ -921,6 +921,11 @@ export const GetRentalResponse = zod.object({
     .describe("Worker name to advertise to the rig (placeholder)"),
   proxyPassword: zod.string(),
   deliveredHashrateAvg: zod.number().nullable(),
+  maxRentalHours: zod
+    .number()
+    .describe(
+      "Rig owner's cap on total rental duration. Used by the renter UI to compute how many extra hours can be purchased.",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -1075,6 +1080,11 @@ export const CancelRentalResponse = zod.object({
     .describe("Worker name to advertise to the rig (placeholder)"),
   proxyPassword: zod.string(),
   deliveredHashrateAvg: zod.number().nullable(),
+  maxRentalHours: zod
+    .number()
+    .describe(
+      "Rig owner's cap on total rental duration. Used by the renter UI to compute how many extra hours can be purchased.",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -1353,6 +1363,71 @@ export const DeleteMyPoolParams = zod.object({
 });
 
 /**
+ * @summary Extend an active rental by additional hours (renter pays incremental cost using the rental's locked-in pricing). Total hours cannot exceed the rig's maxRentalHours.
+ */
+export const ExtendRentalParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ExtendRentalBody = zod.object({
+  extraHours: zod.number().min(1),
+});
+
+export const ExtendRentalResponse = zod.object({
+  id: zod.number(),
+  rigId: zod.number(),
+  rigName: zod.string(),
+  algorithmName: zod.string(),
+  algorithmUnit: zod.string(),
+  renterId: zod.number(),
+  renterDisplayName: zod.string(),
+  ownerId: zod.number(),
+  ownerDisplayName: zod.string(),
+  hashrate: zod.number(),
+  hours: zod.number(),
+  basePricePerUnitPerHour: zod.number(),
+  renterFeePct: zod.number(),
+  ownerFeePct: zod.number(),
+  renterTotalUsd: zod.number(),
+  netPaidUsd: zod
+    .number()
+    .describe(
+      "Actual amount the renter paid (renterTotalUsd minus any refunds from cancellation\/dispute settlements).",
+    ),
+  ownerEarningsUsd: zod.number(),
+  netOwnerEarnedUsd: zod
+    .number()
+    .describe(
+      "Actual amount credited to the owner so far (sum of rental_payout transactions for this rental).",
+    ),
+  platformFeeUsd: zod.number(),
+  status: zod.enum(["pending", "active", "completed", "cancelled", "disputed"]),
+  startedAt: zod.coerce.date(),
+  endsAt: zod.coerce.date(),
+  cancelledAt: zod.coerce.date().nullable(),
+  settledAt: zod.coerce.date().nullable(),
+  poolUrl: zod.string(),
+  poolWorker: zod.string(),
+  poolPassword: zod.string(),
+  stratumProxyUrl: zod
+    .string()
+    .describe(
+      "Where the rented rig should connect (placeholder until Stratum proxy ships)",
+    ),
+  proxyWorker: zod
+    .string()
+    .describe("Worker name to advertise to the rig (placeholder)"),
+  proxyPassword: zod.string(),
+  deliveredHashrateAvg: zod.number().nullable(),
+  maxRentalHours: zod
+    .number()
+    .describe(
+      "Rig owner's cap on total rental duration. Used by the renter UI to compute how many extra hours can be purchased.",
+    ),
+  createdAt: zod.coerce.date(),
+});
+
+/**
  * @summary Live-switch the destination pool for an active rental without losing the session
  */
 export const SwitchRentalPoolParams = zod.object({
@@ -1413,6 +1488,11 @@ export const SwitchRentalPoolResponse = zod.object({
     .describe("Worker name to advertise to the rig (placeholder)"),
   proxyPassword: zod.string(),
   deliveredHashrateAvg: zod.number().nullable(),
+  maxRentalHours: zod
+    .number()
+    .describe(
+      "Rig owner's cap on total rental duration. Used by the renter UI to compute how many extra hours can be purchased.",
+    ),
   createdAt: zod.coerce.date(),
 });
 

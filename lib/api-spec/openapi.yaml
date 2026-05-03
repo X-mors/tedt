@@ -793,6 +793,39 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /rentals/{id}/extend:
+    post:
+      operationId: extendRental
+      tags: [rentals]
+      summary: Extend an active rental by additional hours (renter pays incremental cost using the rental's locked-in pricing). Total hours cannot exceed the rig's maxRentalHours.
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExtendRentalBody"
+      responses:
+        "200":
+          description: Updated rental
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "402":
+          description: Insufficient balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /rentals/{id}/switch-pool:
     post:
       operationId: switchRentalPool
@@ -2016,6 +2049,14 @@ components:
           default: "x"
       required: [rigId, hours, poolUrl, poolWorker]
 
+    ExtendRentalBody:
+      type: object
+      properties:
+        extraHours:
+          type: integer
+          minimum: 1
+      required: [extraHours]
+
     UserPool:
       type: object
       properties:
@@ -2340,6 +2381,9 @@ components:
           type: string
         deliveredHashrateAvg:
           type: ["number", "null"]
+        maxRentalHours:
+          type: integer
+          description: Rig owner's cap on total rental duration. Used by the renter UI to compute how many extra hours can be purchased.
         createdAt:
           type: string
           format: date-time
@@ -2355,6 +2399,7 @@ components:
         - ownerDisplayName
         - hashrate
         - hours
+        - maxRentalHours
         - basePricePerUnitPerHour
         - renterFeePct
         - ownerFeePct

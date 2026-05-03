@@ -305,6 +305,11 @@ export interface CreateRentalBody {
   poolPassword?: string;
 }
 
+export interface ExtendRentalBody {
+  /** @minimum 1 */
+  extraHours: number;
+}
+
 export interface UserPool {
   id: number;
   label: string;
@@ -513,6 +518,8 @@ export interface RentalDetail {
   proxyPassword: string;
   /** @nullable */
   deliveredHashrateAvg: number | null;
+  /** Rig owner's cap on total rental duration. Used by the renter UI to compute how many extra hours can be purchased. */
+  maxRentalHours: number;
   createdAt: string;
 }
 

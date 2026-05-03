@@ -26,6 +26,7 @@ import {
   ListLessorRentalsResponse,
   SwitchRentalPoolBody,
   SwitchRentalPoolResponse,
+  ExtendRentalBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
 import { getCommission } from "../lib/commission";
@@ -406,6 +407,7 @@ async function loadRentalDetail(id: number) {
       ownerId: rentalsTable.ownerId,
       hashrate: rentalsTable.hashrate,
       hours: rentalsTable.hours,
+      maxRentalHours: rigsTable.maxRentalHours,
       basePricePerUnitPerHour: rentalsTable.basePricePerUnitPerHour,
       renterFeePct: rentalsTable.renterFeePct,
       ownerFeePct: rentalsTable.ownerFeePct,
@@ -502,6 +504,7 @@ async function loadRentalDetail(id: number) {
     proxyPassword: row.proxyPassword,
     deliveredHashrateAvg:
       row.deliveredHashrateAvg == null ? null : toNum(row.deliveredHashrateAvg),
+    maxRentalHours: row.maxRentalHours,
     createdAt: row.createdAt.toISOString(),
   });
 }
@@ -820,6 +823,151 @@ router.get("/rentals/:id/live", async (req, res) => {
  * row in place and triggers a clean miner reconnect so the new pool gets a
  * fresh subscription with the correct extranonce.
  */
+/**
+ * Extend an active rental by additional hours. Charges the renter at the
+ * rental's locked-in price (basePricePerUnitPerHour × hashrate × extraHours
+ * + renterFeePct), credits the owner's allocated earnings, and pushes
+ * `endsAt` forward. Total `hours` must remain within the rig owner's
+ * `maxRentalHours` cap. Settlement, /live secondsRemaining, and the
+ * stratum proxy all read `endsAt` from the DB, so no in-memory state
+ * needs to be touched.
+ */
+router.post("/rentals/:id/extend", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const body = ExtendRentalBody.parse(req.body);
+
+  const [row] = await db
+    .select({
+      rental: rentalsTable,
+      maxRentalHours: rigsTable.maxRentalHours,
+    })
+    .from(rentalsTable)
+    .innerJoin(rigsTable, eq(rigsTable.id, rentalsTable.rigId))
+    .where(eq(rentalsTable.id, id));
+  if (!row) {
+    res.status(404).json({ error: "Rental not found" });
+    return;
+  }
+  const { rental, maxRentalHours } = row;
+  if (rental.renterId !== req.currentUser!.id) {
+    res.status(403).json({ error: "Only the renter can extend this rental" });
+    return;
+  }
+  if (rental.status !== "active") {
+    res
+      .status(400)
+      .json({ error: "Only active rentals can be extended" });
+    return;
+  }
+
+  const newTotalHours = rental.hours + body.extraHours;
+  if (newTotalHours > maxRentalHours) {
+    res.status(400).json({
+      error: `Total rental cannot exceed ${maxRentalHours} hours (rig owner's cap). You can add at most ${Math.max(0, maxRentalHours - rental.hours)} more hour(s).`,
+    });
+    return;
+  }
+
+  const hashrate = toNum(rental.hashrate);
+  const basePrice = toNum(rental.basePricePerUnitPerHour);
+  const renterFeePct = toNum(rental.renterFeePct);
+  const ownerFeePct = toNum(rental.ownerFeePct);
+  const extra = priceForRental({
+    hashrate,
+    hours: body.extraHours,
+    basePrice,
+    renterFeePct,
+    ownerFeePct,
+  });
+
+  const extraRenterStr = toUsdString(extra.renterTotalUsd);
+  const newRenterTotalStr = toUsdString(
+    round6(toNum(rental.renterTotalUsd) + extra.renterTotalUsd),
+  );
+  const newOwnerEarningsStr = toUsdString(
+    round6(toNum(rental.ownerEarningsUsd) + extra.ownerEarningsUsd),
+  );
+  const newPlatformFeeStr = toUsdString(
+    round6(toNum(rental.platformFeeUsd) + extra.platformFeeUsd),
+  );
+  const newEndsAt = new Date(
+    rental.endsAt.getTime() + body.extraHours * 3600 * 1000,
+  );
+
+  class TxError extends Error {
+    constructor(public readonly code: "insufficient" | "race") {
+      super(code);
+      this.name = "TxError";
+    }
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      const [debited] = await tx
+        .update(usersTable)
+        .set({
+          balanceUsd: sql`${usersTable.balanceUsd} - ${extraRenterStr}`,
+          totalSpentUsd: sql`${usersTable.totalSpentUsd} + ${extraRenterStr}`,
+        })
+        .where(
+          sql`${usersTable.id} = ${req.currentUser!.id} AND ${usersTable.balanceUsd} >= ${extraRenterStr}`,
+        )
+        .returning({ balanceUsd: usersTable.balanceUsd });
+      if (!debited) throw new TxError("insufficient");
+
+      // Re-check status under the row lock so we don't extend a rental that
+      // just transitioned to cancelled/completed/disputed in another request.
+      const [updated] = await tx
+        .update(rentalsTable)
+        .set({
+          hours: newTotalHours,
+          endsAt: newEndsAt,
+          renterTotalUsd: newRenterTotalStr,
+          ownerEarningsUsd: newOwnerEarningsStr,
+          platformFeeUsd: newPlatformFeeStr,
+        })
+        .where(
+          and(
+            eq(rentalsTable.id, id),
+            eq(rentalsTable.status, "active"),
+          ),
+        )
+        .returning({ id: rentalsTable.id });
+      if (!updated) throw new TxError("race");
+
+      await tx.insert(walletTransactionsTable).values({
+        userId: req.currentUser!.id,
+        type: "rental_charge",
+        amountUsd: toUsdString(-extra.renterTotalUsd),
+        balanceAfterUsd: toUsdString(round6(toNum(debited.balanceUsd))),
+        memo: `Rental #${id} extended by ${body.extraHours}h`,
+        relatedRentalId: id,
+      });
+    });
+  } catch (err) {
+    if (err instanceof TxError) {
+      if (err.code === "insufficient") {
+        res.status(402).json({
+          error: `Insufficient balance. Need $${extra.renterTotalUsd.toFixed(2)}.`,
+        });
+      } else {
+        res.status(400).json({
+          error: "Rental status changed — refresh and try again",
+        });
+      }
+      return;
+    }
+    throw err;
+  }
+
+  const detail = await loadRentalDetail(id);
+  res.json(detail);
+});
+
 router.post("/rentals/:id/switch-pool", async (req, res) => {
   const id = Number(req.params["id"]);
   if (!Number.isFinite(id)) {

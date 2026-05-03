@@ -42,6 +42,7 @@ import type {
   CryptoDepositItem,
   DepositAddressesResponse,
   ErrorResponse,
+  ExtendRentalBody,
   ForbiddenResponse,
   GetMarketplaceFeaturedParams,
   GetProcessorStatus200,
@@ -3306,6 +3307,99 @@ export const useDeleteMyPool = <
   TContext
 > => {
   return useMutation(getDeleteMyPoolMutationOptions(options));
+};
+
+/**
+ * @summary Extend an active rental by additional hours (renter pays incremental cost using the rental's locked-in pricing). Total hours cannot exceed the rig's maxRentalHours.
+ */
+export const getExtendRentalUrl = (id: number) => {
+  return `/api/rentals/${id}/extend`;
+};
+
+export const extendRental = async (
+  id: number,
+  extendRentalBody: ExtendRentalBody,
+  options?: RequestInit,
+): Promise<RentalDetail> => {
+  return customFetch<RentalDetail>(getExtendRentalUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(extendRentalBody),
+  });
+};
+
+export const getExtendRentalMutationOptions = <
+  TError = ErrorType<
+    BadRequestResponse | UnauthorizedResponse | ErrorResponse | NotFoundResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof extendRental>>,
+    TError,
+    { id: number; data: BodyType<ExtendRentalBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof extendRental>>,
+  TError,
+  { id: number; data: BodyType<ExtendRentalBody> },
+  TContext
+> => {
+  const mutationKey = ["extendRental"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof extendRental>>,
+    { id: number; data: BodyType<ExtendRentalBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return extendRental(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ExtendRentalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof extendRental>>
+>;
+export type ExtendRentalMutationBody = BodyType<ExtendRentalBody>;
+export type ExtendRentalMutationError = ErrorType<
+  BadRequestResponse | UnauthorizedResponse | ErrorResponse | NotFoundResponse
+>;
+
+/**
+ * @summary Extend an active rental by additional hours (renter pays incremental cost using the rental's locked-in pricing). Total hours cannot exceed the rig's maxRentalHours.
+ */
+export const useExtendRental = <
+  TError = ErrorType<
+    BadRequestResponse | UnauthorizedResponse | ErrorResponse | NotFoundResponse
+  >,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof extendRental>>,
+    TError,
+    { id: number; data: BodyType<ExtendRentalBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof extendRental>>,
+  TError,
+  { id: number; data: BodyType<ExtendRentalBody> },
+  TContext
+> => {
+  return useMutation(getExtendRentalMutationOptions(options));
 };
 
 /**
