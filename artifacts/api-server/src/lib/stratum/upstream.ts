@@ -235,8 +235,12 @@ export class UpstreamClient extends EventEmitter {
     this.socket.write(JSON.stringify(msg) + "\n");
   }
 
-  private _nextId(): string {
-    return `up-${this.rentalId}-${this.msgIdCounter++}`;
+  private _nextId(): number {
+    // Stratum V1 (and most pools, including NiceHash) expect JSON-RPC `id`
+    // values to be integers. String IDs like "up-0-1" are silently dropped by
+    // some pools, which manifests as a hung mining.subscribe / mining.authorize
+    // with no response. Always emit numeric IDs on the wire.
+    return ++this.msgIdCounter;
   }
 
   private async _subscribe(): Promise<void> {
@@ -265,9 +269,11 @@ export class UpstreamClient extends EventEmitter {
       }
 
       const subId = this._nextId();
+      // Send mining.subscribe with only the user-agent string. Some pools
+      // (notably NiceHash) silently ignore subscribe requests that include a
+      // `null` session-id second parameter, leaving the connection hung.
       const subResult = await this._request(subId, "mining.subscribe", [
         "rigmarket-proxy/1.0",
-        null,
       ]);
 
       const result = subResult as unknown[];
@@ -314,16 +320,17 @@ export class UpstreamClient extends EventEmitter {
   }
 
   private _request(
-    id: string,
+    id: number,
     method: string,
     params: unknown[],
   ): Promise<unknown> {
+    const key = String(id);
     return new Promise((resolve, reject) => {
-      this.pendingRequests.set(id, { resolve, reject });
+      this.pendingRequests.set(key, { resolve, reject });
       this._send({ id, method, params });
       setTimeout(() => {
-        if (this.pendingRequests.has(id)) {
-          this.pendingRequests.delete(id);
+        if (this.pendingRequests.has(key)) {
+          this.pendingRequests.delete(key);
           reject(new Error(`Request ${method} timed out`));
         }
       }, 30_000);
