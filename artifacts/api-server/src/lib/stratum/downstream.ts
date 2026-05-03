@@ -275,15 +275,21 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
     this.subscribed = true;
-    // Use 4-byte extranonce1 / extranonce2_size=4 — the long-standing default
-    // that every Stratum V1 ASIC firmware (Antminer S9/S17/S19, Whatsminer M30S,
-    // Goldshell, IceRiver, …) and every miner proxy (cgminer, bfgminer,
-    // stratum-proxy) accepts unconditionally. Older firmwares hard-code size=4
-    // and either refuse to subscribe or silently drop shares when offered 8.
-    // If the upstream pool negotiates a different size, _applyUpstreamExtranonce
-    // keeps the miner-facing size as-is and only forwards a new extranonce1.
-    this.extranonce1 = randomBytes(4).toString("hex");
-    this.extranonce2Size = 4;
+    // Choose extranonce size based on the miner's capability, detected via the
+    // mining.configure handshake that always precedes mining.subscribe:
+    //   • Modern firmware (S19/S21/M30S++/…) negotiates version-rolling →
+    //     use 8-byte extranonce1 + extranonce2_size=8 to match the size handed
+    //     out by major upstream pools (viabtc, f2pool, antpool) and to give
+    //     large farms a 2^64 nonce space per worker.
+    //   • Legacy firmware (S9 and older Antminers, generic cgminer/bfgminer)
+    //     skips mining.configure entirely. Those rigs hard-code
+    //     extranonce2_size=4 and refuse to subscribe — or silently drop every
+    //     share — when offered 8. Fall back to the universally-compatible
+    //     4-byte default so plain SHA-256 listings keep working.
+    const isModernAsicboostMiner = this.versionRollingMask !== null;
+    const sizeBytes = isModernAsicboostMiner ? 8 : 4;
+    this.extranonce1 = randomBytes(sizeBytes).toString("hex");
+    this.extranonce2Size = sizeBytes;
 
     this._reply(msg.id, [
       [["mining.set_difficulty", `sub-diff-${this.msgIdCounter}`]],
