@@ -1276,9 +1276,9 @@ export default function AdminDashboard() {
                     />
                     <p className="text-xs text-muted-foreground">
                       Current: {((proxySettings?.settings.lowDeliveryThresholdPct ?? 0.70) * 100).toFixed(0)}%
-                      {(proxySettings?.settings.lowDeliveryThresholdPct ?? 0.70) <= 0 && (
-                        <span className="text-yellow-400 ml-1">(disabled — set to 1–100 to enable)</span>
-                      )}
+                      {(proxySettings?.settings.lowDeliveryThresholdPct ?? 0.70) <= 0
+                        ? <span className="text-cyan-400 ml-1">(cancel on zero delivery only)</span>
+                        : null}
                     </p>
                   </div>
                   <div className="space-y-2">

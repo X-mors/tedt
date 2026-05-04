@@ -264,8 +264,8 @@ export class StratumServer {
     const settings = await getProxySettings();
     const { lowDeliveryThresholdPct, lowDeliveryWindowSec, minSharesForCheck } = settings;
 
-    // 0 threshold means the feature is disabled — skip entirely.
-    if (lowDeliveryThresholdPct <= 0) return;
+    // threshold=0 → cancel only when delivery is exactly zero (totally dark).
+    // threshold>0 → cancel when ratio falls at or below that percentage.
 
     const [rental] = await db
       .select({
@@ -335,7 +335,7 @@ export class StratumServer {
     const totallyDark = recentSamples.length === 0;
     if (!totallyDark && totalShares < minSharesForCheck) return;
 
-    if (ratio < lowDeliveryThresholdPct) {
+    if (ratio <= lowDeliveryThresholdPct) {
       logger.warn(
         { rentalId, ratio, avgHashrateH, advertisedH },
         "stratum:server low delivery — auto-cancelling rental",
