@@ -264,6 +264,9 @@ export class StratumServer {
     const settings = await getProxySettings();
     const { lowDeliveryThresholdPct, lowDeliveryWindowSec, minSharesForCheck } = settings;
 
+    // 0 threshold means the feature is disabled — skip entirely.
+    if (lowDeliveryThresholdPct <= 0) return;
+
     const [rental] = await db
       .select({
         id: rentalsTable.id,

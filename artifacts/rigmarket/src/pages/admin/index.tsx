@@ -1270,17 +1270,22 @@ export default function AdminDashboard() {
                     <Label className="font-mono text-xs">Low-Delivery Threshold (%)</Label>
                     <Input
                       className="font-mono text-xs"
-                      placeholder={(((proxySettings?.settings.lowDeliveryThresholdPct ?? 0.70) * 100).toFixed(0))}
+                      placeholder="e.g. 70"
                       value={settingThreshold}
                       onChange={(e) => setSettingThreshold(e.target.value)}
                     />
-                    <p className="text-xs text-muted-foreground">Current: {((proxySettings?.settings.lowDeliveryThresholdPct ?? 0.70) * 100).toFixed(0)}%</p>
+                    <p className="text-xs text-muted-foreground">
+                      Current: {((proxySettings?.settings.lowDeliveryThresholdPct ?? 0.70) * 100).toFixed(0)}%
+                      {(proxySettings?.settings.lowDeliveryThresholdPct ?? 0.70) <= 0 && (
+                        <span className="text-yellow-400 ml-1">(disabled — set to 1–100 to enable)</span>
+                      )}
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label className="font-mono text-xs">Measurement Window (seconds)</Label>
                     <Input
                       className="font-mono text-xs"
-                      placeholder={String(proxySettings?.settings.lowDeliveryWindowSec ?? 1800)}
+                      placeholder="e.g. 1800"
                       value={settingWindow}
                       onChange={(e) => setSettingWindow(e.target.value)}
                     />
@@ -1290,7 +1295,7 @@ export default function AdminDashboard() {
                     <Label className="font-mono text-xs">Min Shares Required</Label>
                     <Input
                       className="font-mono text-xs"
-                      placeholder={String(proxySettings?.settings.minSharesForCheck ?? 5)}
+                      placeholder="e.g. 5"
                       value={settingMinShares}
                       onChange={(e) => setSettingMinShares(e.target.value)}
                     />
