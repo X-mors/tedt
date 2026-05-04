@@ -140,17 +140,23 @@ export class StratumServer {
         });
         rigSampledThisCycle.add(snapshot.rigId);
 
-        // Always update deliveredHashrateAvg — including zero-share windows
-        // so stale highs from a previous active period are corrected downward.
+        // Update deliveredHashrateAvg using a TIME-WEIGHTED average:
+        // total hashes delivered since rental start ÷ elapsed seconds.
+        // This correctly accounts for offline gaps — silent periods
+        // contribute 0 hashes and pull the average down naturally.
+        // Using the outer rentals.started_at in the correlated subquery
+        // avoids an extra round-trip to fetch the rental row.
         const algUnit = await this._getAlgUnit(snapshot.rentalId);
         const multiplier = unitMultiplier(algUnit);
         await db
           .update(rentalsTable)
           .set({
             deliveredHashrateAvg: sql`(
-              SELECT AVG(effective_hashrate_h) / ${multiplier}
-              FROM rental_hash_samples
-              WHERE rental_id = ${snapshot.rentalId}
+              SELECT COALESCE(SUM(s.difficulty_sum::numeric * 4294967296), 0)
+                     / GREATEST(1, EXTRACT(EPOCH FROM (NOW() - rentals.started_at)))
+                     / ${multiplier}
+              FROM rental_hash_samples s
+              WHERE s.rental_id = ${snapshot.rentalId}
             )`,
           })
           .where(eq(rentalsTable.id, snapshot.rentalId));
@@ -183,6 +189,22 @@ export class StratumServer {
       for (const r of activeRentals) {
         if (lowDeliveryCheckedThisCycle.has(r.id)) continue;
         await this._checkLowDelivery(r.id);
+        // Also keep deliveredHashrateAvg current for offline rentals so the
+        // renter UI shows a declining average while the rig is disconnected.
+        const algUnit = await this._getAlgUnit(r.id);
+        const multiplier = unitMultiplier(algUnit);
+        await db
+          .update(rentalsTable)
+          .set({
+            deliveredHashrateAvg: sql`(
+              SELECT COALESCE(SUM(s.difficulty_sum::numeric * 4294967296), 0)
+                     / GREATEST(1, EXTRACT(EPOCH FROM (NOW() - rentals.started_at)))
+                     / ${multiplier}
+              FROM rental_hash_samples s
+              WHERE s.rental_id = ${r.id}
+            )`,
+          })
+          .where(eq(rentalsTable.id, r.id));
       }
     } catch (err) {
       logger.error(

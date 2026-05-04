@@ -690,18 +690,15 @@ router.get("/rentals/:id/stats", async (req, res) => {
   const inGrace = withinGrace(effectiveLastShareAt);
   const minerConnectedDisplay = live.minerConnected || inGrace;
   const upstreamConnectedDisplay = live.upstreamConnected || inGrace;
-  // Display-hashrate fallback chain (resolves the "stats freeze at 0" bug):
+  // Display-hashrate fallback chain:
   //   1. Live rolling buffer (2-min lookback) — present when rig is mining now.
-  //   2. Most-recent non-zero DB sample (30-min lookback) — covers reconnect
-  //      gaps and the seconds immediately after a miner restart.
-  //   3. Cumulative deliveredHashrateAvg since rental start — guarantees a
-  //      meaningful number for any rental that has ever produced shares.
+  //   2. Most-recent non-zero DB sample (30-min lookback) — covers brief
+  //      reconnect gaps and the seconds immediately after a miner restart.
+  //   3. Zero — rig has been silent for >30 min; show 0, not a stale average.
+  //      (deliveredHashrateAvg is separately shown as AVG HASHRATE.)
   let displayHashrateH = live.effectiveHashrateH;
   if (displayHashrateH === 0) {
     displayHashrateH = await getMostRecentNonZeroHashrateH(id);
-  }
-  if (displayHashrateH === 0 && avgDeliveredH > 0) {
-    displayHashrateH = avgDeliveredH;
   }
 
   let message: string | null = null;
@@ -789,9 +786,10 @@ router.get("/rentals/:id/live", async (req, res) => {
   const minerConnectedDisplay = live.minerConnected || inGrace;
   const upstreamConnectedDisplay = live.upstreamConnected || inGrace;
 
-  // Same fallback chain as /stats: live → most-recent non-zero sample →
-  // cumulative deliveredHashrateAvg. Without the cumulative tail the rental
-  // detail UI flaps to 0 H/s every time the rig drops momentarily.
+  // Display-hashrate fallback chain (same as /stats):
+  //   1. Live rolling buffer — present when rig is mining.
+  //   2. Most-recent non-zero DB sample (30-min lookback) — covers brief gaps.
+  //   3. Zero if rig has been silent >30 min.
   const cumulativeAvgH =
     rental.deliveredHashrateAvg != null
       ? toNum(rental.deliveredHashrateAvg) * algMultiplier
@@ -800,16 +798,8 @@ router.get("/rentals/:id/live", async (req, res) => {
   if (displayHashrateH === 0) {
     displayHashrateH = await getMostRecentNonZeroHashrateH(id);
   }
-  if (displayHashrateH === 0 && cumulativeAvgH > 0) {
-    displayHashrateH = cumulativeAvgH;
-  }
-  // Delivery ratio = average delivered hashrate over the elapsed rental
-  // period ÷ advertised hashrate. The cumulative average includes
-  // zero-share windows for periods when the rig was disconnected, so a rig
-  // that delivered full hashrate for half the rental and was offline for
-  // the other half scores ~0.5. This is the right number for a renter
-  // deciding whether to keep the rental running or cancel it — it reflects
-  // ACTUAL delivery so far, not the instantaneous reading.
+  // Delivery ratio uses the time-weighted cumulative average, which accounts
+  // for all offline time since rental start (server updates this every 60 s).
   const deliveryRatio =
     advertisedH > 0 && cumulativeAvgH > 0
       ? Math.min(1.05, cumulativeAvgH / advertisedH)
