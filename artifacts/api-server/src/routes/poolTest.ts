@@ -34,6 +34,11 @@ router.post("/pool/test", requireAuth, async (req, res) => {
 
   const startMs = Date.now();
 
+  // Declared here so they are accessible both inside the Promise callback
+  // and in the success-message block that runs after the Promise resolves.
+  const isAsicboost = body.algorithmSlug === "sha256asicboost";
+  const isLegacy = body.algorithmSlug === "sha256";
+
   const result = await new Promise<{
     success: boolean;
     authFailed: boolean;
@@ -42,8 +47,6 @@ router.post("/pool/test", requireAuth, async (req, res) => {
     // Pair the test with the rig's actual algorithm so the test fails fast
     // if the user pasted a pool URL meant for a different stratum mode
     // (e.g. an AsicBoost rig pointed at a legacy-only port, or vice versa).
-    const isAsicboost = body.algorithmSlug === "sha256asicboost";
-    const isLegacy = body.algorithmSlug === "sha256";
     const strictConfigure = isAsicboost || isLegacy;
     const upstream = new UpstreamClient(
       body.poolUrl,
