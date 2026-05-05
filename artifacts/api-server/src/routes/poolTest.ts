@@ -19,11 +19,25 @@ const DEFAULT_VERSION_ROLLING_MASK = "1fffe000";
 
 /**
  * POST /pool/test
- * Opens a real Stratum connection to the given pool, completes the full
- * mining.subscribe + mining.authorize handshake, AND waits for the pool to
- * send at least one mining.notify (actual work / job).  A pool that accepts
- * credentials but never sends jobs would produce 0 hashrate during a real
- * rental, so we treat "no job within the timeout" as a failure.
+ *
+ * Opens a real Stratum connection and verifies the pool is compatible with
+ * the rig's algorithm.  Success requires:
+ *
+ * sha256asicboost rigs — ALL of:
+ *   1. mining.configure response confirms version-rolling=true  (strictConfigure)
+ *   2. mining.authorize accepted  ("ready")
+ *   3. Pool sends at least one mining.notify  (actual job)
+ *   4. Pool sends mining.set_version_mask  (definitive proof pool is routing
+ *      AsicBoost work — the strongest in-band signal available)
+ *
+ * sha256 legacy rigs — ALL of:
+ *   1. mining.configure confirms pool does NOT advertise version-rolling
+ *   2. mining.authorize accepted  ("ready")
+ *   3. Pool sends at least one mining.notify
+ *
+ * All other algorithms:
+ *   1. mining.authorize accepted  ("ready")
+ *   2. Pool sends at least one mining.notify
  */
 router.post("/pool/test", requireAuth, async (req, res) => {
   const body = PoolTestBody.parse(req.body);
@@ -35,8 +49,6 @@ router.post("/pool/test", requireAuth, async (req, res) => {
 
   const startMs = Date.now();
 
-  // Declared here so they are accessible both inside the Promise callback
-  // and in the success-message block that runs after the Promise resolves.
   const isAsicboost = body.algorithmSlug === "sha256asicboost";
   const isLegacy = body.algorithmSlug === "sha256";
 
@@ -44,10 +56,8 @@ router.post("/pool/test", requireAuth, async (req, res) => {
     success: boolean;
     authFailed: boolean;
     errorMessage: string | null;
+    confirmedMask?: string;
   }>((resolve) => {
-    // Pair the test with the rig's actual algorithm so the test fails fast
-    // if the user pasted a pool URL meant for a different stratum mode
-    // (e.g. an AsicBoost rig pointed at a legacy-only port, or vice versa).
     const strictConfigure = isAsicboost || isLegacy;
     const upstream = new UpstreamClient(
       body.poolUrl,
@@ -58,17 +68,17 @@ router.post("/pool/test", requireAuth, async (req, res) => {
       strictConfigure,
     );
 
-    // Guards against resolving more than once (e.g. timer fires while an
-    // event is also arriving).
     let resolved = false;
     let tcpOk = false;
     let readyReceived = false;
     let notifyReceived = false;
+    let versionMask: string | null = null;
 
     const cleanup = (outcome: {
       success: boolean;
       authFailed: boolean;
       errorMessage: string | null;
+      confirmedMask?: string;
     }) => {
       if (resolved) return;
       resolved = true;
@@ -77,39 +87,57 @@ router.post("/pool/test", requireAuth, async (req, res) => {
       resolve(outcome);
     };
 
-    // Success requires TWO conditions:
-    //   1. Pool accepted credentials (mining.authorize OK → "ready")
-    //   2. Pool sent at least one mining.notify (actual mining job / work)
-    // Either can arrive first — pools vary on whether they send work before
-    // or after the authorize response.
+    // For sha256asicboost: require ready + notify + versionMask (set_version_mask).
+    // For all others:       require ready + notify only.
     const checkDone = () => {
-      if (readyReceived && notifyReceived) {
-        cleanup({ success: true, authFailed: false, errorMessage: null });
+      const notifyOk = readyReceived && notifyReceived;
+      if (isAsicboost) {
+        if (notifyOk && versionMask !== null) {
+          cleanup({ success: true, authFailed: false, errorMessage: null, confirmedMask: versionMask });
+        }
+      } else {
+        if (notifyOk) {
+          cleanup({ success: true, authFailed: false, errorMessage: null });
+        }
       }
     };
 
-    // 15-second overall deadline. The extra 5 s over the old 10 s gives the
-    // pool time to send its first job after a successful authorize.
+    // 15-second overall deadline.
     const timer = setTimeout(() => {
-      const errorMessage = readyReceived
-        ? "Pool accepted credentials but did not send any mining work (jobs) within 15s — this pool/port may not actively support this algorithm, or try a different pool URL"
-        : tcpOk
-        ? "TCP connected but the pool never replied to mining.subscribe / mining.authorize within 15s — usually means the worker name is in the wrong format (e.g. NiceHash requires a BTC address as the username) or the pool silently rejected the credentials"
-        : "Could not open a TCP connection to the pool within 15s — pool may be unreachable, the host/port is wrong, or your VPS network is blocking the route";
+      let errorMessage: string;
+      if (!tcpOk) {
+        errorMessage =
+          "Could not open a TCP connection to the pool within 15s — pool may be unreachable, the host/port is wrong, or your VPS network is blocking the route";
+      } else if (!readyReceived) {
+        errorMessage =
+          "TCP connected but the pool never replied to mining.subscribe / mining.authorize within 15s — check the worker name format (e.g. NiceHash requires a BTC address as the username)";
+      } else if (!notifyReceived) {
+        errorMessage =
+          "Pool accepted credentials but did not send any mining jobs (mining.notify) — this pool/port may not be routing work for this algorithm";
+      } else if (isAsicboost && versionMask === null) {
+        // Pool passed configure+auth+jobs but never sent mining.set_version_mask.
+        // This means the pool is not confirmed to be actively routing AsicBoost work.
+        errorMessage =
+          "Pool accepted credentials and sent jobs, but did not confirm AsicBoost routing (no mining.set_version_mask received) — this pool/port may not truly support SHA-256 AsicBoost. Try a dedicated AsicBoost port or a different pool.";
+      } else {
+        errorMessage = "Pool test timed out";
+      }
       cleanup({ success: false, authFailed: false, errorMessage });
     }, 15_000);
 
-    upstream.on("tcpConnected", () => {
-      tcpOk = true;
+    upstream.on("tcpConnected", () => { tcpOk = true; });
+
+    // Definitive proof the pool is actively routing AsicBoost work.
+    upstream.on("versionMask", (mask: string) => {
+      versionMask = mask;
+      checkDone();
     });
 
-    // Pool sent a mining job — the pool is actively routing work to this worker.
     upstream.on("notify", () => {
       notifyReceived = true;
       checkDone();
     });
 
-    // Pool accepted the worker credentials.
     upstream.on("ready", () => {
       readyReceived = true;
       checkDone();
@@ -119,7 +147,8 @@ router.post("/pool/test", requireAuth, async (req, res) => {
       cleanup({
         success: false,
         authFailed: true,
-        errorMessage: "Pool rejected the worker credentials — check your worker name and password",
+        errorMessage:
+          "Pool rejected the worker credentials — check your worker name and password",
       });
     });
 
@@ -144,7 +173,7 @@ router.post("/pool/test", requireAuth, async (req, res) => {
   let successMessage: string;
   if (result.success) {
     if (isAsicboost) {
-      successMessage = `Pool confirmed AsicBoost (version-rolling) support and is sending work — credentials accepted (${latencyMs}ms)`;
+      successMessage = `Pool confirmed AsicBoost routing (mask: ${result.confirmedMask}) — credentials accepted (${latencyMs}ms)`;
     } else if (isLegacy) {
       successMessage = `Pool confirmed SHA-256 legacy compatibility and is sending work — credentials accepted (${latencyMs}ms)`;
     } else {

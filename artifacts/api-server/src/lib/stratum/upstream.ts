@@ -484,6 +484,21 @@ export class UpstreamClient extends EventEmitter {
         });
         break;
 
+      case "mining.set_version_mask": {
+        // Sent by AsicBoost-capable pools after mining.configure confirms
+        // version-rolling. Receiving this is the strongest in-band proof that
+        // the pool is actively routing version-rolling (AsicBoost) work.
+        const mask = String((msg.params as unknown[])?.[0] ?? "");
+        if (mask) {
+          logger.debug(
+            { rentalId: this.rentalId, mask },
+            "stratum:upstream pool sent mining.set_version_mask",
+          );
+          this.emit("versionMask", mask);
+        }
+        break;
+      }
+
       case "client.reconnect":
         logger.info({ rentalId: this.rentalId }, "stratum:upstream pool requested reconnect");
         this.socket?.destroy();
