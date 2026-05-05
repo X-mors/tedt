@@ -30,12 +30,10 @@ const PROXY_LEGACY_PORT =
   process.env["STRATUM_PROXY_LEGACY_PORT"] ?? process.env["STRATUM_LEGACY_PORT"] ?? "3334";
 
 /**
- * Pick the right Stratum port for a rig based on its algorithm slug. Legacy
- * `sha256` rigs must use the no-ASICBoost listener; everything else uses the
- * default ASICBoost-capable listener.
+ * Returns the Stratum port for a rig. All algorithms use the default port.
  */
-function stratumPortForSlug(slug: string | null | undefined): string {
-  return slug === "sha256" ? PROXY_LEGACY_PORT : PROXY_PORT;
+function stratumPortForSlug(_slug: string | null | undefined): string {
+  return PROXY_PORT;
 }
 
 function slugifyRigName(name: string): string {
