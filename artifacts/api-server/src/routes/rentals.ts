@@ -1156,14 +1156,21 @@ router.post("/rentals/:id/cancel", async (req, res) => {
     const ownerPayout = round6(toNum(rental.ownerEarningsUsd) * usedRatio);
     const grossRefund = round6(toNum(rental.renterTotalUsd) * (1 - usedRatio));
 
-    // Manual-cancel penalty: configurable percentage of the renter's refund is
-    // withheld as additional platform commission (added to rental.platformFeeUsd
-    // so it shows up in the Today/Week/Month commission stats). Auto-cancels
-    // (low-delivery / disputes / settlement timer) do not pass through this
-    // path, so they aren't penalised.
+    // Manual-cancel penalty: configurable percentage withheld as additional
+    // platform commission (added to rental.platformFeeUsd so it shows up in
+    // the Today/Week/Month commission stats). Auto-cancels (low-delivery /
+    // disputes / settlement timer) do not pass through this path.
+    //
+    // The fee is calculated on the ELAPSED portion (elapsedCost), not on the
+    // refund amount.  This means early cancellations incur a small fee
+    // (proportional to the little service received) and late cancellations
+    // incur a proportionally larger one.  Basing the fee on grossRefund
+    // instead would produce the inverse — a huge penalty for cancelling
+    // immediately and a tiny one for cancelling at the very end.
     const c = await getCommission();
     const cancelFeePct = Math.max(0, Math.min(100, c.cancellationFeePct));
-    const cancelFee = round6(grossRefund * (cancelFeePct / 100));
+    const elapsedCost = round6(toNum(rental.renterTotalUsd) * usedRatio);
+    const cancelFee = round6(elapsedCost * (cancelFeePct / 100));
     const renterRefund = round6(grossRefund - cancelFee);
 
     if (cancelFee > 0) {
