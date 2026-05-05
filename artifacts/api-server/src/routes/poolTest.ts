@@ -19,10 +19,11 @@ const DEFAULT_VERSION_ROLLING_MASK = "1fffe000";
 
 /**
  * POST /pool/test
- * Opens a real Stratum connection to the given pool, runs mining.subscribe
- * and mining.authorize, then immediately disconnects.
- * Returns a structured result so the UI can show the user whether their
- * pool credentials are valid.
+ * Opens a real Stratum connection to the given pool, completes the full
+ * mining.subscribe + mining.authorize handshake, AND waits for the pool to
+ * send at least one mining.notify (actual work / job).  A pool that accepts
+ * credentials but never sends jobs would produce 0 hashrate during a real
+ * rental, so we treat "no job within the timeout" as a failure.
  */
 router.post("/pool/test", requireAuth, async (req, res) => {
   const body = PoolTestBody.parse(req.body);
@@ -57,33 +58,61 @@ router.post("/pool/test", requireAuth, async (req, res) => {
       strictConfigure,
     );
 
+    // Guards against resolving more than once (e.g. timer fires while an
+    // event is also arriving).
+    let resolved = false;
+    let tcpOk = false;
+    let readyReceived = false;
+    let notifyReceived = false;
+
     const cleanup = (outcome: {
       success: boolean;
       authFailed: boolean;
       errorMessage: string | null;
     }) => {
+      if (resolved) return;
+      resolved = true;
       clearTimeout(timer);
       upstream.destroy();
       resolve(outcome);
     };
 
-    let tcpOk = false;
+    // Success requires TWO conditions:
+    //   1. Pool accepted credentials (mining.authorize OK → "ready")
+    //   2. Pool sent at least one mining.notify (actual mining job / work)
+    // Either can arrive first — pools vary on whether they send work before
+    // or after the authorize response.
+    const checkDone = () => {
+      if (readyReceived && notifyReceived) {
+        cleanup({ success: true, authFailed: false, errorMessage: null });
+      }
+    };
+
+    // 15-second overall deadline. The extra 5 s over the old 10 s gives the
+    // pool time to send its first job after a successful authorize.
     const timer = setTimeout(() => {
-      cleanup({
-        success: false,
-        authFailed: false,
-        errorMessage: tcpOk
-          ? "TCP connected but the pool never replied to mining.subscribe / mining.authorize within 10s — usually means the worker name is in the wrong format (e.g. NiceHash requires a BTC address as the username, not an account name) or the pool silently rejected the credentials"
-          : "Could not open a TCP connection to the pool within 10s — pool may be unreachable, the host/port is wrong, or your VPS network is blocking the route",
-      });
-    }, 10_000);
+      const errorMessage = readyReceived
+        ? "Pool accepted credentials but did not send any mining work (jobs) within 15s — this pool/port may not actively support this algorithm, or try a different pool URL"
+        : tcpOk
+        ? "TCP connected but the pool never replied to mining.subscribe / mining.authorize within 15s — usually means the worker name is in the wrong format (e.g. NiceHash requires a BTC address as the username) or the pool silently rejected the credentials"
+        : "Could not open a TCP connection to the pool within 15s — pool may be unreachable, the host/port is wrong, or your VPS network is blocking the route";
+      cleanup({ success: false, authFailed: false, errorMessage });
+    }, 15_000);
 
     upstream.on("tcpConnected", () => {
       tcpOk = true;
     });
 
+    // Pool sent a mining job — the pool is actively routing work to this worker.
+    upstream.on("notify", () => {
+      notifyReceived = true;
+      checkDone();
+    });
+
+    // Pool accepted the worker credentials.
     upstream.on("ready", () => {
-      cleanup({ success: true, authFailed: false, errorMessage: null });
+      readyReceived = true;
+      checkDone();
     });
 
     upstream.on("authFailed", () => {
@@ -115,11 +144,11 @@ router.post("/pool/test", requireAuth, async (req, res) => {
   let successMessage: string;
   if (result.success) {
     if (isAsicboost) {
-      successMessage = `Pool confirmed AsicBoost (version-rolling) support — credentials accepted (${latencyMs}ms)`;
+      successMessage = `Pool confirmed AsicBoost (version-rolling) support and is sending work — credentials accepted (${latencyMs}ms)`;
     } else if (isLegacy) {
-      successMessage = `Pool confirmed SHA-256 legacy compatibility — credentials accepted (${latencyMs}ms)`;
+      successMessage = `Pool confirmed SHA-256 legacy compatibility and is sending work — credentials accepted (${latencyMs}ms)`;
     } else {
-      successMessage = `Connected successfully — pool accepted credentials (${latencyMs}ms)`;
+      successMessage = `Connected successfully — pool accepted credentials and is sending work (${latencyMs}ms)`;
     }
   } else {
     successMessage = result.errorMessage ?? "Connection failed";
