@@ -395,6 +395,7 @@ export const GetRigResponse = zod.object({
   algorithmId: zod.number(),
   algorithmName: zod.string(),
   algorithmUnit: zod.string(),
+  algorithmSlug: zod.string().describe("Machine-readable algorithm identifier (e.g. 'sha256asicboost', 'sha256'). Used by the pool test to enforce protocol compatibility."),
   hashrate: zod.number(),
   pricePerUnitPerHour: zod
     .number()

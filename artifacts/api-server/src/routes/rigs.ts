@@ -158,6 +158,7 @@ router.get("/rigs/:id", async (req, res) => {
       algorithmId: algorithmsTable.id,
       algorithmName: algorithmsTable.name,
       algorithmUnit: algorithmsTable.unit,
+      algorithmSlug: algorithmsTable.slug,
       basePricePerUnitPerHour: algorithmsTable.basePricePerUnitPerHour,
       pricePerUnitPerDay: rigsTable.pricePerUnitPerDay,
       hashrate: rigsTable.hashrate,
@@ -197,6 +198,7 @@ router.get("/rigs/:id", async (req, res) => {
     algorithmId: row.algorithmId,
     algorithmName: row.algorithmName,
     algorithmUnit: row.algorithmUnit,
+    algorithmSlug: row.algorithmSlug,
     hashrate: toNum(row.hashrate),
     pricePerUnitPerHour:
       (row.pricePerUnitPerDay != null

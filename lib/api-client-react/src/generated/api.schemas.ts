@@ -156,6 +156,8 @@ export interface RigDetail {
   algorithmId: number;
   algorithmName: string;
   algorithmUnit: string;
+  /** Machine-readable algorithm identifier (e.g. 'sha256asicboost', 'sha256'). Used by the pool test to enforce protocol compatibility. */
+  algorithmSlug: string;
   hashrate: number;
   /** Renter-facing price per unit per HOUR (already includes the renter commission). */
   pricePerUnitPerHour: number;
