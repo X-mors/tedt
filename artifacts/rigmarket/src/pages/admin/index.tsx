@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   useGetAdminStats,
@@ -69,6 +69,14 @@ export default function AdminDashboard() {
 
   const { data: walletSettingsData, refetch: refetchWalletSettings } = useGetWalletSettings();
   const updateWalletSettings = useUpdateWalletSettings();
+
+  // Sync currency-enabled checkboxes from the server whenever settings load.
+  useEffect(() => {
+    if (!walletSettingsData?.settings?.enabledCurrencies) return;
+    const enabled = walletSettingsData.settings.enabledCurrencies as string[];
+    setWalletEnabledBtc(enabled.includes("btc"));
+    setWalletEnabledUsdt(enabled.includes("usdt_trc20"));
+  }, [walletSettingsData]);
 
   const { data: proxySettings, refetch: refetchProxySettings } = useQuery({
     queryKey: ["admin-proxy-settings"],
@@ -159,7 +167,7 @@ export default function AdminDashboard() {
   const handleUpdateWalletSettings = () => {
     const body: Record<string, string | number> = {};
     const enabledCurrencies = [walletEnabledBtc ? "btc" : null, walletEnabledUsdt ? "usdt_trc20" : null].filter(Boolean).join(",");
-    if (enabledCurrencies) body["wallet_enabled_currencies"] = enabledCurrencies;
+    body["wallet_enabled_currencies"] = enabledCurrencies;
     if (walletBtcMinDeposit !== "") body["wallet_btc_min_deposit_usd"] = parseFloat(walletBtcMinDeposit);
     if (walletUsdtMinDeposit !== "") body["wallet_usdt_trc20_min_deposit_usd"] = parseFloat(walletUsdtMinDeposit);
     if (walletBtcConf !== "") body["wallet_btc_required_confirmations"] = parseInt(walletBtcConf);

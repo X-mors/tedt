@@ -1224,6 +1224,7 @@ router.put("/admin/wallet/settings", async (req, res) => {
     wallet_enabled_currencies: {
       type: "string",
       validate: (v: string) =>
+        v === "" ||
         v.split(",").every((c) => ["btc", "usdt_trc20"].includes(c.trim())),
     },
     wallet_btc_min_deposit_usd: { type: "number", validate: (v) => v >= 0 },

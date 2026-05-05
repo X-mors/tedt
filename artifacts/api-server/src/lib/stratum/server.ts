@@ -111,6 +111,18 @@ export class StratumServer {
       const snapshot = proxyState.flushAndResetWindow(window.rentalId);
       if (!snapshot) continue;
 
+      // Skip zero-share snapshots — no real data to record.  These appear
+      // when a rental window lingers in memory briefly after settlement/cancel;
+      // writing them would pollute the chart with post-expiry zero samples
+      // and inflate the elapsed-time denominator used by deliveredHashrateAvg.
+      if (
+        snapshot.difficultySum === 0 &&
+        snapshot.sharesAccepted === 0 &&
+        snapshot.sharesRejected === 0
+      ) {
+        continue;
+      }
+
       const elapsedSec = Math.max(
         1,
         (Date.now() - snapshot.startedAt) / 1000,
@@ -289,6 +301,11 @@ export class StratumServer {
         ),
       );
     if (!rental) return;
+
+    // If the rental has already passed its end time, let settleExpiredRentals
+    // handle it as "completed".  Racing it here would mark the rental
+    // "cancelled" instead — the wrong outcome for a naturally-expiring rental.
+    if (Date.now() >= rental.endsAt.getTime()) return;
 
     const elapsedMs = Date.now() - rental.startedAt.getTime();
     if (elapsedMs < lowDeliveryWindowSec * 1000) return;
