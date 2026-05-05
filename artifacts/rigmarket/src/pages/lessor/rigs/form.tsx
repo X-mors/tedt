@@ -267,8 +267,9 @@ export default function RigForm() {
             {/* Connection rows */}
             <div className="space-y-3 bg-muted/40 rounded-lg p-4">
               {(() => {
-                const proxyHost = parsedUrl?.host ?? "proxy.rigmarket.dev";
-                const proxyPort = parsedUrl?.port ?? "3333";
+                const proxyHost = parsedUrl?.host ?? "livehashrate.com";
+                const selectedAlgoSlug = algorithms?.find(a => a.id.toString() === formData.algorithmId)?.slug;
+                const proxyPort = parsedUrl?.port ?? (selectedAlgoSlug === "sha256" ? "3334" : "3333");
                 const rigName = formData.name.trim().toLowerCase().replace(/\s+/g, "-") || "rigname";
                 const worker = isEditing && rig
                   ? (rig.ownerWorker ?? "")

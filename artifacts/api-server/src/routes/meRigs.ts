@@ -24,7 +24,7 @@ import { toNum, toUsdString, unitMultiplier } from "../lib/money";
 import { proxyState } from "../lib/stratum/state";
 import { randomBytes } from "node:crypto";
 
-const PROXY_HOST = process.env["STRATUM_PROXY_HOST"] ?? "proxy.rigmarket.dev";
+const PROXY_HOST = process.env["STRATUM_PROXY_HOST"] ?? "livehashrate.com";
 const PROXY_PORT = process.env["STRATUM_PROXY_PORT"] ?? process.env["STRATUM_PORT"] ?? "3333";
 const PROXY_LEGACY_PORT =
   process.env["STRATUM_PROXY_LEGACY_PORT"] ?? process.env["STRATUM_LEGACY_PORT"] ?? "3334";
