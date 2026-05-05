@@ -808,6 +808,7 @@ export interface DepositAddressItem {
 export interface DepositAddressesResponse {
   addresses: DepositAddressItem[];
   processorConfigured: boolean;
+  enabledCurrencies: string[];
 }
 
 export type CryptoDepositStatus =

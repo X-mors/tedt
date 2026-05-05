@@ -207,7 +207,11 @@ router.get(
       }
     }
 
-    res.json({ addresses: Object.values(result), processorConfigured: nowpaymentsConfigured() });
+    res.json({
+      addresses: Object.values(result),
+      processorConfigured: nowpaymentsConfigured(),
+      enabledCurrencies: currencies,
+    });
   },
 );
 

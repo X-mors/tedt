@@ -55,6 +55,7 @@ function DepositSection() {
   const addresses = data?.addresses ?? [];
   const processorConfigured = data?.processorConfigured ?? false;
   const processorReachable = processorStatus?.reachable ?? true;
+  const enabledCurrencies: string[] = data?.enabledCurrencies ?? ["btc", "usdt_trc20"];
   const activeAddress = addresses.find((a) => a.currency === selectedCurrency);
 
   return (
@@ -93,26 +94,30 @@ function DepositSection() {
               </CardTitle>
               <div className="flex gap-2">
                 <div className="flex rounded-md border border-border overflow-hidden">
-                  <button
-                    onClick={() => setSelectedCurrency("usdt_trc20")}
-                    className={`px-3 py-1.5 text-xs font-mono transition-colors ${
-                      selectedCurrency === "usdt_trc20"
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-muted/50"
-                    }`}
-                  >
-                    USDT-TRC20
-                  </button>
-                  <button
-                    onClick={() => setSelectedCurrency("btc")}
-                    className={`px-3 py-1.5 text-xs font-mono transition-colors border-l border-border ${
-                      selectedCurrency === "btc"
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-muted/50"
-                    }`}
-                  >
-                    BTC
-                  </button>
+                  {enabledCurrencies.includes("usdt_trc20") && (
+                    <button
+                      onClick={() => setSelectedCurrency("usdt_trc20")}
+                      className={`px-3 py-1.5 text-xs font-mono transition-colors ${
+                        selectedCurrency === "usdt_trc20"
+                          ? "bg-primary text-primary-foreground"
+                          : "hover:bg-muted/50"
+                      }`}
+                    >
+                      USDT-TRC20
+                    </button>
+                  )}
+                  {enabledCurrencies.includes("btc") && (
+                    <button
+                      onClick={() => setSelectedCurrency("btc")}
+                      className={`px-3 py-1.5 text-xs font-mono transition-colors border-l border-border ${
+                        selectedCurrency === "btc"
+                          ? "bg-primary text-primary-foreground"
+                          : "hover:bg-muted/50"
+                      }`}
+                    >
+                      BTC
+                    </button>
+                  )}
                 </div>
                 <Button
                   variant="ghost"
