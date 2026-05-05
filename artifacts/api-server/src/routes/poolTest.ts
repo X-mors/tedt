@@ -109,13 +109,24 @@ router.post("/pool/test", requireAuth, async (req, res) => {
     "pool:test complete",
   );
 
+  let successMessage: string;
+  if (result.success) {
+    if (isAsicboost) {
+      successMessage = `Pool confirmed AsicBoost (version-rolling) support — credentials accepted (${latencyMs}ms)`;
+    } else if (isLegacy) {
+      successMessage = `Pool confirmed SHA-256 legacy compatibility — credentials accepted (${latencyMs}ms)`;
+    } else {
+      successMessage = `Connected successfully — pool accepted credentials (${latencyMs}ms)`;
+    }
+  } else {
+    successMessage = result.errorMessage ?? "Connection failed";
+  }
+
   res.json({
     success: result.success,
     authFailed: result.authFailed,
     latencyMs,
-    message: result.success
-      ? `Connected successfully — pool accepted credentials (${latencyMs}ms)`
-      : result.errorMessage ?? "Connection failed",
+    message: successMessage,
   });
 });
 
