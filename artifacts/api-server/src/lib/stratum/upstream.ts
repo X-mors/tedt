@@ -310,29 +310,59 @@ export class UpstreamClient extends EventEmitter {
         }
       } else if (this.strictConfigure) {
         // Legacy-sha256 test path: probe the pool with mining.configure and
-        // require it to NOT advertise version-rolling support. If it does, the
-        // user picked an asicboost endpoint by mistake.
+        // require it to NOT advertise version-rolling support. If it does (or
+        // if it ignores the request entirely), the user picked an asicboost
+        // endpoint by mistake.
+        //
+        // We use a 5-second race timeout — well inside the 10-second pool-test
+        // window — so a sha256asicboost pool that silently ignores the
+        // configure message still produces a clear failure instead of letting
+        // the test proceed to subscribe/authorize and report a false success.
         const cfgId = this._nextId();
+        let cfgResp: unknown;
+        let cfgTimedOut = false;
         try {
-          const cfgResp = await this._request(cfgId, "mining.configure", [
-            ["version-rolling"],
-            { "version-rolling.mask": "ffffffff", "version-rolling.min-bit-count": 2 },
+          cfgResp = await Promise.race([
+            this._request(cfgId, "mining.configure", [
+              ["version-rolling"],
+              { "version-rolling.mask": "ffffffff", "version-rolling.min-bit-count": 2 },
+            ]),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("__configure_timeout__")), 5_000),
+            ),
           ]);
-          const advertises =
-            typeof cfgResp === "object" &&
-            cfgResp !== null &&
-            (cfgResp as Record<string, unknown>)["version-rolling"] === true;
-          if (advertises) {
-            this.emit(
-              "error",
-              new Error(
-                "This pool/port advertises AsicBoost (version-rolling) but the rig is configured for legacy SHA-256. Use the AsicBoost port instead, or pick a legacy-only pool URL.",
-              ),
-            );
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg === "__configure_timeout__") {
+            cfgTimedOut = true;
+          } else {
+            // Socket error / destroyed — abort; caller handles reconnect.
             return;
           }
-        } catch {
-          // Pool ignored mining.configure — perfectly fine for a legacy pool.
+        }
+        if (cfgTimedOut) {
+          this.emit(
+            "error",
+            new Error(
+              "Pool did not respond to the SHA-256 compatibility check. " +
+              "Make sure you are using the SHA-256 (non-AsicBoost) port of your pool, not the AsicBoost port.",
+            ),
+          );
+          return;
+        }
+        const advertises =
+          typeof cfgResp === "object" &&
+          cfgResp !== null &&
+          (cfgResp as Record<string, unknown>)["version-rolling"] === true;
+        if (advertises) {
+          this.emit(
+            "error",
+            new Error(
+              "This pool/port advertises AsicBoost (version-rolling) but the rig is configured for legacy SHA-256. " +
+              "Use the SHA-256 (non-AsicBoost) port of your pool instead.",
+            ),
+          );
+          return;
         }
       }
 

@@ -558,19 +558,12 @@ export class DownstreamSession extends EventEmitter {
       this._close();
       return;
     }
-    if (!this.legacyMode && isLegacySlug) {
-      logger.warn(
-        { rigId: rig.id, slug, port: "default" },
-        "stratum:downstream rejected: legacy rig must use the legacy port",
-      );
-      this._recordAuthFailure(rig.id, "Legacy SHA-256 rig connected on ASICBoost port");
-      this._reply(msg.id, false, [
-        24,
-        "This rig is listed as legacy SHA-256 — connect on the legacy Stratum port (no ASICBoost) instead of the default port.",
-      ]);
-      this._close();
-      return;
-    }
+    // Legacy sha256 rigs are allowed on EITHER port. Old hardware (S9, etc.)
+    // may be hard-coded to port 3333 and cannot easily change ports. These
+    // miners never send mining.configure, so versionRollingMask stays null
+    // and the upstream is created without version-rolling — correct behaviour.
+    // We only keep the reverse check: sha256asicboost rigs MUST use port 3333
+    // (already enforced above via the legacyMode && !isLegacySlug block).
 
     this.rigId = rig.id;
     this.ownerId = rig.ownerId;
