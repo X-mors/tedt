@@ -308,15 +308,20 @@ export class DownstreamSession extends EventEmitter {
     // most firmwares disconnect. So we must use the correct byte-length and
     // e2size in this subscribe reply to avoid size-changing set_extranonce later.
     //
-    // We achieve this by storing a per-IP "extranonce format hint" each time a
-    // session closes after learning the pool's real extranonce format. On the
-    // very first connect (no hint) we default to 4B / e2size=4, accept one
-    // force-close, and from the second connect onwards the hint is accurate.
+    // Strategy: use the pool's EXACT extranonce1 value from the previous session
+    // (stored as a per-IP hint). When the parked upstream is later claimed, its
+    // extranonce1 will be identical to what we told the miner here → no
+    // mining.set_extranonce needed at all. Many ASIC firmwares (Antminer S9/S19,
+    // Whatsminer) disconnect on ANY set_extranonce — even a value-only change.
+    // Eliminating set_extranonce entirely is the only reliable fix.
+    //
+    // First-time connect (no hint): use a random 4B e1 + e2size=4. The pool
+    // will give us its real format; we store it and force-close. Second connect
+    // uses the exact pool e1 → no set_extranonce ever sent → miner stays connected.
     const remoteIp = this.socket.remoteAddress ?? "";
     const hint = proxyState.getExtranonceHint(remoteIp);
-    const e1ByteLen = hint?.e1ByteLen ?? 4;
     this.extranonce2Size = hint?.e2size ?? 4;
-    this.extranonce1 = makeExtranonce1(e1ByteLen);
+    this.extranonce1 = hint?.e1 ?? makeExtranonce1(4);
 
     this._reply(msg.id, [
       [["mining.set_difficulty", `sub-diff-${this.msgIdCounter}`]],

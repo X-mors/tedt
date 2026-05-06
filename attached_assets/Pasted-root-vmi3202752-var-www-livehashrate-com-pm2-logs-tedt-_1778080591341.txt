@@ -1,0 +1,104 @@
+root@vmi3202752:/var/www/livehashrate.com# pm2 logs tedt-api --lines 200 --nostream 2>&1 | grep -E "hint|mismatch|force-clos|buffe
+red job|set_extranonce|closing|subscribe|authorize|notify" | tail -50
+0|tedt-api | {"level":30,"time":1778080262056,"pid":497355,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downs
+tream authorized"}
+0|tedt-api | {"level":30,"time":1778080262179,"pid":497355,"hostname":"vmi3202752","rigId":10,"source":"subscribed","ourE1ByteLen"
+:4,"poolE1ByteLen":9,"ourE2size":4,"poolE2size":3,"ip":"165.227.153.169","msg":"stratum:downstream pool extranonce size mismatch —
+ stored hint and force-closing for clean reconnect"}
+0|tedt-api | {"level":30,"time":1778080262180,"pid":497355,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,
+"msSinceLastData":194,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080303057,"pid":497355,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downs
+tream authorized"}
+0|tedt-api | {"level":30,"time":1778080303057,"pid":497355,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","
+prevExtranonce1":"1a6a9fdd4a6ea5cd84","newExtranonce1":"10000006826d23593b","msg":"stratum:downstream upstream extranonce value ch
+anged — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778080303481,"pid":497355,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,
+"msSinceLastData":593,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080305995,"pid":497355,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downs
+tream authorized"}
+0|tedt-api | {"level":30,"time":1778080305996,"pid":497355,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","
+prevExtranonce1":"70792bcae3cb14a213","newExtranonce1":"10000006826d23593b","msg":"stratum:downstream upstream extranonce value ch
+anged — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778080306552,"pid":497355,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,
+"msSinceLastData":614,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080306556,"pid":497355,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downs
+tream authorized"}
+0|tedt-api | {"level":30,"time":1778080306556,"pid":497355,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","
+prevExtranonce1":"d1b0b323f7bf6d594d","newExtranonce1":"10000006826d23593b","msg":"stratum:downstream upstream extranonce value ch
+anged — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778080309225,"pid":497355,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,
+"msSinceLastData":2687,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080309236,"pid":497355,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downs
+tream authorized"}
+0|tedt-api | {"level":30,"time":1778080309236,"pid":497355,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","
+prevExtranonce1":"658525fb98595d0ce9","newExtranonce1":"10000006826d23593b","msg":"stratum:downstream upstream extranonce value ch
+anged — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778080309859,"pid":497355,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,
+"msSinceLastData":648,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080310991,"pid":497355,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downs
+tream authorized"}
+0|tedt-api | {"level":30,"time":1778080310991,"pid":497355,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","
+prevExtranonce1":"53f05fc14f567657e0","newExtranonce1":"10000006826d23593b","msg":"stratum:downstream upstream extranonce value ch
+anged — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778080311591,"pid":497355,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,
+"msSinceLastData":754,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080315757,"pid":497355,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downs
+tream authorized"}
+0|tedt-api | {"level":30,"time":1778080315757,"pid":497355,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","
+prevExtranonce1":"d8a4db75603182bdeb","newExtranonce1":"10000006826d23593b","msg":"stratum:downstream upstream extranonce value ch
+anged — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778080335976,"pid":497355,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,
+"msSinceLastData":1509,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080403425,"pid":497355,"hostname":"vmi3202752","rigId":null,"rentalId":null,"pendingBuffered":
+0,"msSinceLastData":29988,"wasAuthorized":false,"wasFallback":false,"upstreamReady":false,"msg":"stratum:downstream session closin
+g"}
+0|tedt-api | {"level":30,"time":1778080515446,"pid":497934,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downs
+tream authorized"}
+0|tedt-api | {"level":30,"time":1778080515482,"pid":497934,"hostname":"vmi3202752","rigId":10,"source":"subscribed","ourE1ByteLen"
+:4,"poolE1ByteLen":9,"ourE2size":4,"poolE2size":3,"ip":"165.227.153.169","msg":"stratum:downstream pool extranonce size mismatch —
+ stored hint and force-closing for clean reconnect"}
+0|tedt-api | {"level":30,"time":1778080515485,"pid":497934,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,
+"msSinceLastData":155,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080542252,"pid":497934,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downs
+tream authorized"}
+0|tedt-api | {"level":30,"time":1778080542252,"pid":497934,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","
+prevExtranonce1":"ff2be2dccc83d1995e","newExtranonce1":"10000006d06e23593b","msg":"stratum:downstream upstream extranonce value ch
+anged — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778080542862,"pid":497934,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,
+"msSinceLastData":703,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080548107,"pid":497934,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downs
+tream authorized"}
+0|tedt-api | {"level":30,"time":1778080548107,"pid":497934,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","
+prevExtranonce1":"b1a9bd036b6ca01403","newExtranonce1":"10000006d06e23593b","msg":"stratum:downstream upstream extranonce value ch
+anged — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778080549154,"pid":497934,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,
+"msSinceLastData":1070,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080549188,"pid":497934,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downs
+tream authorized"}
+0|tedt-api | {"level":30,"time":1778080549189,"pid":497934,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","
+prevExtranonce1":"eda091a77f1eb4a6fb","newExtranonce1":"10000006d06e23593b","msg":"stratum:downstream upstream extranonce value ch
+anged — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778080549211,"pid":497934,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,
+"msSinceLastData":164,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080549217,"pid":497934,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downs
+tream authorized"}
+0|tedt-api | {"level":30,"time":1778080549217,"pid":497934,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","
+prevExtranonce1":"86f19c5aac89ed8b8e","newExtranonce1":"10000006d06e23593b","msg":"stratum:downstream upstream extranonce value ch
+anged — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778080549753,"pid":497934,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,
+"msSinceLastData":693,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080550627,"pid":497934,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downs
+tream authorized"}
+0|tedt-api | {"level":30,"time":1778080550627,"pid":497934,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","
+prevExtranonce1":"d824212d99b7b4c553","newExtranonce1":"10000006d06e23593b","msg":"stratum:downstream upstream extranonce value ch
+anged — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778080551458,"pid":497934,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,
+"msSinceLastData":857,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080551500,"pid":497934,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downs
+tream authorized"}
+0|tedt-api | {"level":30,"time":1778080551500,"pid":497934,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","
+prevExtranonce1":"2790203b9580d6c311","newExtranonce1":"10000006d06e23593b","msg":"stratum:downstream upstream extranonce value ch
+anged — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778080571543,"pid":497934,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,
+"msSinceLastData":1315,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+root@vmi3202752:/var/www/livehashrate.com#

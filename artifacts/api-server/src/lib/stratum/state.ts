@@ -83,7 +83,7 @@ class ProxyState {
    * set_extranonce invalidates the coinbase template and most firmwares
    * disconnect immediately when they receive it.
    */
-  private extranonceHints = new Map<string, { e1ByteLen: number; e2size: number }>();
+  private extranonceHints = new Map<string, { e1: string; e2size: number }>();
   /** Background GC handle — sweeps stale snapshots and idle fallback buffers. */
   private gcTimer: NodeJS.Timeout;
 
@@ -944,12 +944,13 @@ class ProxyState {
    * length, avoiding size changes in subsequent set_extranonce calls.
    */
   storeExtranonceHint(ip: string, e1: string, e2size: number): void {
-    // e1 is a hex string; byte length = hex chars / 2.
-    this.extranonceHints.set(ip, { e1ByteLen: e1.length / 2, e2size });
+    // Store the pool's full extranonce1 VALUE so the next subscribe reply can
+    // use it verbatim — making set_extranonce unnecessary on that session.
+    this.extranonceHints.set(ip, { e1, e2size });
   }
 
-  /** Return the stored extranonce format hint for an IP, or null if unknown. */
-  getExtranonceHint(ip: string): { e1ByteLen: number; e2size: number } | null {
+  /** Return the stored extranonce hint for an IP, or null if unknown. */
+  getExtranonceHint(ip: string): { e1: string; e2size: number } | null {
     return this.extranonceHints.get(ip) ?? null;
   }
 }
