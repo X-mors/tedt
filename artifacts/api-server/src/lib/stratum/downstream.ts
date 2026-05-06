@@ -319,8 +319,7 @@ export class DownstreamSession extends EventEmitter {
     // will give us its real format; we store it and force-close. Second connect
     // uses the exact pool e1 → no set_extranonce ever sent → miner stays connected.
     const remoteIp = this.socket.remoteAddress ?? "";
-    const localPort = this.socket.localPort ?? 0;
-    const hint = proxyState.getExtranonceHint(`${remoteIp}:${localPort}`);
+    const hint = proxyState.getExtranonceHint(remoteIp);
     this.extranonce2Size = hint?.e2size ?? 4;
     this.extranonce1 = hint?.e1 ?? makeExtranonce1(4);
 
@@ -599,8 +598,7 @@ export class DownstreamSession extends EventEmitter {
       .set({ isOnline: true, lastSeenAt: new Date() })
       .where(eq(rigsTable.id, rig.id));
 
-    const hasOwnPool = !!(rig.stratumHost && rig.stratumPort > 0);
-    const activeRental = await this._findActiveRental(rig.id, rig.ownerId, hasOwnPool);
+    const activeRental = await this._findActiveRental(rig.id, rig.ownerId);
     this.rentalId = activeRental?.id ?? null;
     proxyState.setRigAuthorized(rig.id, this.rentalId);
 
@@ -618,7 +616,7 @@ export class DownstreamSession extends EventEmitter {
     }
   }
 
-  private async _findActiveRental(rigId: number, ownerId: number, hasOwnPool = false) {
+  private async _findActiveRental(rigId: number, ownerId: number) {
     const now = new Date();
 
     // Primary: look up by the exact rigId registered in the marketplace.
@@ -642,13 +640,6 @@ export class DownstreamSession extends EventEmitter {
     // Fallback: miner may have connected under a stratumName that caused the
     // proxy to auto-create a shadow rig with a different ID.  Search by ownerId
     // so we can still route to the renter's pool when the IDs don't match.
-    //
-    // IMPORTANT: skip this fallback for standalone rigs that have their own
-    // fallback pool configured. A rig with its own pool is a real independent
-    // rig — it should NOT inherit another rig's rental. Only shadow rigs
-    // (auto-created, no pool configured) need the ownerId fallback.
-    if (hasOwnPool) return null;
-
     const [ownerRental] = await db
       .select({
         id: rentalsTable.id,
@@ -1113,18 +1104,17 @@ export class DownstreamSession extends EventEmitter {
     const poolE1ByteLen = newExtranonce1.length / 2;
     if (poolE1ByteLen !== ourE1ByteLen || extranonce2Size !== prevSize) {
       const remoteIp = this.socket.remoteAddress ?? "";
-      const localPort = this.socket.localPort ?? 0;
       // Update our size fields to the POOL's real values NOW so that _onClose
       // stores the correct hint (it reads this.extranonce2Size).  We don't
       // update extranonce1 here because the miner was never told the new value.
       this.extranonce2Size = extranonce2Size;
-      if (remoteIp) proxyState.storeExtranonceHint(`${remoteIp}:${localPort}`, newExtranonce1, extranonce2Size);
+      if (remoteIp) proxyState.storeExtranonceHint(remoteIp, newExtranonce1, extranonce2Size);
       logger.info(
         {
           rigId: this.rigId, source,
           ourE1ByteLen, poolE1ByteLen,
           ourE2size: prevSize, poolE2size: extranonce2Size,
-          ip: `${remoteIp}:${localPort}`,
+          ip: remoteIp,
         },
         "stratum:downstream pool extranonce size mismatch — stored hint and force-closing for clean reconnect",
       );
@@ -1389,8 +1379,7 @@ export class DownstreamSession extends EventEmitter {
     // We store it here (at natural close) AND at force-close in _applyUpstreamExtranonce.
     if (this.upstreamExtranonce1 && this.rigId != null) {
       const remoteIp = this.socket.remoteAddress ?? "";
-      const localPort = this.socket.localPort ?? 0;
-      if (remoteIp) proxyState.storeExtranonceHint(`${remoteIp}:${localPort}`, this.upstreamExtranonce1, this.extranonce2Size);
+      if (remoteIp) proxyState.storeExtranonceHint(remoteIp, this.upstreamExtranonce1, this.extranonce2Size);
     }
 
     if (this.upstream != null) {
