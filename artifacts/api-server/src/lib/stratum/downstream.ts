@@ -599,7 +599,8 @@ export class DownstreamSession extends EventEmitter {
       .set({ isOnline: true, lastSeenAt: new Date() })
       .where(eq(rigsTable.id, rig.id));
 
-    const activeRental = await this._findActiveRental(rig.id, rig.ownerId);
+    const hasOwnPool = !!(rig.stratumHost && rig.stratumPort > 0);
+    const activeRental = await this._findActiveRental(rig.id, rig.ownerId, hasOwnPool);
     this.rentalId = activeRental?.id ?? null;
     proxyState.setRigAuthorized(rig.id, this.rentalId);
 
@@ -617,7 +618,7 @@ export class DownstreamSession extends EventEmitter {
     }
   }
 
-  private async _findActiveRental(rigId: number, ownerId: number) {
+  private async _findActiveRental(rigId: number, ownerId: number, hasOwnPool = false) {
     const now = new Date();
 
     // Primary: look up by the exact rigId registered in the marketplace.
@@ -641,6 +642,13 @@ export class DownstreamSession extends EventEmitter {
     // Fallback: miner may have connected under a stratumName that caused the
     // proxy to auto-create a shadow rig with a different ID.  Search by ownerId
     // so we can still route to the renter's pool when the IDs don't match.
+    //
+    // IMPORTANT: skip this fallback for standalone rigs that have their own
+    // fallback pool configured. A rig with its own pool is a real independent
+    // rig — it should NOT inherit another rig's rental. Only shadow rigs
+    // (auto-created, no pool configured) need the ownerId fallback.
+    if (hasOwnPool) return null;
+
     const [ownerRental] = await db
       .select({
         id: rentalsTable.id,
