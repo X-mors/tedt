@@ -3037,16 +3037,10 @@ components:
         cancellationFeePct:
           type: number
           description: Penalty percentage applied to a renter's refund when they manually cancel/terminate an active rental. Kept as platform commission. 0 = no penalty.
-        deliveryThresholdPct:
-          type: number
-          description: Minimum hashrate delivery % required to avoid a dispute (e.g. 95). Rentals below this trigger admin freeze.
-        rigOfflineTerminateMins:
-          type: integer
-          description: Minutes a rig must be offline (no shares) before the rental is auto-terminated. 0 = disabled.
         updatedAt:
           type: string
           format: date-time
-      required: [renterFeePct, ownerFeePct, cancellationFeePct, deliveryThresholdPct, rigOfflineTerminateMins, updatedAt]
+      required: [renterFeePct, ownerFeePct, cancellationFeePct, updatedAt]
 
     UpdateCommissionBody:
       type: object
@@ -3063,14 +3057,6 @@ components:
           type: number
           minimum: 0
           maximum: 100
-        deliveryThresholdPct:
-          type: number
-          minimum: 1
-          maximum: 100
-        rigOfflineTerminateMins:
-          type: integer
-          minimum: 0
-          maximum: 1440
 
     AdminCreditBody:
       type: object

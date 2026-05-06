@@ -129,8 +129,6 @@ export default function AdminDashboard() {
   const [renterFee, setRenterFee] = useState("");
   const [ownerFee, setOwnerFee] = useState("");
   const [cancelFee, setCancelFee] = useState("");
-  const [deliveryThreshold, setDeliveryThreshold] = useState("");
-  const [rigOfflineMins, setRigOfflineMins] = useState("");
 
   const [creditUserId, setCreditUserId] = useState<number | null>(null);
   const [creditAmount, setCreditAmount] = useState("");
@@ -215,9 +213,7 @@ export default function AdminDashboard() {
       data: {
         renterFeePct: renterFee ? parseFloat(renterFee) : undefined,
         ownerFeePct: ownerFee ? parseFloat(ownerFee) : undefined,
-        cancellationFeePct: cancelFee !== "" ? parseFloat(cancelFee) : undefined,
-        deliveryThresholdPct: deliveryThreshold !== "" ? parseFloat(deliveryThreshold) : undefined,
-        rigOfflineTerminateMins: rigOfflineMins !== "" ? parseInt(rigOfflineMins) : undefined,
+        cancellationFeePct: cancelFee !== "" ? parseFloat(cancelFee) : undefined
       }
     }, {
       onSuccess: () => {
@@ -226,8 +222,6 @@ export default function AdminDashboard() {
         setRenterFee("");
         setOwnerFee("");
         setCancelFee("");
-        setDeliveryThreshold("");
-        setRigOfflineMins("");
       }
     });
   };
@@ -1004,54 +998,36 @@ export default function AdminDashboard() {
             <CardContent className="space-y-6">
               <div className="bg-muted/30 p-4 rounded border font-mono text-sm space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Renter Fee:</span>
+                  <span className="text-muted-foreground">Current Renter Fee:</span>
                   <span>{config?.renterFeePct}%</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Owner Fee:</span>
+                  <span className="text-muted-foreground">Current Owner Fee:</span>
                   <span>{config?.ownerFeePct}%</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Cancellation Fee:</span>
                   <span>{config?.cancellationFeePct ?? 0}%</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Delivery Threshold:</span>
-                  <span>{config?.deliveryThresholdPct ?? 95}%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Rig Offline Terminate:</span>
-                  <span>{config?.rigOfflineTerminateMins ?? 30} min{(config?.rigOfflineTerminateMins ?? 30) === 0 ? " (disabled)" : ""}</span>
-                </div>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Renter Fee (%)</Label>
+                  <Label>New Renter Fee (%)</Label>
                   <Input type="number" step="0.1" placeholder="e.g. 3.0" className="font-mono text-sm bg-background" value={renterFee} onChange={e => setRenterFee(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">Added to base cost for the renter.</p>
+                  <p className="text-xs text-muted-foreground">Added to base cost.</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Owner Fee (%)</Label>
+                  <Label>New Owner Fee (%)</Label>
                   <Input type="number" step="0.1" placeholder="e.g. 5.0" className="font-mono text-sm bg-background" value={ownerFee} onChange={e => setOwnerFee(e.target.value)} />
                   <p className="text-xs text-muted-foreground">Withheld from rig owner earnings.</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Cancellation Fee (%)</Label>
+                  <Label>New Cancellation Fee (%)</Label>
                   <Input type="number" step="0.1" min="0" max="100" placeholder="e.g. 10.0" className="font-mono text-sm bg-background" value={cancelFee} onChange={e => setCancelFee(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">Penalty on the renter when they manually cancel — applied on elapsed time only. Goes to admin.</p>
+                  <p className="text-xs text-muted-foreground">Withheld from the renter's refund when they manually cancel an active rental. Added to platform commission. Set 0 to disable.</p>
                 </div>
-                <div className="space-y-2">
-                  <Label>Delivery Threshold (%)</Label>
-                  <Input type="number" step="1" min="1" max="100" placeholder="e.g. 95" className="font-mono text-sm bg-background" value={deliveryThreshold} onChange={e => setDeliveryThreshold(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">Minimum hashrate delivery % to avoid a dispute. Below this the shortfall is frozen for admin judgment. (Default: 95)</p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Rig Offline Auto-Terminate (minutes)</Label>
-                  <Input type="number" step="1" min="0" max="1440" placeholder="e.g. 30" className="font-mono text-sm bg-background" value={rigOfflineMins} onChange={e => setRigOfflineMins(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">If a rig sends no shares for this many minutes, the rental is auto-terminated with no penalty. Set 0 to disable. (Default: 30)</p>
-                </div>
-                <Button className="w-full font-mono text-sm mt-2" onClick={handleUpdateConfig} disabled={updateConfig.isPending || (!renterFee && !ownerFee && cancelFee === "" && deliveryThreshold === "" && rigOfflineMins === "")}>
+                <Button className="w-full font-mono text-sm mt-2" onClick={handleUpdateConfig} disabled={updateConfig.isPending || (!renterFee && !ownerFee && cancelFee === "")}>
                   {updateConfig.isPending ? "APPLYING..." : "UPDATE_CONFIG"}
                 </Button>
               </div>

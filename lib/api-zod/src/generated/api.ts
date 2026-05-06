@@ -1817,16 +1817,6 @@ export const GetCommissionConfigResponse = zod.object({
     .describe(
       "Penalty percentage applied to a renter's refund when they manually cancel\/terminate an active rental. Kept as platform commission. 0 = no penalty.",
     ),
-  deliveryThresholdPct: zod
-    .number()
-    .describe(
-      "Minimum hashrate delivery percentage required to avoid a dispute (e.g. 95 = 95%). Rentals below this trigger admin freeze.",
-    ),
-  rigOfflineTerminateMins: zod
-    .number()
-    .describe(
-      "Minutes a rig must be offline (no shares) before the system auto-terminates the rental. 0 = disabled.",
-    ),
   updatedAt: zod.coerce.date(),
 });
 
@@ -1858,8 +1848,6 @@ export const UpdateCommissionConfigBody = zod.object({
     .min(updateCommissionConfigBodyCancellationFeePctMin)
     .max(updateCommissionConfigBodyCancellationFeePctMax)
     .optional(),
-  deliveryThresholdPct: zod.number().min(1).max(100).optional(),
-  rigOfflineTerminateMins: zod.number().min(0).max(1440).optional(),
 });
 
 export const UpdateCommissionConfigResponse = zod.object({
@@ -1875,16 +1863,6 @@ export const UpdateCommissionConfigResponse = zod.object({
     .number()
     .describe(
       "Penalty percentage applied to a renter's refund when they manually cancel\/terminate an active rental. Kept as platform commission. 0 = no penalty.",
-    ),
-  deliveryThresholdPct: zod
-    .number()
-    .describe(
-      "Minimum hashrate delivery percentage required to avoid a dispute (e.g. 95 = 95%).",
-    ),
-  rigOfflineTerminateMins: zod
-    .number()
-    .describe(
-      "Minutes a rig must be offline before auto-termination. 0 = disabled.",
     ),
   updatedAt: zod.coerce.date(),
 });

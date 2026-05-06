@@ -366,8 +366,6 @@ router.get("/admin/commission", async (_req, res) => {
     renterFeePct: c.renterFeePct,
     ownerFeePct: c.ownerFeePct,
     cancellationFeePct: c.cancellationFeePct,
-    deliveryThresholdPct: c.deliveryThresholdPct,
-    rigOfflineTerminateMins: c.rigOfflineTerminateMins,
     updatedAt: (row?.updatedAt ?? new Date()).toISOString(),
   });
   res.json(data);
@@ -381,8 +379,6 @@ router.patch("/admin/commission", async (req, res) => {
       renterFeePct: (body.renterFeePct ?? 3).toString(),
       ownerFeePct: (body.ownerFeePct ?? 5).toString(),
       cancellationFeePct: (body.cancellationFeePct ?? 0).toString(),
-      deliveryThresholdPct: (body.deliveryThresholdPct ?? 95).toString(),
-      rigOfflineTerminateMins: body.rigOfflineTerminateMins ?? 30,
     });
   } else {
     const patch: Record<string, unknown> = {};
@@ -392,10 +388,6 @@ router.patch("/admin/commission", async (req, res) => {
       patch["ownerFeePct"] = body.ownerFeePct.toString();
     if (body.cancellationFeePct !== undefined)
       patch["cancellationFeePct"] = body.cancellationFeePct.toString();
-    if (body.deliveryThresholdPct !== undefined)
-      patch["deliveryThresholdPct"] = body.deliveryThresholdPct.toString();
-    if (body.rigOfflineTerminateMins !== undefined)
-      patch["rigOfflineTerminateMins"] = body.rigOfflineTerminateMins;
     if (Object.keys(patch).length > 0) {
       await db
         .update(commissionConfigTable)
@@ -409,8 +401,6 @@ router.patch("/admin/commission", async (req, res) => {
     renterFeePct: c.renterFeePct,
     ownerFeePct: c.ownerFeePct,
     cancellationFeePct: c.cancellationFeePct,
-    deliveryThresholdPct: c.deliveryThresholdPct,
-    rigOfflineTerminateMins: c.rigOfflineTerminateMins,
     updatedAt: (row?.updatedAt ?? new Date()).toISOString(),
   });
   res.json(data);
