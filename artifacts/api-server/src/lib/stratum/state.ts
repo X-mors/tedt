@@ -935,23 +935,25 @@ class ProxyState {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Per-IP extranonce format hints
+  // Per-rig extranonce format hints (keyed by rigId, not IP)
   // ──────────────────────────────────────────────────────────────────────────
 
   /**
-   * Persist the pool's extranonce format for a miner IP so future connections
-   * from the same machine can generate a proxy-extranonce1 of the correct byte
-   * length, avoiding size changes in subsequent set_extranonce calls.
+   * Persist the pool's extranonce format for a rig so future connections
+   * from the same rig use a proxy-extranonce1 of the correct byte length,
+   * avoiding size changes in subsequent set_extranonce calls.
+   *
+   * IMPORTANT: keyed by rigId (not IP) so that multiple rigs sharing the
+   * same NAT'd public IP do not overwrite each other's hints — which caused
+   * an infinite force-close loop and hashrate=0 on both rigs simultaneously.
    */
-  storeExtranonceHint(ip: string, e1: string, e2size: number): void {
-    // Store the pool's full extranonce1 VALUE so the next subscribe reply can
-    // use it verbatim — making set_extranonce unnecessary on that session.
-    this.extranonceHints.set(ip, { e1, e2size });
+  storeExtranonceHint(rigId: number, e1: string, e2size: number): void {
+    this.extranonceHints.set(`rig:${rigId}`, { e1, e2size });
   }
 
-  /** Return the stored extranonce hint for an IP, or null if unknown. */
-  getExtranonceHint(ip: string): { e1: string; e2size: number } | null {
-    return this.extranonceHints.get(ip) ?? null;
+  /** Return the stored extranonce hint for a rig, or null if unknown. */
+  getExtranonceHint(rigId: number): { e1: string; e2size: number } | null {
+    return this.extranonceHints.get(`rig:${rigId}`) ?? null;
   }
 }
 
