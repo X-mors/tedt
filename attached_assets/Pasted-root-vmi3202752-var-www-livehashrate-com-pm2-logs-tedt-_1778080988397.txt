@@ -1,0 +1,17 @@
+root@vmi3202752:/var/www/livehashrate.com# pm2 logs tedt-api --lines 100 --nostream 2>&1 | grep -E "mismatch|set_extranonce|closing|authorized" | tail -20
+0|tedt-api | {"level":30,"time":1778080893249,"pid":498610,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778080893309,"pid":498610,"hostname":"vmi3202752","rigId":10,"source":"subscribed","ourE1ByteLen":4,"poolE1ByteLen":9,"ourE2size":4,"poolE2size":3,"ip":"165.227.153.169","msg":"stratum:downstream pool extranonce size mismatch — stored hint and force-closing for clean reconnect"}
+0|tedt-api | {"level":30,"time":1778080893316,"pid":498610,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,"msSinceLastData":93,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080902649,"pid":498610,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778080903426,"pid":498610,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,"msSinceLastData":835,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080905543,"pid":498610,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778080905880,"pid":498610,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,"msSinceLastData":765,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080905891,"pid":498610,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778080910831,"pid":498610,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,"msSinceLastData":512,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080910923,"pid":498610,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778080911563,"pid":498610,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,"msSinceLastData":804,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080912755,"pid":498610,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778080913248,"pid":498610,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,"msSinceLastData":628,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080913251,"pid":498610,"hostname":"vmi3202752","rigId":10,"rentalId":null,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778080938048,"pid":498610,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,"msSinceLastData":1532,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+root@vmi3202752:/var/www/livehashrate.com#

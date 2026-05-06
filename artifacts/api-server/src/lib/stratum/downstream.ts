@@ -849,16 +849,28 @@ export class DownstreamSession extends EventEmitter {
         if (this.destroyed) return;
         proxyState.setUpstreamConnected(rig.id, true);
         void this._flushSubmitBuffer();
+        // Re-send the pool's current difficulty so the miner uses the correct
+        // target. We sent currentDifficulty=1 in subscribe (before the upstream
+        // was claimed); the pool may have set a higher difficulty.
+        const poolDiff = claimed.getCurrentDifficulty();
+        if (poolDiff !== this.currentDifficulty) {
+          this._setDifficulty(poolDiff);
+        }
         // Send the last buffered job so the miner can start working immediately.
-        // Without this, the miner receives set_extranonce but no mining.notify and
-        // disconnects after its internal timeout (~5-6 s on most firmwares).
+        // Without this the miner waits for the next pool broadcast (~5-30 s on
+        // SHA-256) and disconnects due to its internal no-job timeout.
         const lastJob = claimed.getLastJob();
         if (lastJob) {
           this.lastJobId = Array.isArray(lastJob) ? String(lastJob[0]) : null;
           this._notify("mining.notify", lastJob);
-          logger.debug(
-            { rigId: rig.id, jobId: this.lastJobId },
+          logger.info(
+            { rigId: rig.id, jobId: this.lastJobId, poolDiff },
             "stratum:downstream sent buffered job to miner after parked upstream claim",
+          );
+        } else {
+          logger.info(
+            { rigId: rig.id },
+            "stratum:downstream no buffered job yet — miner will receive next pool notify",
           );
         }
       }
