@@ -388,6 +388,24 @@ class ProxyState {
   }
 
   /**
+   * Like getAnySessionForOwner but only returns a session when there is
+   * EXACTLY ONE idle (no active rental) session for this owner.
+   * Safe to use for rental activation: if the owner has multiple connected
+   * rigs we cannot determine which is the shadow rig, so we return undefined
+   * to avoid activating the rental on the wrong device. The rental will be
+   * picked up on the next natural reconnect via _findActiveRental.
+   */
+  getUnambiguousIdleSessionForOwner(ownerId: number): DownstreamSession | undefined {
+    const idle: DownstreamSession[] = [];
+    for (const conn of this.rigConnections.values()) {
+      if (conn.entry.ownerId === ownerId && conn.entry.rentalId === null) {
+        idle.push(conn.session);
+      }
+    }
+    return idle.length === 1 ? idle[0] : undefined;
+  }
+
+  /**
    * Find the session currently routing shares for `rentalId`. This is the
    * authoritative lookup when terminating/settling a rental, because shadow
    * rigs (auto-created when miner uses a non-matching stratumName) have a

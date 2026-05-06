@@ -395,7 +395,7 @@ router.post("/rentals", async (req, res) => {
   // scenario the session is keyed under the shadow rig's ID, not body.rigId.
   const session =
     proxyState.getRigSession(body.rigId) ??
-    proxyState.getAnySessionForOwner(rigRow.ownerId);
+    proxyState.getUnambiguousIdleSessionForOwner(rigRow.ownerId);
 
   if (session) {
     if (!proxyState.getRigSession(body.rigId)) {
