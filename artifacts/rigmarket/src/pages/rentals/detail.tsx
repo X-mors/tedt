@@ -582,26 +582,41 @@ export default function RentalCockpit() {
                       </div>
                     </div>
                   ) : null}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                     <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">Current Hashrate</span>
                       <span className={`font-mono text-lg font-bold ${showOffline ? 'text-muted-foreground' : 'text-primary'}`}>{formatHashrate(live.currentHashrate, rental.algorithmUnit)}</span>
+                      <span className="text-[9px] text-muted-foreground/60 mt-1 font-mono">Σ(diff × 2³²) / time</span>
                     </div>
                     <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">Avg Hashrate</span>
                       <span className="font-mono text-lg font-bold">{avgHashrateDisplay}</span>
+                      <span className="text-[9px] text-muted-foreground/60 mt-1 font-mono">since rental start</span>
+                    </div>
+                    <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
+                      <span className="text-[10px] text-muted-foreground uppercase font-semibold">Share Difficulty</span>
+                      <span className={`font-mono text-lg font-bold ${showOffline ? 'text-muted-foreground' : 'text-sky-400'}`}>
+                        {live.currentDifficulty >= 1_000_000
+                          ? `${(live.currentDifficulty / 1_000_000).toFixed(2)}M`
+                          : live.currentDifficulty >= 1_000
+                          ? `${(live.currentDifficulty / 1_000).toFixed(1)}K`
+                          : live.currentDifficulty.toLocaleString()}
+                      </span>
+                      <span className="text-[9px] text-muted-foreground/60 mt-1 font-mono">pool-set per share</span>
                     </div>
                     <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">Delivery Ratio</span>
                       <span className={`font-mono text-lg font-bold ${deliveryRatioDisplay >= 0.95 ? 'text-green-500' : deliveryRatioDisplay >= 0.8 ? 'text-yellow-500' : 'text-destructive'}`}>
                         {(deliveryRatioDisplay * 100).toFixed(1)}%
                       </span>
+                      <span className="text-[9px] text-muted-foreground/60 mt-1 font-mono">actual / advertised</span>
                     </div>
                     <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">Shares (A/R)</span>
                       <span className="font-mono text-lg font-bold">
                         <span className="text-green-500">{live.sharesAccepted}</span> / <span className="text-destructive">{live.sharesRejected}</span>
                       </span>
+                      <span className="text-[9px] text-muted-foreground/60 mt-1 font-mono">accepted / rejected</span>
                     </div>
                   </div>
 

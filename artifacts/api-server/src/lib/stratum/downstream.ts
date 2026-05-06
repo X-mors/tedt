@@ -1221,9 +1221,20 @@ export class DownstreamSession extends EventEmitter {
       }
     }
 
+    // Verify: log the difficulty-weighted hashrate contribution of this share.
+    // hashrate = diff × 2^32 / elapsedSec — we log the diff so operators can
+    // confirm the actual pool-set difficulty (not just share count) is used.
     logger.debug(
-      { rigId: this.rigId, rentalId: this.rentalId, isFallback: this.isFallback, accepted, diff },
-      "stratum:downstream share",
+      {
+        rigId: this.rigId,
+        rentalId: this.rentalId,
+        isFallback: this.isFallback,
+        accepted,
+        shareDiff: diff,
+        hashrateContribGHs: ((diff * 4294967296) / 1e9).toFixed(3),
+        formula: `hashrate = Σ(diff × 2³²) / elapsed`,
+      },
+      "stratum:downstream share recorded",
     );
   }
 
