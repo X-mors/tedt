@@ -99,16 +99,15 @@ export class DownstreamSession extends EventEmitter {
    */
   private readonly legacyMode: boolean;
   /**
-   * Stored subscribe message id — we defer the subscribe reply until after
-   * mining.authorize so we can key the extranonce hint by rigId (not IP).
-   * Keying by IP broke when two rigs shared the same NAT'd public IP:
-   * each overwrote the other's hint → both got wrong extranonce → infinite
-   * force-close loop → hashrate=0 on both simultaneously.
+   * Remote IP captured at construction (before the socket can be destroyed).
+   * Used for extranonce hint look-up at subscribe time (rigId not yet known)
+   * and for dual-key hint storage at close time.
    */
-  private pendingSubscribeMsgId: number | string | null = null;
+  private readonly remoteIp: string;
   constructor(private readonly socket: net.Socket, opts: { legacyMode?: boolean } = {}) {
     super();
     this.legacyMode = opts.legacyMode === true;
+    this.remoteIp = socket.remoteAddress ?? "";
     socket.setEncoding("utf8");
     // 10-min idle timeout — tolerates high-difficulty pools that produce only
     // a share every several minutes. Detection of truly dead sockets is handled
@@ -307,22 +306,26 @@ export class DownstreamSession extends EventEmitter {
     }
     this.subscribed = true;
 
-    // DEFER the subscribe reply until after mining.authorize.
+    // Reply immediately — many ASIC firmwares (S9, S19, etc.) wait for the
+    // subscribe reply before sending authorize, so deferring it deadlocks.
     //
-    // Why defer? We must look up the extranonce hint KEYED BY rigId — which is
-    // only known after auth. The old approach keyed hints by the miner's IP,
-    // which caused a critical conflict: when two rigs share the same NAT'd
-    // public IP (e.g. SHA-256 + SHA-256-ASICBoost on the same LAN), they
-    // overwrote each other's hint → each miner got the other's extranonce →
-    // both entered an infinite force-close loop → hashrate=0 on both.
-    //
-    // Most ASIC firmwares (S9, S19, Whatsminer, etc.) pipeline subscribe and
-    // authorize WITHOUT waiting for the subscribe reply, so deferring until
-    // _completeAuth is safe: the reply arrives before the miner needs it.
-    this.pendingSubscribeMsgId = msg.id;
+    // We look up the extranonce hint by the miner's IP.  If two rigs share
+    // the same NAT'd public IP they may get each other's hint here, but the
+    // VALUE-mismatch guard in _completeAuth catches that and force-closes the
+    // "wrong-hint" rig immediately — converges in at most one extra reconnect
+    // cycle per rig, with no set_extranonce ever sent to the miner.
+    const hint = this.remoteIp ? proxyState.getExtranonceHintByIp(this.remoteIp) : null;
+    this.extranonce2Size = hint?.e2size ?? 4;
+    this.extranonce1 = hint?.e1 ?? makeExtranonce1(4);
+    this._reply(msg.id, [
+      [["mining.set_difficulty", `sub-diff-${this.msgIdCounter}`]],
+      this.extranonce1,
+      this.extranonce2Size,
+    ]);
+    this._setDifficulty(this.currentDifficulty);
     logger.debug(
-      { rigId: this.rigId },
-      "stratum:downstream subscribe received — deferring reply until after auth (rigId needed for hint lookup)",
+      { rigId: this.rigId, e1: this.extranonce1, e2size: this.extranonce2Size, hintFromIp: hint != null },
+      "stratum:downstream subscribe — sent immediate reply with IP-based extranonce hint",
     );
   }
 
@@ -589,24 +592,30 @@ export class DownstreamSession extends EventEmitter {
       .set({ isOnline: true, lastSeenAt: new Date() })
       .where(eq(rigsTable.id, rig.id));
 
-    // NOW we know rigId — send the deferred subscribe reply with the correct
-    // extranonce. Hint is keyed by rigId so multiple rigs on the same LAN
-    // (same NAT'd IP) never conflict with each other.
-    if (this.pendingSubscribeMsgId !== null) {
-      const hint = proxyState.getExtranonceHint(rig.id);
-      this.extranonce2Size = hint?.e2size ?? 4;
-      this.extranonce1 = hint?.e1 ?? makeExtranonce1(4);
-      this._reply(this.pendingSubscribeMsgId, [
-        [["mining.set_difficulty", `sub-diff-${this.msgIdCounter}`]],
-        this.extranonce1,
-        this.extranonce2Size,
-      ]);
-      this._setDifficulty(this.currentDifficulty);
-      this.pendingSubscribeMsgId = null;
-      logger.debug(
-        { rigId: rig.id, e1: this.extranonce1, e2size: this.extranonce2Size, hintUsed: hint != null },
-        "stratum:downstream sent deferred subscribe reply with rigId-keyed extranonce hint",
+    // VALUE-mismatch guard: the subscribe reply was sent immediately using the
+    // IP-based hint (rigId was unknown then).  Now that we know the rigId we
+    // can check whether the sent extranonce1 matches the rigId-specific hint.
+    // If there is a mismatch AND the byte lengths are the same (i.e. a value-
+    // only difference caused by another rig on the same LAN having overwritten
+    // the shared IP hint), we force-close immediately BEFORE connecting to the
+    // upstream pool.  _onClose stores the correct hint under BOTH the rigId
+    // key and the IP key so the very next reconnect of this rig uses the right
+    // extranonce and converges without any set_extranonce being sent.
+    const rigHint = proxyState.getExtranonceHint(rig.id);
+    if (
+      rigHint &&
+      rigHint.e1 !== this.extranonce1 &&
+      rigHint.e1.length === this.extranonce1.length
+    ) {
+      // Store the correct hint for this rig before closing so the IP key is
+      // updated and the next reconnect wins immediately.
+      proxyState.storeExtranonceHint(rig.id, this.remoteIp || null, rigHint.e1, rigHint.e2size);
+      logger.info(
+        { rigId: rig.id, sentE1: this.extranonce1, correctE1: rigHint.e1 },
+        "stratum:downstream extranonce value mismatch after auth (IP hint conflict) — force-closing for clean reconnect",
       );
+      this._close();
+      return;
     }
 
     const activeRental = await this._findActiveRental(rig.id, rig.ownerId);
@@ -1118,10 +1127,10 @@ export class DownstreamSession extends EventEmitter {
       // stores the correct hint (it reads this.extranonce2Size).  We don't
       // update extranonce1 here because the miner was never told the new value.
       this.extranonce2Size = extranonce2Size;
-      // Store hint keyed by rigId (not IP) — multiple rigs on same LAN share
-      // the same public IP and would overwrite each other's hints otherwise.
+      // Store hint under BOTH rigId and IP keys so the next subscribe (which
+      // only has the IP, not the rigId) also gets the correct byte length.
       if (this.rigId != null) {
-        proxyState.storeExtranonceHint(this.rigId, newExtranonce1, extranonce2Size);
+        proxyState.storeExtranonceHint(this.rigId, this.remoteIp || null, newExtranonce1, extranonce2Size);
       }
       logger.info(
         {
@@ -1389,9 +1398,11 @@ export class DownstreamSession extends EventEmitter {
     }
     // Refresh the per-rig extranonce hint so the NEXT connect from this rig
     // gets the correct e1 byte-length and e2size in the subscribe reply.
-    // Keyed by rigId (not IP) so rigs sharing the same NAT'd IP never conflict.
+    // Stored under BOTH the rigId key and the IP key so that the IP-based
+    // subscribe-time lookup also returns the right hint for THIS rig on its
+    // next reconnect (before rigId is known again).
     if (this.upstreamExtranonce1 && this.rigId != null) {
-      proxyState.storeExtranonceHint(this.rigId, this.upstreamExtranonce1, this.extranonce2Size);
+      proxyState.storeExtranonceHint(this.rigId, this.remoteIp || null, this.upstreamExtranonce1, this.extranonce2Size);
     }
 
     if (this.upstream != null) {

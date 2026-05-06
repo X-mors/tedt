@@ -935,25 +935,37 @@ class ProxyState {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Per-rig extranonce format hints (keyed by rigId, not IP)
+  // Per-rig extranonce format hints (dual-keyed: rigId + IP)
   // ──────────────────────────────────────────────────────────────────────────
 
   /**
-   * Persist the pool's extranonce format for a rig so future connections
-   * from the same rig use a proxy-extranonce1 of the correct byte length,
-   * avoiding size changes in subsequent set_extranonce calls.
+   * Persist the pool's extranonce format under BOTH the rigId key and the
+   * miner's IP key.
    *
-   * IMPORTANT: keyed by rigId (not IP) so that multiple rigs sharing the
-   * same NAT'd public IP do not overwrite each other's hints — which caused
-   * an infinite force-close loop and hashrate=0 on both rigs simultaneously.
+   * Dual storage is necessary to handle the case where two miners share the
+   * same NAT'd public IP:
+   *   - At subscribe time, we don't yet know the rigId → look up by IP
+   *   - After auth (rigId known) we verify the sent e1 matches the rigId hint
+   *     and force-close if not — this converges in at most one extra cycle per
+   *     rig, after which both miners stabilise without any set_extranonce.
+   *
+   * ip may be null when the socket has already been destroyed; in that case
+   * only the rigId key is written.
    */
-  storeExtranonceHint(rigId: number, e1: string, e2size: number): void {
+  storeExtranonceHint(rigId: number, ip: string | null, e1: string, e2size: number): void {
     this.extranonceHints.set(`rig:${rigId}`, { e1, e2size });
+    if (ip) this.extranonceHints.set(`ip:${ip}`, { e1, e2size });
   }
 
   /** Return the stored extranonce hint for a rig, or null if unknown. */
   getExtranonceHint(rigId: number): { e1: string; e2size: number } | null {
     return this.extranonceHints.get(`rig:${rigId}`) ?? null;
+  }
+
+  /** Return the stored extranonce hint keyed by IP (used at subscribe time
+   *  before the rigId is known), or null if unknown. */
+  getExtranonceHintByIp(ip: string): { e1: string; e2size: number } | null {
+    return this.extranonceHints.get(`ip:${ip}`) ?? null;
   }
 }
 
