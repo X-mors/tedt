@@ -698,6 +698,7 @@ router.get("/admin/rentals", async (_req, res) => {
       renterEmail: usersTable.email,
       ownerId: rentalsTable.ownerId,
       hashrate: rentalsTable.hashrate,
+      deliveredHashrateAvg: rentalsTable.deliveredHashrateAvg,
       hours: rentalsTable.hours,
       renterTotalUsd: rentalsTable.renterTotalUsd,
       ownerEarningsUsd: rentalsTable.ownerEarningsUsd,
@@ -774,6 +775,18 @@ router.get("/admin/rentals", async (_req, res) => {
       ownerEarningsUsd: toNum(r.ownerEarningsUsd),
       netOwnerEarnedUsd: round6(payoutMap.get(r.id) ?? 0),
       platformFeeUsd: toNum(r.platformFeeUsd),
+      frozenUsd: (() => {
+        if (r.status !== "disputed") return 0;
+        const totalSec = (r.endsAt.getTime() - r.startedAt.getTime()) / 1000;
+        const cancelledAt = r.cancelledAt ?? new Date();
+        const usedSec = Math.max(
+          0,
+          Math.min(totalSec, (cancelledAt.getTime() - r.startedAt.getTime()) / 1000),
+        );
+        const usedRatio = totalSec > 0 ? usedSec / totalSec : 1;
+        const dr = computeDeliveryRatio(r.deliveredHashrateAvg, r.hashrate);
+        return round6(toNum(r.renterTotalUsd) * usedRatio * (1 - dr));
+      })(),
       status: r.status,
       startedAt: r.startedAt.toISOString(),
       endsAt: r.endsAt.toISOString(),
@@ -1397,6 +1410,16 @@ router.post("/admin/rentals/:id/resolve-dispute", async (req, res) => {
           relatedRentalId: rental.id,
         });
       }
+    }
+
+    // Platform's share of the frozen amount. Update platformFeeUsd so the
+    // admin panel reflects the total actually retained for this rental.
+    const platformShareFromFrozen = round6(ownerGross - ownerCredit);
+    if (platformShareFromFrozen > 0) {
+      await tx
+        .update(rentalsTable)
+        .set({ platformFeeUsd: sql`${rentalsTable.platformFeeUsd} + ${toUsdString(platformShareFromFrozen)}` })
+        .where(eq(rentalsTable.id, id));
     }
 
     return {

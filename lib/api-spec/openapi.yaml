@@ -3250,6 +3250,12 @@ components:
         createdAt:
           type: string
           format: date-time
+        frozenUsd:
+          type: number
+          description: |
+            Amount currently frozen pending admin resolution.
+            Non-zero only for disputed rentals.
+            Equals renterTotalUsd × usedRatio × (1 − deliveryRatio).
       required:
         - id
         - rigId
@@ -3267,6 +3273,7 @@ components:
         - ownerEarningsUsd
         - netOwnerEarnedUsd
         - platformFeeUsd
+        - frozenUsd
         - status
         - startedAt
         - endsAt

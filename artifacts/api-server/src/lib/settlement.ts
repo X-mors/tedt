@@ -125,6 +125,12 @@ export async function settleExpiredRentals(): Promise<number> {
         }
       }
 
+      // Adjust platformFeeUsd to what the platform actually retained (delivery-scaled).
+      await tx
+        .update(rentalsTable)
+        .set({ platformFeeUsd: toUsdString(round6(toNum(claimed.platformFeeUsd) * deliveryRatio)) })
+        .where(eq(rentalsTable.id, claimed.id));
+
       // Mark the rig available again.
       await tx
         .update(rigsTable)

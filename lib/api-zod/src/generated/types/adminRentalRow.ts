@@ -31,6 +31,11 @@ or disputed and pending admin resolution.
  */
   netOwnerEarnedUsd: number;
   platformFeeUsd: number;
+  /** Amount currently frozen pending admin resolution.
+Non-zero only for disputed rentals.
+Equals renterTotalUsd × usedRatio × (1 − deliveryRatio).
+ */
+  frozenUsd: number;
   status: RentalStatus;
   startedAt: Date;
   endsAt: Date;

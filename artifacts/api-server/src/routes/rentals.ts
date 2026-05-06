@@ -1163,6 +1163,11 @@ router.post("/rentals/:id/cancel", async (req, res) => {
         memo: `Frozen $${frozenAmount.toFixed(6)} pending admin review — delivered ${Math.round(deliveryRatio * 100)}% of advertised hashrate (below ${Math.round(FULL_DELIVERY_THRESHOLD * 100)}% threshold). Owner received delivered portion ($${ownerDeliveredPayout.toFixed(6)}). Auto-refunds to renter in 24h if unresolved.`,
         relatedRentalId: rental.id,
       });
+      // Set platformFeeUsd to actual earned: delivered & elapsed portion only.
+      await tx
+        .update(rentalsTable)
+        .set({ platformFeeUsd: toUsdString(round6(toNum(rental.platformFeeUsd) * usedRatioD * deliveryRatio)) })
+        .where(eq(rentalsTable.id, rental.id));
       return;
     }
 
@@ -1198,13 +1203,13 @@ router.post("/rentals/:id/cancel", async (req, res) => {
     const cancelFee = round6(elapsedCost * (cancelFeePct / 100));
     const renterRefund = round6(grossRefund - cancelFee);
 
-    if (cancelFee > 0) {
-      const feeStr = toUsdString(cancelFee);
-      await tx
-        .update(rentalsTable)
-        .set({ platformFeeUsd: sql`${rentalsTable.platformFeeUsd} + ${feeStr}` })
-        .where(eq(rentalsTable.id, rental.id));
-    }
+    // Set platformFeeUsd to actual earned: elapsed share of contracted fee
+    // plus any cancellation penalty. Always update regardless of cancelFee size.
+    const actualFee = round6(toNum(rental.platformFeeUsd) * usedRatio + cancelFee);
+    await tx
+      .update(rentalsTable)
+      .set({ platformFeeUsd: toUsdString(actualFee) })
+      .where(eq(rentalsTable.id, rental.id));
 
     if (renterRefund > 0) {
       const refundStr = toUsdString(renterRefund);

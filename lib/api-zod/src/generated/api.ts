@@ -2107,6 +2107,11 @@ export const ListAdminRentalsResponseItem = zod.object({
       "What the owner has actually been credited for this rental\n(sum of rental_payout entries). Zero while a rental is active\nor disputed and pending admin resolution.\n",
     ),
   platformFeeUsd: zod.number(),
+  frozenUsd: zod
+    .number()
+    .describe(
+      "Amount currently frozen pending admin resolution.\nNon-zero only for disputed rentals.\nEquals renterTotalUsd × usedRatio × (1 − deliveryRatio).\n",
+    ),
   status: zod.enum(["pending", "active", "completed", "cancelled", "disputed"]),
   startedAt: zod.coerce.date(),
   endsAt: zod.coerce.date(),

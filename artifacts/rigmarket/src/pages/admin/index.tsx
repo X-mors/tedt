@@ -764,7 +764,7 @@ export default function AdminDashboard() {
                           <div className="text-[10px] text-muted-foreground">of {formatMoney(r.ownerEarningsUsd)}</div>
                         ) : null}
                       </TableCell>
-                      <TableCell className="text-right font-mono text-primary">{formatMoney(r.platformFeeUsd)}</TableCell>
+                      <TableCell className="text-right font-mono text-primary text-[11px]">${r.platformFeeUsd.toFixed(5)}</TableCell>
                       <TableCell className="text-right">
                         <Badge variant="outline" className={`font-mono text-[10px] uppercase ${rentalStatusClass(r.status)}`}>{r.status}</Badge>
                       </TableCell>
@@ -1358,7 +1358,7 @@ export default function AdminDashboard() {
                 <div className="text-muted-foreground text-xs">Renter: {disputeRental.renterEmail}</div>
                 <div className="text-muted-foreground text-xs">Owner: {disputeRental.ownerEmail}</div>
                 <div className="pt-2">Renter paid: {formatMoney(disputeRental.netRenterPaidUsd)} of {formatMoney(disputeRental.renterTotalUsd)}</div>
-                <div className="text-xs text-yellow-500">Frozen pending decision: {formatMoney(disputeRental.netRenterPaidUsd)}</div>
+                <div className="text-xs text-yellow-500">Frozen pending decision: ${disputeRental.frozenUsd.toFixed(5)}</div>
               </div>
               <div className="space-y-2">
                 <Label className="font-mono text-xs">Admin note (optional)</Label>
@@ -1397,7 +1397,7 @@ export default function AdminDashboard() {
                       }
                     }}
                   >
-                    REFUND_RENTER (${disputeRental.netRenterPaidUsd.toFixed(4)})
+                    REFUND_RENTER (${disputeRental.frozenUsd.toFixed(5)})
                   </Button>
                 </div>
                 <div className="rounded-md border border-border/50 p-3 space-y-2">
@@ -1426,7 +1426,7 @@ export default function AdminDashboard() {
                       }
                     }}
                   >
-                    PAY_OWNER (${disputeRental.netRenterPaidUsd.toFixed(4)})
+                    PAY_OWNER (${disputeRental.frozenUsd.toFixed(5)})
                   </Button>
                 </div>
                 <div className="rounded-md border border-border/50 p-3 space-y-2">
@@ -1434,10 +1434,10 @@ export default function AdminDashboard() {
                   <p className="text-xs text-muted-foreground">
                     Refund part to the renter and pay the rest to the owner.
                     Enter the amount (USD) to refund the renter; the owner
-                    gets the remainder (after platform fee). Frozen total: ${disputeRental.netRenterPaidUsd.toFixed(4)}
+                    gets the remainder (after platform fee). Frozen total: ${disputeRental.frozenUsd.toFixed(5)}
                   </p>
                   {(() => {
-                    const frozen = disputeRental.netRenterPaidUsd;
+                    const frozen = disputeRental.frozenUsd;
                     const v = parseFloat(disputeSplitRenter);
                     const valid = Number.isFinite(v) && v >= 0 && v <= frozen + 1e-6;
                     const ownerGross = valid ? Math.max(0, frozen - v) : 0;
