@@ -84,6 +84,15 @@ export class DownstreamSession extends EventEmitter {
    *  fresh subscribe handshake. */
   private upstreamExtranonce1: string | null = null;
   /**
+   * The extranonce2_size that the upstream pool actually issued during
+   * mining.subscribe. Null until the first upstream subscribe completes.
+   * For legacy miners (legacyMode or no version-rolling) we must give the
+   * miner exactly this size so its extranonce2 matches the pool's expectation.
+   * Many modern pools issue extranonce2_size=8 even on plain SHA-256 ports;
+   * if we hardcode 4 the pool rejects every share (wrong coinbase length).
+   */
+  private upstreamExtranonce2Size: number | null = null;
+  /**
    * True when this session was accepted on the legacy SHA-256 listener (no
    * ASICBoost). Forces version-rolling OFF at mining.configure regardless of
    * what the miner asks, and constrains rigs to the legacy `sha256` algorithm.
@@ -301,7 +310,18 @@ export class DownstreamSession extends EventEmitter {
     //     share — when offered 8. Fall back to the universally-compatible
     //     4-byte default so plain SHA-256 listings keep working.
     const isModernAsicboostMiner = this.versionRollingMask !== null;
-    const sizeBytes = isModernAsicboostMiner ? 8 : 4;
+    // For legacy miners: use the pool-issued extranonce2_size if we already
+    // know it (i.e. on the second connect after a force-close). Many modern
+    // pools issue extranonce2_size=8 even on plain SHA-256 ports. If we
+    // hardcode 4 the miner sends 4-byte extranonce2 but the pool expects 8,
+    // causing every share to be rejected → hashrate shows 0 at the pool.
+    // For the very first connect (upstreamExtranonce2Size still null), fall
+    // back to 8 for modern miners and 4 for legacy; the pool's real size
+    // will be stored on first upstream subscribe and used from the next
+    // miner reconnect onwards.
+    const sizeBytes = isModernAsicboostMiner
+      ? 8
+      : (this.upstreamExtranonce2Size ?? 4);
     // For legacy miners: if the upstream is already connected and we know the
     // pool's extranonce1, give it to the miner directly. This avoids needing
     // mining.set_extranonce (which old firmware — S9, cgminer, bfgminer —
@@ -992,38 +1012,36 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
 
-    // Size mismatch is the lethal case for proxy miners: keep our negotiated
-    // size and only update extranonce1. If the upstream pool genuinely needs
-    // a different extranonce2_size, that's a configuration issue we surface
-    // via warning rather than silently breaking the miner.
-    if (extranonce2Size !== prevSize) {
-      logger.warn(
+    // Always record the pool's extranonce2_size so the next miner reconnect
+    // can hand it the correct value. This is critical for legacy (non-ASICBoost)
+    // miners: many modern SHA-256 pools issue extranonce2_size=8 even on their
+    // plain SHA-256 port. Without storing this, we'd keep handing the miner
+    // size=4, it would send 4-byte extranonce2, the pool would reject every
+    // share, and effective hashrate stays at 0.
+    if (extranonce2Size !== this.upstreamExtranonce2Size) {
+      logger.info(
         { rigId: this.rigId, source, prevSize, newSize: extranonce2Size },
-        "stratum:downstream upstream extranonce2_size changed — keeping miner-facing size to avoid disconnect",
+        "stratum:downstream upstream extranonce2_size updated",
       );
+      this.upstreamExtranonce2Size = extranonce2Size;
     }
 
     this.upstreamExtranonce1 = newExtranonce1;
     this.extranonce1 = newExtranonce1;
-    // Intentionally do NOT mutate this.extranonce2Size here.
 
     // Legacy miners (no version-rolling / versionRollingMask is null) run old
     // firmware (S9, generic cgminer/bfgminer) that silently ignores
-    // mining.set_extranonce. Sending it does nothing: the miner keeps hashing
-    // with the original extranonce1 prefix assigned during subscribe, so every
-    // share it submits has the wrong coinbase prefix from the pool's
-    // perspective → all shares rejected → zero hashrate.
-    //
-    // Fix: force-close the miner socket. On reconnect _handleSubscribe detects
-    // that upstreamExtranonce1 is already known and hands the correct prefix
-    // directly in the subscribe response — no mid-session update needed.
+    // mining.set_extranonce. Force-close any time extranonce1 OR
+    // extranonce2_size changed — on reconnect _handleSubscribe will hand the
+    // miner BOTH the correct extranonce1 (from upstreamExtranonce1) and the
+    // correct size (from upstreamExtranonce2Size), so the pool accepts shares.
     //
     // Modern AsicBoost miners (versionRollingMask != null) support
     // mining.set_extranonce reliably, so we keep the existing non-disruptive
-    // path for them.
+    // path for them (only forward if extranonce1 actually changed).
     if (this.versionRollingMask === null) {
       logger.info(
-        { rigId: this.rigId, source, prevExtranonce1, newExtranonce1 },
+        { rigId: this.rigId, source, prevExtranonce1, newExtranonce1, prevSize, newSize: extranonce2Size },
         "stratum:downstream legacy miner: upstream extranonce changed — force-closing for clean reconnect",
       );
       this._close();
