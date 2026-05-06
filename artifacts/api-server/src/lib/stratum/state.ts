@@ -73,6 +73,17 @@ class ProxyState {
   /** Last-known rig entry retained for `RIG_SNAPSHOT_TTL_MS` after disconnect
    *  so the owner UI does not flap to OFFLINE / 0 shares on transient drops. */
   private lastSeenRigEntries = new Map<number, RigSnapshot>();
+  /**
+   * Per-IP extranonce format hint.  When a miner disconnects after we learned
+   * the pool's extranonce1 byte-length and extranonce2_size, we store those
+   * values keyed by the miner's remote IP address.  On the next connection from
+   * the same IP we can generate our proxy-extranonce1 with the EXACT same byte
+   * length so that a later mining.set_extranonce only changes the VALUE (not the
+   * size), which almost all ASIC firmwares accept.  A size change in
+   * set_extranonce invalidates the coinbase template and most firmwares
+   * disconnect immediately when they receive it.
+   */
+  private extranonceHints = new Map<string, { e1ByteLen: number; e2size: number }>();
   /** Background GC handle — sweeps stale snapshots and idle fallback buffers. */
   private gcTimer: NodeJS.Timeout;
 
@@ -921,6 +932,25 @@ class ProxyState {
       parked.upstream.destroy();
       this.parkedFallbacks.delete(rigId);
     }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Per-IP extranonce format hints
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Persist the pool's extranonce format for a miner IP so future connections
+   * from the same machine can generate a proxy-extranonce1 of the correct byte
+   * length, avoiding size changes in subsequent set_extranonce calls.
+   */
+  storeExtranonceHint(ip: string, e1: string, e2size: number): void {
+    // e1 is a hex string; byte length = hex chars / 2.
+    this.extranonceHints.set(ip, { e1ByteLen: e1.length / 2, e2size });
+  }
+
+  /** Return the stored extranonce format hint for an IP, or null if unknown. */
+  getExtranonceHint(ip: string): { e1ByteLen: number; e2size: number } | null {
+    return this.extranonceHints.get(ip) ?? null;
   }
 }
 

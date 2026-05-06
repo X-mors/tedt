@@ -35,8 +35,9 @@ interface BufferedSubmit {
   handle: RecordedShare | null;
 }
 
-function makeExtranonce1(): string {
-  return randomBytes(4).toString("hex");
+/** Generate a random proxy-assigned extranonce1 of `byteLen` bytes (default 4). */
+function makeExtranonce1(byteLen = 4): string {
+  return randomBytes(byteLen).toString("hex");
 }
 
 export class DownstreamSession extends EventEmitter {
@@ -297,20 +298,26 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
     this.subscribed = true;
-    // Reply immediately with a proxy-assigned extranonce1.
-    // We CANNOT defer this reply because many ASIC firmwares (S9, cgminer,
-    // bfgminer) follow strict request-response ordering and wait for the
-    // subscribe reply before sending mining.authorize. Deferring it means the
-    // miner never reaches auth and the rig shows offline indefinitely.
+
+    // Reply immediately — we CANNOT defer because many ASIC firmwares (S9,
+    // cgminer, bfgminer) wait for the subscribe reply before sending authorize.
     //
-    // Strategy: reply now with a random extranonce1 + e2size=4.
-    // When the upstream pool responds with its real values, _applyUpstreamExtranonce
-    // sends mining.set_extranonce to update the miner. Modern miners accept this.
-    // Legacy miners that ignore set_extranonce will submit invalid shares briefly,
-    // but thanks to upstream parking the NEXT reconnect gives them the correct
-    // values immediately from the pool — breaking the force-close loop.
-    this.extranonce1 = makeExtranonce1();
-    this.extranonce2Size = 4;
+    // Key insight: mining.set_extranonce is safe when it changes only the VALUE
+    // of extranonce1 (same byte-length) and does not change extranonce2_size.
+    // ANY size change in set_extranonce invalidates the coinbase template and
+    // most firmwares disconnect. So we must use the correct byte-length and
+    // e2size in this subscribe reply to avoid size-changing set_extranonce later.
+    //
+    // We achieve this by storing a per-IP "extranonce format hint" each time a
+    // session closes after learning the pool's real extranonce format. On the
+    // very first connect (no hint) we default to 4B / e2size=4, accept one
+    // force-close, and from the second connect onwards the hint is accurate.
+    const remoteIp = this.socket.remoteAddress ?? "";
+    const hint = proxyState.getExtranonceHint(remoteIp);
+    const e1ByteLen = hint?.e1ByteLen ?? 4;
+    this.extranonce2Size = hint?.e2size ?? 4;
+    this.extranonce1 = makeExtranonce1(e1ByteLen);
+
     this._reply(msg.id, [
       [["mining.set_difficulty", `sub-diff-${this.msgIdCounter}`]],
       this.extranonce1,
@@ -318,7 +325,7 @@ export class DownstreamSession extends EventEmitter {
     ]);
     this._setDifficulty(this.currentDifficulty);
     logger.debug(
-      { rigId: this.rigId, e1: this.extranonce1 },
+      { rigId: this.rigId, e1: this.extranonce1, e2size: this.extranonce2Size, hintUsed: hint != null },
       "stratum:downstream subscribe acknowledged — awaiting upstream pool extranonce",
     );
   }
@@ -1022,9 +1029,7 @@ export class DownstreamSession extends EventEmitter {
     const prevExtranonce1 = this.extranonce1;
     const prevSize = this.extranonce2Size;
 
-    // Always track the upstream's real extranonce1 for use in share submission
-    // (we splice it into the coinbase prefix). This is separate from what the
-    // miner was told at subscribe time.
+    // Always track the pool's real extranonce1 for internal record-keeping.
     this.upstreamExtranonce1 = newExtranonce1;
 
     // No-op if nothing visible to the miner actually changed.
@@ -1036,19 +1041,39 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
 
+    // SAFETY CHECK: if the pool's extranonce1 byte-length or extranonce2_size
+    // differs from what we told the miner at subscribe time, sending
+    // set_extranonce would change the coinbase template length — nearly all ASIC
+    // firmwares disconnect immediately when this happens (Antminer S9 / S19,
+    // Whatsminer M30, etc.). Instead we store the pool's format as an IP hint
+    // and force-close so the miner reconnects. On the next connection the hint
+    // is used to generate a subscribe reply whose extranonce sizes already match
+    // the pool → set_extranonce will only change the VALUE (safe).
+    const ourE1ByteLen = prevExtranonce1.length / 2;
+    const poolE1ByteLen = newExtranonce1.length / 2;
+    if (poolE1ByteLen !== ourE1ByteLen || extranonce2Size !== prevSize) {
+      const remoteIp = this.socket.remoteAddress ?? "";
+      if (remoteIp) proxyState.storeExtranonceHint(remoteIp, newExtranonce1, extranonce2Size);
+      logger.info(
+        {
+          rigId: this.rigId, source,
+          ourE1ByteLen, poolE1ByteLen,
+          ourE2size: prevSize, poolE2size: extranonce2Size,
+          ip: remoteIp,
+        },
+        "stratum:downstream pool extranonce size mismatch — stored hint and force-closing for clean reconnect",
+      );
+      this._close();
+      return;
+    }
+
+    // Sizes match → only the VALUE of extranonce1 changed (safe for all firmwares).
     this.extranonce1 = newExtranonce1;
     this.extranonce2Size = extranonce2Size;
 
-    // Send mining.set_extranonce to update the miner with the pool's real values.
-    // Modern miners (ASICBoost) handle this reliably and start mining correctly.
-    // Legacy miners (S9, cgminer) may ignore it and submit shares with the wrong
-    // extranonce — the pool will reject them, eventually disconnecting the miner.
-    // On reconnect the miner claims the parked upstream which has the correct
-    // extranonce1 from the pool → subscribe reply uses pool's real values → mines.
-    // This one-cycle lag is acceptable and far better than a force-close loop.
     logger.info(
-      { rigId: this.rigId, source, prevExtranonce1, newExtranonce1, prevSize, newSize: extranonce2Size },
-      "stratum:downstream upstream extranonce changed — forwarding mining.set_extranonce",
+      { rigId: this.rigId, source, prevExtranonce1, newExtranonce1 },
+      "stratum:downstream upstream extranonce value changed — forwarding mining.set_extranonce (safe, same sizes)",
     );
     this._notify("mining.set_extranonce", [newExtranonce1, extranonce2Size]);
   }
@@ -1294,6 +1319,14 @@ export class DownstreamSession extends EventEmitter {
         .set({ isOnline: false })
         .where(eq(rigsTable.id, this.rigId));
     }
+    // Refresh the per-IP extranonce hint so the NEXT connect from this machine
+    // gets the correct e1 byte-length and e2size in the subscribe reply.
+    // We store it here (at natural close) AND at force-close in _applyUpstreamExtranonce.
+    if (this.upstreamExtranonce1 && this.rigId != null) {
+      const remoteIp = this.socket.remoteAddress ?? "";
+      if (remoteIp) proxyState.storeExtranonceHint(remoteIp, this.upstreamExtranonce1, this.extranonce2Size);
+    }
+
     if (this.upstream != null) {
       // Remove all downstream-specific listeners before parking so the parked
       // upstream doesn't invoke callbacks on this (soon-to-be-GC'd) session.
