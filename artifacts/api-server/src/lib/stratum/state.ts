@@ -68,6 +68,8 @@ class ProxyState {
   private fallbackWindows = new Map<number, ShareWindow>();
   /** Upstream pool connections kept alive during brief miner disconnects. */
   private parkedUpstreams = new Map<number, ParkedUpstream>();
+  /** Fallback upstream connections kept alive during brief miner disconnects (no rental). */
+  private parkedFallbacks = new Map<number, ParkedUpstream>();
   /** Last-known rig entry retained for `RIG_SNAPSHOT_TTL_MS` after disconnect
    *  so the owner UI does not flap to OFFLINE / 0 shares on transient drops. */
   private lastSeenRigEntries = new Map<number, RigSnapshot>();
@@ -116,6 +118,8 @@ class ProxyState {
     this.rigConnections.delete(rigId);
     this.lastSeenRigEntries.delete(rigId);
     this.fallbackWindows.delete(rigId);
+    const pf = this.parkedFallbacks.get(rigId);
+    if (pf) { clearTimeout(pf.timer); pf.upstream.destroy(); this.parkedFallbacks.delete(rigId); }
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -877,6 +881,46 @@ class ProxyState {
     clearTimeout(parked.timer);
     this.parkedUpstreams.delete(rentalId);
     return parked.upstream;
+  }
+
+  /**
+   * Park a fallback (no-rental) upstream for `rigId` during a miner reconnect
+   * grace period so the next session can reuse the stable extranonce without
+   * opening a new pool connection.
+   */
+  parkFallbackUpstream(rigId: number, upstream: UpstreamClient): void {
+    const existing = this.parkedFallbacks.get(rigId);
+    if (existing) {
+      clearTimeout(existing.timer);
+      existing.upstream.destroy();
+    }
+    const timer = setTimeout(() => {
+      this.parkedFallbacks.get(rigId)?.upstream.destroy();
+      this.parkedFallbacks.delete(rigId);
+    }, RECONNECT_GRACE_MS);
+    timer.unref();
+    this.parkedFallbacks.set(rigId, { upstream, timer });
+  }
+
+  /**
+   * Claim a parked fallback upstream. Returns null if none exists.
+   */
+  claimFallbackUpstream(rigId: number): UpstreamClient | null {
+    const parked = this.parkedFallbacks.get(rigId);
+    if (!parked) return null;
+    clearTimeout(parked.timer);
+    this.parkedFallbacks.delete(rigId);
+    return parked.upstream;
+  }
+
+  /** Remove a parked fallback upstream (call when rig reloads its pool config). */
+  removeParkedFallbackUpstream(rigId: number): void {
+    const parked = this.parkedFallbacks.get(rigId);
+    if (parked) {
+      clearTimeout(parked.timer);
+      parked.upstream.destroy();
+      this.parkedFallbacks.delete(rigId);
+    }
   }
 }
 

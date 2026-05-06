@@ -527,6 +527,16 @@ export class UpstreamClient extends EventEmitter {
     return this.currentDifficulty;
   }
 
+  /** The extranonce1 last issued by the pool for this upstream connection. */
+  getExtranonce1(): string | null {
+    return this.extranonce1;
+  }
+
+  /** The extranonce2_size last issued by the pool for this upstream connection. */
+  getExtranonce2Size(): number {
+    return this.extranonce2Size;
+  }
+
   /**
    * Forward the miner's preferred starting difficulty to the upstream pool
    * via mining.suggest_difficulty (Stratum extension). Fire-and-forget — the
