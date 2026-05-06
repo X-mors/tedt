@@ -1193,13 +1193,20 @@ router.post("/rentals/:id/cancel", async (req, res) => {
     const ownerPayout = round6(toNum(rental.ownerEarningsUsd) * usedRatio);
     const grossRefund = round6(toNum(rental.renterTotalUsd) * (1 - usedRatio));
 
-    // No cancellation penalty — the rig may have disconnected or the renter
-    // has a legitimate reason. Renter pays only the platform fee on the
-    // elapsed portion; unused time is fully refunded.
-    const renterRefund = grossRefund;
+    // Cancellation penalty: withheld from the renter for voluntarily ending
+    // the rental early (renter's choice, rig was delivering fine ≥ 95%).
+    // Calculated on the ELAPSED cost so it's proportional to service received.
+    // Penalty goes to the platform (added to platformFeeUsd).
+    // Disputed cancels (rig fault, delivery < 95%) never reach this path.
+    const c = await getCommission();
+    const cancelFeePct = Math.max(0, Math.min(100, c.cancellationFeePct));
+    const elapsedCost = round6(toNum(rental.renterTotalUsd) * usedRatio);
+    const cancelFee = round6(elapsedCost * (cancelFeePct / 100));
+    const renterRefund = round6(grossRefund - cancelFee);
 
-    // Set platformFeeUsd to actual earned: elapsed share of contracted fee only.
-    const actualFee = round6(toNum(rental.platformFeeUsd) * usedRatio);
+    // Set platformFeeUsd to actual earned: elapsed share of contracted fee
+    // plus the voluntary-cancel penalty.
+    const actualFee = round6(toNum(rental.platformFeeUsd) * usedRatio + cancelFee);
     await tx
       .update(rentalsTable)
       .set({ platformFeeUsd: toUsdString(actualFee) })
@@ -1221,7 +1228,9 @@ router.post("/rentals/:id/cancel", async (req, res) => {
           type: "rental_refund",
           amountUsd: refundStr,
           balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
-          memo: `Refund for cancelled rental #${rental.id} (used ${Math.round(usedRatio * 100)}% of booked time)`,
+          memo: cancelFee > 0
+            ? `Refund for cancelled rental #${rental.id} (used ${Math.round(usedRatio * 100)}% of booked time; $${cancelFee.toFixed(6)} cancellation fee at ${cancelFeePct}%)`
+            : `Refund for cancelled rental #${rental.id} (used ${Math.round(usedRatio * 100)}% of booked time)`,
           relatedRentalId: rental.id,
         });
       }
