@@ -60,6 +60,12 @@ export const rentalsTable = pgTable("rentals", {
     precision: 18,
     scale: 6,
   }),
+  // Amount frozen pending admin resolution. Set at dispute creation and used
+  // by resolve-dispute so the two steps are always consistent regardless of
+  // any later changes to deliveredHashrateAvg (e.g. from post-cancel flush).
+  frozenUsd: numeric("frozen_usd", { precision: 18, scale: 6 })
+    .notNull()
+    .default("0"),
   // Cumulative share counters persisted across server restarts so the renter's
   // live UI doesn't reset to 0 on deploys. Updated on each flush by adding
   // the delta from the in-memory rolling window.

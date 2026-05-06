@@ -58,7 +58,7 @@ import {
   UpdateCommissionConfigResponse,
 } from "@workspace/api-zod";
 import { requireAdmin } from "../lib/auth";
-import { round6, toNum, toUsdString, computeDeliveryRatio } from "../lib/money";
+import { round6, toNum, toUsdString } from "../lib/money";
 import { getCommission } from "../lib/commission";
 import { settleExpiredRentals } from "../lib/settlement";
 
@@ -698,8 +698,8 @@ router.get("/admin/rentals", async (_req, res) => {
       renterEmail: usersTable.email,
       ownerId: rentalsTable.ownerId,
       hashrate: rentalsTable.hashrate,
-      deliveredHashrateAvg: rentalsTable.deliveredHashrateAvg,
       hours: rentalsTable.hours,
+      frozenUsd: rentalsTable.frozenUsd,
       renterTotalUsd: rentalsTable.renterTotalUsd,
       ownerEarningsUsd: rentalsTable.ownerEarningsUsd,
       platformFeeUsd: rentalsTable.platformFeeUsd,
@@ -775,18 +775,7 @@ router.get("/admin/rentals", async (_req, res) => {
       ownerEarningsUsd: toNum(r.ownerEarningsUsd),
       netOwnerEarnedUsd: round6(payoutMap.get(r.id) ?? 0),
       platformFeeUsd: toNum(r.platformFeeUsd),
-      frozenUsd: (() => {
-        if (r.status !== "disputed") return 0;
-        const totalSec = (r.endsAt.getTime() - r.startedAt.getTime()) / 1000;
-        const cancelledAt = r.cancelledAt ?? new Date();
-        const usedSec = Math.max(
-          0,
-          Math.min(totalSec, (cancelledAt.getTime() - r.startedAt.getTime()) / 1000),
-        );
-        const usedRatio = totalSec > 0 ? usedSec / totalSec : 1;
-        const dr = computeDeliveryRatio(r.deliveredHashrateAvg, r.hashrate);
-        return round6(toNum(r.renterTotalUsd) * usedRatio * (1 - dr));
-      })(),
+      frozenUsd: toNum(r.frozenUsd),
       status: r.status,
       startedAt: r.startedAt.toISOString(),
       endsAt: r.endsAt.toISOString(),
@@ -1314,19 +1303,10 @@ router.post("/admin/rentals/:id/resolve-dispute", async (req, res) => {
       return { error: "not_disputed" as const };
     }
 
-    // Compute the frozen amount = renterTotal × usedRatio × (1 − deliveryRatio).
-    // The delivered portion was already paid to the owner at dispute time;
-    // only the shortfall remains for admin to award.
-    const totalSec =
-      (rental.endsAt.getTime() - rental.startedAt.getTime()) / 1000;
-    const cancelledAt = rental.cancelledAt ?? new Date();
-    const usedSec = Math.max(
-      0,
-      Math.min(totalSec, (cancelledAt.getTime() - rental.startedAt.getTime()) / 1000),
-    );
-    const usedRatio = totalSec > 0 ? usedSec / totalSec : 1;
-    const deliveryRatio = computeDeliveryRatio(rental.deliveredHashrateAvg, rental.hashrate);
-    const frozen = round6(toNum(rental.renterTotalUsd) * usedRatio * (1 - deliveryRatio));
+    // Use the frozen amount that was stored in the DB at dispute creation.
+    // This guarantees resolve-dispute and the original split are consistent
+    // even if deliveredHashrateAvg changed after the cancel (e.g. via flush).
+    const frozen = round6(toNum(rental.frozenUsd));
 
     // Decide how to split the frozen amount between renter (refund) and
     // owner (gross before fee). For "renter"/"owner" it's all-or-nothing;
@@ -1419,7 +1399,7 @@ router.post("/admin/rentals/:id/resolve-dispute", async (req, res) => {
       await tx
         .update(rentalsTable)
         .set({ platformFeeUsd: sql`${rentalsTable.platformFeeUsd} + ${toUsdString(platformShareFromFrozen)}` })
-        .where(eq(rentalsTable.id, id));
+        .where(eq(rentalsTable.id, rentalId));
     }
 
     return {
