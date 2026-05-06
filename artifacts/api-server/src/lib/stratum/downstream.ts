@@ -91,7 +91,6 @@ export class DownstreamSession extends EventEmitter {
    * them with set_extranonce, the miner keeps hashing with the wrong prefix and
    * the pool rejects every share → hashrate = 0.
    */
-  private pendingSubscribeMsgId: number | string | null = null;
   /**
    * True when this session was accepted on the legacy SHA-256 listener (no
    * ASICBoost). Forces version-rolling OFF at mining.configure regardless of
@@ -298,45 +297,29 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
     this.subscribed = true;
-    // Defer the subscribe reply: we do NOT guess extranonce values here.
-    // The reply is sent by _fulfillPendingSubscribe() once the upstream pool
-    // completes its own subscribe handshake and provides its real extranonce1
-    // and extranonce2_size. This is critical for all miner types:
-    //   • Legacy (S9, cgminer, bfgminer): silently ignores mining.set_extranonce.
-    //     Any wrong value given at subscribe time means every share uses the
-    //     wrong coinbase prefix → pool rejects all shares → hashrate = 0.
-    //   • Modern (ASICBoost): can accept mid-session set_extranonce, but
-    //     starting with the correct values avoids any extra reconnect cycle.
-    // Many miners send subscribe + authorize back-to-back without waiting for
-    // the subscribe reply, so deferring by ~1-3 s (pool connect time) is safe.
-    this.pendingSubscribeMsgId = msg.id;
-    logger.debug(
-      { rigId: this.rigId },
-      "stratum:downstream subscribe deferred — awaiting upstream pool extranonce",
-    );
-  }
-
-  /**
-   * Fulfil a deferred mining.subscribe reply with the pool's real extranonce
-   * values. Called either immediately (parked upstream claimed) or when the
-   * upstream pool's subscribe handshake completes.
-   */
-  private _fulfillPendingSubscribe(e1: string, e2size: number): void {
-    if (this.pendingSubscribeMsgId === null) return;
-    const msgId = this.pendingSubscribeMsgId;
-    this.pendingSubscribeMsgId = null;
-    this.extranonce1 = e1;
-    this.extranonce2Size = e2size;
-    this.upstreamExtranonce1 = e1;
-    this._reply(msgId, [
+    // Reply immediately with a proxy-assigned extranonce1.
+    // We CANNOT defer this reply because many ASIC firmwares (S9, cgminer,
+    // bfgminer) follow strict request-response ordering and wait for the
+    // subscribe reply before sending mining.authorize. Deferring it means the
+    // miner never reaches auth and the rig shows offline indefinitely.
+    //
+    // Strategy: reply now with a random extranonce1 + e2size=4.
+    // When the upstream pool responds with its real values, _applyUpstreamExtranonce
+    // sends mining.set_extranonce to update the miner. Modern miners accept this.
+    // Legacy miners that ignore set_extranonce will submit invalid shares briefly,
+    // but thanks to upstream parking the NEXT reconnect gives them the correct
+    // values immediately from the pool — breaking the force-close loop.
+    this.extranonce1 = makeExtranonce1();
+    this.extranonce2Size = 4;
+    this._reply(msg.id, [
       [["mining.set_difficulty", `sub-diff-${this.msgIdCounter}`]],
-      e1,
-      e2size,
+      this.extranonce1,
+      this.extranonce2Size,
     ]);
     this._setDifficulty(this.currentDifficulty);
-    logger.info(
-      { rigId: this.rigId, e1, e2size },
-      "stratum:downstream subscribe fulfilled with pool extranonce — miner can now mine correctly",
+    logger.debug(
+      { rigId: this.rigId, e1: this.extranonce1 },
+      "stratum:downstream subscribe acknowledged — awaiting upstream pool extranonce",
     );
   }
 
@@ -849,7 +832,7 @@ export class DownstreamSession extends EventEmitter {
       const e1 = claimed.getExtranonce1();
       const e2size = claimed.getExtranonce2Size();
       if (e1) {
-        this._fulfillPendingSubscribe(e1, e2size);
+        this._applyUpstreamExtranonce(e1, e2size, "parked-fallback-claimed");
         proxyState.setUpstreamConnected(rig.id, true);
         void this._flushSubmitBuffer();
       }
@@ -938,21 +921,22 @@ export class DownstreamSession extends EventEmitter {
       const e1 = claimed.getExtranonce1();
       const e2size = claimed.getExtranonce2Size();
       if (e1) {
-        // Fulfill the deferred subscribe reply now — no pool round-trip needed.
-        this._fulfillPendingSubscribe(e1, e2size);
+        // Pool's real extranonce is known immediately — update the miner now
+        // so it switches to the correct extranonce without waiting for pool events.
+        this._applyUpstreamExtranonce(e1, e2size, "parked-upstream-claimed");
         proxyState.setUpstreamConnected(this.rigId, true);
         void this._flushSubmitBuffer();
       }
       logger.info(
         { rigId: this.rigId, rentalId: rental.id, e1, e2size },
-        "stratum:downstream reused parked upstream — miner gets pool extranonce immediately",
+        "stratum:downstream reused parked upstream — miner updated with pool extranonce immediately",
       );
       return;
     }
 
     // No parked upstream: open a fresh connection. The pool will respond to
     // our mining.subscribe with its real extranonce1/extranonce2_size, which
-    // _applyUpstreamExtranonce will forward to _fulfillPendingSubscribe.
+    // _applyUpstreamExtranonce will then forward to the miner via set_extranonce.
     const upstream = new UpstreamClient(
       rental.poolUrl,
       rental.poolWorker,
@@ -1038,54 +1022,35 @@ export class DownstreamSession extends EventEmitter {
     const prevExtranonce1 = this.extranonce1;
     const prevSize = this.extranonce2Size;
 
-    // No-op if nothing visible to the miner actually changed. Sending a
-    // redundant mining.set_extranonce — especially one that flips
-    // extranonce2_size — destabilizes proxy miners (stratum-proxy/0.9.0
-    // disconnects on size change). The miner's extranonce1 was assigned
-    // locally by us at subscribe time; we do NOT forward upstream's value
-    // because we splice upstream's extranonce1 ourselves on submit.
+    // Always track the upstream's real extranonce1 for use in share submission
+    // (we splice it into the coinbase prefix). This is separate from what the
+    // miner was told at subscribe time.
+    this.upstreamExtranonce1 = newExtranonce1;
+
+    // No-op if nothing visible to the miner actually changed.
     if (newExtranonce1 === prevExtranonce1 && extranonce2Size === prevSize) {
-      this.upstreamExtranonce1 = newExtranonce1;
       logger.debug(
         { rigId: this.rigId, source, extranonce2Size },
-        "stratum:downstream upstream extranonce unchanged — skipping set_extranonce",
+        "stratum:downstream upstream extranonce unchanged — no set_extranonce needed",
       );
       return;
     }
 
-    this.upstreamExtranonce1 = newExtranonce1;
     this.extranonce1 = newExtranonce1;
     this.extranonce2Size = extranonce2Size;
 
-    // Case A: the miner's subscribe reply is still pending (first upstream
-    // subscribe of this session, or upstream reconnected before subscribe was
-    // fulfilled). Send the subscribe reply now with the pool's real values.
-    // This eliminates the force-close/reconnect cycle that previously caused
-    // "device online but hashrate 0" because the miner was continuously
-    // disconnected before it could submit any work.
-    if (this.pendingSubscribeMsgId !== null) {
-      this._fulfillPendingSubscribe(newExtranonce1, extranonce2Size);
-      return;
-    }
-
-    // Case B: mid-session extranonce change (upstream reconnected to pool).
-    // Modern AsicBoost miners support mining.set_extranonce reliably.
-    // Legacy miners don't — force-close so they reconnect and pick up the
-    // new values from the deferred subscribe reply on the next session.
-    if (this.versionRollingMask === null) {
-      logger.info(
-        { rigId: this.rigId, source, prevExtranonce1, newExtranonce1, prevSize, newSize: extranonce2Size },
-        "stratum:downstream legacy miner: mid-session upstream extranonce changed — force-closing for clean reconnect",
-      );
-      this._close();
-      return;
-    }
-
-    logger.debug(
-      { rigId: this.rigId, source, prevExtranonce1, newExtranonce1 },
+    // Send mining.set_extranonce to update the miner with the pool's real values.
+    // Modern miners (ASICBoost) handle this reliably and start mining correctly.
+    // Legacy miners (S9, cgminer) may ignore it and submit shares with the wrong
+    // extranonce — the pool will reject them, eventually disconnecting the miner.
+    // On reconnect the miner claims the parked upstream which has the correct
+    // extranonce1 from the pool → subscribe reply uses pool's real values → mines.
+    // This one-cycle lag is acceptable and far better than a force-close loop.
+    logger.info(
+      { rigId: this.rigId, source, prevExtranonce1, newExtranonce1, prevSize, newSize: extranonce2Size },
       "stratum:downstream upstream extranonce changed — forwarding mining.set_extranonce",
     );
-    this._notify("mining.set_extranonce", [newExtranonce1, this.extranonce2Size]);
+    this._notify("mining.set_extranonce", [newExtranonce1, extranonce2Size]);
   }
 
   private async _flushSubmitBuffer(): Promise<void> {
