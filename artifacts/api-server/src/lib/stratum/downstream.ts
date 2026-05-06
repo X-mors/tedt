@@ -959,11 +959,31 @@ export class DownstreamSession extends EventEmitter {
       const e1 = claimed.getExtranonce1();
       const e2size = claimed.getExtranonce2Size();
       if (e1) {
-        // Pool's real extranonce is known immediately — update the miner now
-        // so it switches to the correct extranonce without waiting for pool events.
         this._applyUpstreamExtranonce(e1, e2size, "parked-upstream-claimed");
+        // _applyUpstreamExtranonce may have force-closed (size mismatch).
+        if (this.destroyed) return;
         proxyState.setUpstreamConnected(this.rigId, true);
         void this._flushSubmitBuffer();
+        // Re-send pool's current difficulty (subscribe sent default=1).
+        const poolDiff = claimed.getCurrentDifficulty();
+        if (poolDiff !== this.currentDifficulty) {
+          this._setDifficulty(poolDiff);
+        }
+        // Send buffered job immediately so miner doesn't disconnect waiting.
+        const lastJob = claimed.getLastJob();
+        if (lastJob) {
+          this.lastJobId = Array.isArray(lastJob) ? String(lastJob[0]) : null;
+          this._notify("mining.notify", lastJob);
+          logger.info(
+            { rigId: this.rigId, rentalId: rental.id, jobId: this.lastJobId, poolDiff },
+            "stratum:downstream sent buffered job to miner after parked upstream claim",
+          );
+        } else {
+          logger.info(
+            { rigId: this.rigId, rentalId: rental.id },
+            "stratum:downstream no buffered job yet — miner will receive next pool notify",
+          );
+        }
       }
       logger.info(
         { rigId: this.rigId, rentalId: rental.id, e1, e2size },
