@@ -33,6 +33,8 @@ const stratumServer = new StratumServer(stratumPort);
 const stratumLegacyServer = new StratumServer(stratumLegacyPort, {
   legacyMode: true,
   startFlushLoop: false,
+  tlsCertPath: process.env["STRATUM_TLS_CERT"] ?? undefined,
+  tlsKeyPath: process.env["STRATUM_TLS_KEY"] ?? undefined,
 });
 
 if (!process.env["NOWPAYMENTS_API_KEY"]) {

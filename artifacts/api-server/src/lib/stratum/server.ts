@@ -1,4 +1,6 @@
 import * as net from "node:net";
+import * as tls from "node:tls";
+import * as fs from "node:fs";
 import { and, eq, gte, sql } from "drizzle-orm";
 import {
   db,
@@ -42,17 +44,37 @@ export class StratumServer {
    */
   constructor(
     private readonly port: number,
-    options: { legacyMode?: boolean; startFlushLoop?: boolean } = {},
+    options: {
+      legacyMode?: boolean;
+      startFlushLoop?: boolean;
+      tlsCertPath?: string;
+      tlsKeyPath?: string;
+    } = {},
   ) {
     this.legacyMode = options.legacyMode === true;
     const startFlushLoop = options.startFlushLoop !== false;
-    this.tcpServer = net.createServer((socket: net.Socket) => {
+
+    const onSocket = (socket: net.Socket) => {
       logger.info(
         { remoteAddress: socket.remoteAddress, legacyMode: this.legacyMode },
         "stratum:server new connection",
       );
       new DownstreamSession(socket, { legacyMode: this.legacyMode });
-    });
+    };
+
+    if (options.tlsCertPath && options.tlsKeyPath) {
+      try {
+        const cert = fs.readFileSync(options.tlsCertPath);
+        const key = fs.readFileSync(options.tlsKeyPath);
+        this.tcpServer = tls.createServer({ cert, key }, onSocket);
+        logger.info({ port, legacyMode: this.legacyMode }, "stratum:server using TLS");
+      } catch (err) {
+        logger.warn({ err, port }, "stratum:server failed to load TLS cert/key — falling back to plain TCP");
+        this.tcpServer = net.createServer(onSocket);
+      }
+    } else {
+      this.tcpServer = net.createServer(onSocket);
+    }
 
     this.tcpServer.on("error", (err: Error) => {
       logger.error({ err, legacyMode: this.legacyMode }, "stratum:server TCP error");
