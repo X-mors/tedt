@@ -1053,6 +1053,10 @@ export class DownstreamSession extends EventEmitter {
     const poolE1ByteLen = newExtranonce1.length / 2;
     if (poolE1ByteLen !== ourE1ByteLen || extranonce2Size !== prevSize) {
       const remoteIp = this.socket.remoteAddress ?? "";
+      // Update our size fields to the POOL's real values NOW so that _onClose
+      // stores the correct hint (it reads this.extranonce2Size).  We don't
+      // update extranonce1 here because the miner was never told the new value.
+      this.extranonce2Size = extranonce2Size;
       if (remoteIp) proxyState.storeExtranonceHint(remoteIp, newExtranonce1, extranonce2Size);
       logger.info(
         {
