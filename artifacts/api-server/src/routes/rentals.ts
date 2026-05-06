@@ -1048,13 +1048,11 @@ router.post("/rentals/:id/cancel", async (req, res) => {
     return;
   }
 
-  // Threshold: at-or-above this delivery ratio we treat the rig as fully
-  // performant and settle on time-used alone (renter pays only for elapsed
-  // hours, owner is credited for elapsed hours). Below it we FREEZE funds
-  // and route the dispute to an admin — the user is not auto-refunded and
-  // the owner is not auto-paid, because either party may legitimately be
-  // owed more or less than a naive proportional split.
-  const FULL_DELIVERY_THRESHOLD = 0.95;
+  // Threshold: loaded from admin commission config (default 95%).
+  // At-or-above this delivery ratio we treat the rig as fully performant.
+  // Below it we FREEZE funds and route the dispute to an admin.
+  const commissionForCancel = await getCommission();
+  const FULL_DELIVERY_THRESHOLD = commissionForCancel.deliveryThresholdPct / 100;
 
   await db.transaction(async (tx) => {
     const now = new Date();

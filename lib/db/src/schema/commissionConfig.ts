@@ -2,10 +2,10 @@ import {
   pgTable,
   serial,
   numeric,
+  integer,
   timestamp,
 } from "drizzle-orm/pg-core";
 
-// Singleton row (id = 1) holding marketplace commission percentages.
 export const commissionConfigTable = pgTable("commission_config", {
   id: serial("id").primaryKey(),
   renterFeePct: numeric("renter_fee_pct", { precision: 6, scale: 3 })
@@ -17,6 +17,12 @@ export const commissionConfigTable = pgTable("commission_config", {
   cancellationFeePct: numeric("cancellation_fee_pct", { precision: 6, scale: 3 })
     .notNull()
     .default("0"),
+  deliveryThresholdPct: numeric("delivery_threshold_pct", { precision: 5, scale: 2 })
+    .notNull()
+    .default("95"),
+  rigOfflineTerminateMins: integer("rig_offline_terminate_mins")
+    .notNull()
+    .default(30),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow()
