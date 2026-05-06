@@ -104,9 +104,17 @@ export class DownstreamSession extends EventEmitter {
    * and for dual-key hint storage at close time.
    */
   private readonly remoteIp: string;
-  constructor(private readonly socket: net.Socket, opts: { legacyMode?: boolean } = {}) {
+  /**
+   * The Stratum TCP port this session was accepted on.
+   * Used to scope IP-based extranonce hints per-port so that miners on
+   * different algorithm ports (e.g. 3333 ASICBoost vs 3334 legacy SHA-256)
+   * never overwrite each other's hint even when sharing the same public IP.
+   */
+  private readonly stratumPort: number;
+  constructor(private readonly socket: net.Socket, opts: { legacyMode?: boolean; port?: number } = {}) {
     super();
     this.legacyMode = opts.legacyMode === true;
+    this.stratumPort = opts.port ?? 0;
     this.remoteIp = socket.remoteAddress ?? "";
     socket.setEncoding("utf8");
     // 10-min idle timeout — tolerates high-difficulty pools that produce only
@@ -314,7 +322,7 @@ export class DownstreamSession extends EventEmitter {
     // VALUE-mismatch guard in _completeAuth catches that and force-closes the
     // "wrong-hint" rig immediately — converges in at most one extra reconnect
     // cycle per rig, with no set_extranonce ever sent to the miner.
-    const hint = this.remoteIp ? proxyState.getExtranonceHintByIp(this.remoteIp) : null;
+    const hint = this.remoteIp ? proxyState.getExtranonceHintByIp(this.remoteIp, this.stratumPort) : null;
     this.extranonce2Size = hint?.e2size ?? 4;
     this.extranonce1 = hint?.e1 ?? makeExtranonce1(4);
     this._reply(msg.id, [
@@ -609,7 +617,7 @@ export class DownstreamSession extends EventEmitter {
     ) {
       // Store the correct hint for this rig before closing so the IP key is
       // updated and the next reconnect wins immediately.
-      proxyState.storeExtranonceHint(rig.id, this.remoteIp || null, rigHint.e1, rigHint.e2size);
+      proxyState.storeExtranonceHint(rig.id, this.remoteIp || null, rigHint.e1, rigHint.e2size, this.stratumPort);
       logger.info(
         { rigId: rig.id, sentE1: this.extranonce1, correctE1: rigHint.e1 },
         "stratum:downstream extranonce value mismatch after auth (IP hint conflict) — force-closing for clean reconnect",
@@ -1119,7 +1127,7 @@ export class DownstreamSession extends EventEmitter {
     // reply and starts mining with the correct extranonce immediately.
     this.extranonce2Size = extranonce2Size;
     if (this.rigId != null) {
-      proxyState.storeExtranonceHint(this.rigId, this.remoteIp || null, newExtranonce1, extranonce2Size);
+      proxyState.storeExtranonceHint(this.rigId, this.remoteIp || null, newExtranonce1, extranonce2Size, this.stratumPort);
     }
     logger.info(
       {
@@ -1379,7 +1387,7 @@ export class DownstreamSession extends EventEmitter {
     // subscribe-time lookup also returns the right hint for THIS rig on its
     // next reconnect (before rigId is known again).
     if (this.upstreamExtranonce1 && this.rigId != null) {
-      proxyState.storeExtranonceHint(this.rigId, this.remoteIp || null, this.upstreamExtranonce1, this.extranonce2Size);
+      proxyState.storeExtranonceHint(this.rigId, this.remoteIp || null, this.upstreamExtranonce1, this.extranonce2Size, this.stratumPort);
     }
 
     if (this.upstream != null) {
