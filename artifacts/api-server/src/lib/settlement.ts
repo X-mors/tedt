@@ -184,6 +184,8 @@ export async function settleExpiredDisputes(): Promise<number> {
       startedAt: rentalsTable.startedAt,
       endsAt: rentalsTable.endsAt,
       cancelledAt: rentalsTable.cancelledAt,
+      deliveredHashrateAvg: rentalsTable.deliveredHashrateAvg,
+      hashrate: rentalsTable.hashrate,
     })
     .from(rentalsTable)
     .where(
@@ -219,7 +221,10 @@ export async function settleExpiredDisputes(): Promise<number> {
         Math.min(totalSec, (cancelledAt.getTime() - r.startedAt.getTime()) / 1000),
       );
       const usedRatio = totalSec > 0 ? usedSec / totalSec : 1;
-      const frozenRefund = round6(toNum(r.renterTotalUsd) * usedRatio);
+      // Owner was already paid the delivered portion at dispute time.
+      // Only the frozen shortfall (undelivered share) is returned to renter.
+      const deliveryRatio = computeDeliveryRatio(r.deliveredHashrateAvg, r.hashrate);
+      const frozenRefund = round6(toNum(r.renterTotalUsd) * usedRatio * (1 - deliveryRatio));
 
       if (frozenRefund > 0) {
         const refundStr = toUsdString(frozenRefund);

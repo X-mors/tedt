@@ -1086,14 +1086,13 @@ router.post("/rentals/:id/cancel", async (req, res) => {
       .where(eq(rigsTable.id, rental.rigId));
 
     if (isDisputed) {
-      // Two-bucket dispute model:
-      //   • Unused-time portion: NOT in dispute — refund the renter
-      //     immediately. They never received service for that time.
-      //   • Used-time portion: FROZEN. Admin has 24h to award it to either
-      //     party. Auto-resolves in renter's favour (full refund of the
-      //     frozen amount) if no admin action by then.
-      // Owner is NEVER auto-paid on a dispute — they receive funds only
-      // after explicit admin approval.
+      // Three-bucket dispute model:
+      //   1. Unused-time portion → refund to renter immediately (undisputed).
+      //   2. Delivered portion of elapsed time → pay owner immediately.
+      //      The owner did provide this service; it is not in dispute.
+      //   3. Undelivered portion of elapsed time → FROZEN. Admin has 24h to
+      //      award it to either party. Auto-resolves in renter's favour if
+      //      no admin action by then.
       const totalSecondsD =
         (rental.endsAt.getTime() - rental.startedAt.getTime()) / 1000;
       const usedSecondsD = Math.max(
@@ -1102,7 +1101,10 @@ router.post("/rentals/:id/cancel", async (req, res) => {
       );
       const usedRatioD = totalSecondsD > 0 ? usedSecondsD / totalSecondsD : 1;
       const unusedRefund = round6(toNum(rental.renterTotalUsd) * (1 - usedRatioD));
-      const frozenAmount = round6(toNum(rental.renterTotalUsd) * usedRatioD);
+      // Owner earned deliveryRatio of the elapsed portion — pay immediately.
+      const ownerDeliveredPayout = round6(toNum(rental.ownerEarningsUsd) * usedRatioD * deliveryRatio);
+      // Only the shortfall (undelivered share of elapsed cost) is in dispute.
+      const frozenAmount = round6(toNum(rental.renterTotalUsd) * usedRatioD * (1 - deliveryRatio));
 
       if (unusedRefund > 0) {
         const refundStr = toUsdString(unusedRefund);
@@ -1126,16 +1128,39 @@ router.post("/rentals/:id/cancel", async (req, res) => {
         }
       }
 
+      // Pay owner the portion they genuinely delivered (undisputed).
+      if (ownerDeliveredPayout > 0) {
+        const payoutStr = toUsdString(ownerDeliveredPayout);
+        const [credited] = await tx
+          .update(usersTable)
+          .set({
+            balanceUsd: sql`${usersTable.balanceUsd} + ${payoutStr}`,
+            totalEarnedUsd: sql`${usersTable.totalEarnedUsd} + ${payoutStr}`,
+          })
+          .where(eq(usersTable.id, rental.ownerId))
+          .returning({ balanceUsd: usersTable.balanceUsd });
+        if (credited) {
+          await tx.insert(walletTransactionsTable).values({
+            userId: rental.ownerId,
+            type: "rental_payout",
+            amountUsd: payoutStr,
+            balanceAfterUsd: toUsdString(round6(toNum(credited.balanceUsd))),
+            memo: `Delivered-portion payout for disputed rental #${rental.id} (${Math.round(deliveryRatio * 100)}% delivered × ${Math.round(usedRatioD * 100)}% elapsed)`,
+            relatedRentalId: rental.id,
+          });
+        }
+      }
+
       // Audit-only marker for the frozen amount. The renter's balance is NOT
-      // touched here — the funds were already debited when the rental
-      // started. This entry just documents what is on hold pending admin
-      // review (or auto-release in 24h).
+      // touched here — funds were already debited when the rental started.
+      // This entry documents what is on hold pending admin review (or
+      // auto-release to renter in 24h).
       await tx.insert(walletTransactionsTable).values({
         userId: rental.renterId,
         type: "rental_dispute",
         amountUsd: "0.000000",
         balanceAfterUsd: toUsdString(0),
-        memo: `Frozen $${frozenAmount.toFixed(6)} pending admin review — delivered ${Math.round(deliveryRatio * 100)}% of advertised hashrate (below ${Math.round(FULL_DELIVERY_THRESHOLD * 100)}% threshold). Auto-refunds to renter in 24h if unresolved.`,
+        memo: `Frozen $${frozenAmount.toFixed(6)} pending admin review — delivered ${Math.round(deliveryRatio * 100)}% of advertised hashrate (below ${Math.round(FULL_DELIVERY_THRESHOLD * 100)}% threshold). Owner received delivered portion ($${ownerDeliveredPayout.toFixed(6)}). Auto-refunds to renter in 24h if unresolved.`,
         relatedRentalId: rental.id,
       });
       return;

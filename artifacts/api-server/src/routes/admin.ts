@@ -58,7 +58,7 @@ import {
   UpdateCommissionConfigResponse,
 } from "@workspace/api-zod";
 import { requireAdmin } from "../lib/auth";
-import { round6, toNum, toUsdString } from "../lib/money";
+import { round6, toNum, toUsdString, computeDeliveryRatio } from "../lib/money";
 import { getCommission } from "../lib/commission";
 import { settleExpiredRentals } from "../lib/settlement";
 
@@ -1301,7 +1301,9 @@ router.post("/admin/rentals/:id/resolve-dispute", async (req, res) => {
       return { error: "not_disputed" as const };
     }
 
-    // Compute the frozen amount = renterTotal × usedRatio at cancel time.
+    // Compute the frozen amount = renterTotal × usedRatio × (1 − deliveryRatio).
+    // The delivered portion was already paid to the owner at dispute time;
+    // only the shortfall remains for admin to award.
     const totalSec =
       (rental.endsAt.getTime() - rental.startedAt.getTime()) / 1000;
     const cancelledAt = rental.cancelledAt ?? new Date();
@@ -1310,7 +1312,8 @@ router.post("/admin/rentals/:id/resolve-dispute", async (req, res) => {
       Math.min(totalSec, (cancelledAt.getTime() - rental.startedAt.getTime()) / 1000),
     );
     const usedRatio = totalSec > 0 ? usedSec / totalSec : 1;
-    const frozen = round6(toNum(rental.renterTotalUsd) * usedRatio);
+    const deliveryRatio = computeDeliveryRatio(rental.deliveredHashrateAvg, rental.hashrate);
+    const frozen = round6(toNum(rental.renterTotalUsd) * usedRatio * (1 - deliveryRatio));
 
     // Decide how to split the frozen amount between renter (refund) and
     // owner (gross before fee). For "renter"/"owner" it's all-or-nothing;
