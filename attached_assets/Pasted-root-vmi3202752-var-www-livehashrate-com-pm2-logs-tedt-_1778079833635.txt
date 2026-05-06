@@ -1,0 +1,138 @@
+root@vmi3202752:/var/www/livehashrate.com# pm2 logs tedt-api --lines 500 --nostream 2>&1 | grep -E "stra
+tum|extranonce|hint|mismatch|force-clos|subscribe|authorize|closing" | tail -50
+0|tedt-api | {"level":30,"time":1778078682673,"pid":494398,"hostname":"vmi3202752","rigId":10,"source":"
+parked-fallback-claimed","prevExtranonce1":"103c0f53","newExtranonce1":"112126e506253d756e","prevSize":4
+,"newSize":3,"msg":"stratum:downstream upstream extranonce changed — forwarding mining.set_extranonce"}
+0|tedt-api | {"level":30,"time":1778078682673,"pid":494398,"hostname":"vmi3202752","rigId":10,"poolUrl":
+"stratum+tcp://sha256.auto.nicehash.com:9200","worker":"NHbXfCSmmb7ubzWHqmEY7eT97kxXSjzLU7p1.003","msg":
+"stratum:downstream reused parked fallback upstream — miner gets pool extranonce immediately"}
+0|tedt-api | {"level":30,"time":1778078688014,"pid":494398,"hostname":"vmi3202752","rigId":10,"rentalId"
+:null,"pendingBuffered":0,"msSinceLastData":5427,"wasAuthorized":true,"wasFallback":true,"upstreamReady"
+:true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778078688015,"pid":494398,"hostname":"vmi3202752","rigId":10,"msg":"str
+atum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778078748019,"pid":494398,"hostname":"vmi3202752","rentalId":0,"msg":"s
+tratum:upstream closed"}
+0|tedt-api | {"level":30,"time":1778079255643,"pid":495843,"hostname":"vmi3202752","port":3333,"legacyMo
+de":false,"msg":"stratum:server listening"}
+0|tedt-api | {"level":50,"time":1778079255643,"pid":495843,"hostname":"vmi3202752","err":{"type":"Error"
+,"message":"listen EADDRINUSE: address already in use 0.0.0.0:3334","stack":"Error: listen EADDRINUSE: a
+ddress already in use 0.0.0.0:3334\n    at Server.setupListenHandle [as _listen2] (node:net:2008:16)\n
+  at listenInCluster (node:net:2065:12)\n    at node:net:2274:7\n    at process.processTicksAndRejection
+s (node:internal/process/task_queues:90:21)","code":"EADDRINUSE","errno":-98,"syscall":"listen","address
+":"0.0.0.0","port":3334},"legacyMode":true,"msg":"stratum:server TCP error"}
+0|tedt-api | {"level":30,"time":1778079299742,"pid":495843,"hostname":"vmi3202752","remoteAddress":"165.
+227.153.169","legacyMode":false,"msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1778079300786,"pid":495843,"hostname":"vmi3202752","rigId":10,"rentalId"
+:null,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778079300790,"pid":495843,"hostname":"vmi3202752","rigId":10,"poolUrl":
+"stratum+tcp://sha256.auto.nicehash.com:9200","worker":"NHbXfCSmmb7ubzWHqmEY7eT97kxXSjzLU7p1.003","msg":
+"stratum:downstream connecting to owner fallback pool"}
+0|tedt-api | {"level":30,"time":1778079300837,"pid":495843,"hostname":"vmi3202752","rentalId":0,"host":"
+sha256.auto.nicehash.com","candidates":["34.111.151.233","2600:1901:0:bd25::"],"port":9200,"msg":"stratu
+m:upstream connecting (racing all addresses)"}
+0|tedt-api | {"level":30,"time":1778079300894,"pid":495843,"hostname":"vmi3202752","rigId":10,"source":"
+subscribed","ourE1ByteLen":4,"poolE1ByteLen":9,"ourE2size":4,"poolE2size":3,"ip":"165.227.153.169","msg"
+:"stratum:downstream pool extranonce size mismatch — stored hint and force-closing for clean reconnect"}
+0|tedt-api | {"level":30,"time":1778079300908,"pid":495843,"hostname":"vmi3202752","rigId":10,"rentalId"
+:null,"pendingBuffered":0,"msSinceLastData":163,"wasAuthorized":true,"wasFallback":true,"upstreamReady":
+true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778079300909,"pid":495843,"hostname":"vmi3202752","rigId":10,"msg":"str
+atum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778079300920,"pid":495843,"hostname":"vmi3202752","rentalId":0,"worker"
+:"NHbXfCSmmb7ubzWHqmEY7eT97kxXSjzLU7p1.003","msg":"stratum:upstream pool auth OK"}
+0|tedt-api | {"level":30,"time":1778079342045,"pid":495843,"hostname":"vmi3202752","remoteAddress":"165.
+227.153.169","legacyMode":false,"msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1778079342902,"pid":495843,"hostname":"vmi3202752","rigId":10,"rentalId"
+:null,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778079342904,"pid":495843,"hostname":"vmi3202752","rigId":10,"source":"
+parked-fallback-claimed","ourE1ByteLen":9,"poolE1ByteLen":9,"ourE2size":4,"poolE2size":3,"ip":"165.227.1
+53.169","msg":"stratum:downstream pool extranonce size mismatch — stored hint and force-closing for clea
+n reconnect"}
+0|tedt-api | {"level":30,"time":1778079342904,"pid":495843,"hostname":"vmi3202752","rigId":10,"poolUrl":
+"stratum+tcp://sha256.auto.nicehash.com:9200","worker":"NHbXfCSmmb7ubzWHqmEY7eT97kxXSjzLU7p1.003","msg":
+"stratum:downstream reused parked fallback upstream — miner gets pool extranonce immediately"}
+0|tedt-api | {"level":30,"time":1778079342905,"pid":495843,"hostname":"vmi3202752","rigId":10,"rentalId"
+:null,"pendingBuffered":0,"msSinceLastData":40,"wasAuthorized":true,"wasFallback":true,"upstreamReady":t
+rue,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778079342905,"pid":495843,"hostname":"vmi3202752","rigId":10,"msg":"str
+atum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778079402044,"pid":495843,"hostname":"vmi3202752","remoteAddress":"165.
+227.153.169","legacyMode":false,"msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1778079402589,"pid":495843,"hostname":"vmi3202752","rigId":10,"rentalId"
+:null,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778079402594,"pid":495843,"hostname":"vmi3202752","rigId":10,"source":"
+parked-fallback-claimed","ourE1ByteLen":9,"poolE1ByteLen":9,"ourE2size":4,"poolE2size":3,"ip":"165.227.1
+53.169","msg":"stratum:downstream pool extranonce size mismatch — stored hint and force-closing for clea
+n reconnect"}
+0|tedt-api | {"level":30,"time":1778079402595,"pid":495843,"hostname":"vmi3202752","rigId":10,"poolUrl":
+"stratum+tcp://sha256.auto.nicehash.com:9200","worker":"NHbXfCSmmb7ubzWHqmEY7eT97kxXSjzLU7p1.003","msg":
+"stratum:downstream reused parked fallback upstream — miner gets pool extranonce immediately"}
+0|tedt-api | {"level":30,"time":1778079402595,"pid":495843,"hostname":"vmi3202752","rigId":10,"rentalId"
+:null,"pendingBuffered":0,"msSinceLastData":54,"wasAuthorized":true,"wasFallback":true,"upstreamReady":t
+rue,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778079402595,"pid":495843,"hostname":"vmi3202752","rigId":10,"msg":"str
+atum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778079462613,"pid":495843,"hostname":"vmi3202752","rentalId":0,"msg":"s
+tratum:upstream closed"}
+0|tedt-api | {"level":30,"time":1778079657190,"pid":496534,"hostname":"vmi3202752","port":3333,"legacyMo
+de":false,"msg":"stratum:server listening"}
+0|tedt-api | {"level":50,"time":1778079657190,"pid":496534,"hostname":"vmi3202752","err":{"type":"Error"
+,"message":"listen EADDRINUSE: address already in use 0.0.0.0:3334","stack":"Error: listen EADDRINUSE: a
+ddress already in use 0.0.0.0:3334\n    at Server.setupListenHandle [as _listen2] (node:net:2008:16)\n
+  at listenInCluster (node:net:2065:12)\n    at node:net:2274:7\n    at process.processTicksAndRejection
+s (node:internal/process/task_queues:90:21)","code":"EADDRINUSE","errno":-98,"syscall":"listen","address
+":"0.0.0.0","port":3334},"legacyMode":true,"msg":"stratum:server TCP error"}
+0|tedt-api | {"level":30,"time":1778079707563,"pid":496534,"hostname":"vmi3202752","remoteAddress":"165.
+227.153.169","legacyMode":false,"msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1778079708499,"pid":496534,"hostname":"vmi3202752","rigId":10,"rentalId"
+:null,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778079708501,"pid":496534,"hostname":"vmi3202752","rigId":10,"poolUrl":
+"stratum+tcp://sha256.auto.nicehash.com:9200","worker":"NHbXfCSmmb7ubzWHqmEY7eT97kxXSjzLU7p1.003","msg":
+"stratum:downstream connecting to owner fallback pool"}
+0|tedt-api | {"level":30,"time":1778079708512,"pid":496534,"hostname":"vmi3202752","rentalId":0,"host":"
+sha256.auto.nicehash.com","candidates":["34.111.151.233","2600:1901:0:bd25::"],"port":9200,"msg":"stratu
+m:upstream connecting (racing all addresses)"}
+0|tedt-api | {"level":30,"time":1778079708526,"pid":496534,"hostname":"vmi3202752","remoteAddress":"165.
+227.153.169","legacyMode":false,"msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1778079708539,"pid":496534,"hostname":"vmi3202752","rigId":10,"source":"
+subscribed","ourE1ByteLen":4,"poolE1ByteLen":9,"ourE2size":4,"poolE2size":3,"ip":"165.227.153.169","msg"
+:"stratum:downstream pool extranonce size mismatch — stored hint and force-closing for clean reconnect"}
+0|tedt-api | {"level":30,"time":1778079708539,"pid":496534,"hostname":"vmi3202752","rigId":10,"rentalId"
+:null,"pendingBuffered":0,"msSinceLastData":70,"wasAuthorized":true,"wasFallback":true,"upstreamReady":t
+rue,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778079708540,"pid":496534,"hostname":"vmi3202752","rigId":10,"msg":"str
+atum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778079708558,"pid":496534,"hostname":"vmi3202752","rentalId":0,"worker"
+:"NHbXfCSmmb7ubzWHqmEY7eT97kxXSjzLU7p1.003","msg":"stratum:upstream pool auth OK"}
+0|tedt-api | {"level":30,"time":1778079709347,"pid":496534,"hostname":"vmi3202752","rigId":10,"rentalId"
+:null,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778079709347,"pid":496534,"hostname":"vmi3202752","rigId":10,"source":"
+parked-fallback-claimed","prevExtranonce1":"b1411f53a9c667e2bb","newExtranonce1":"112126e577303d756e","m
+sg":"stratum:downstream upstream extranonce value changed — forwarding mining.set_extranonce (safe, same
+ sizes)"}
+0|tedt-api | {"level":30,"time":1778079709348,"pid":496534,"hostname":"vmi3202752","rigId":10,"poolUrl":
+"stratum+tcp://sha256.auto.nicehash.com:9200","worker":"NHbXfCSmmb7ubzWHqmEY7eT97kxXSjzLU7p1.003","msg":
+"stratum:downstream reused parked fallback upstream — miner gets pool extranonce immediately"}
+0|tedt-api | {"level":30,"time":1778079715235,"pid":496534,"hostname":"vmi3202752","rigId":10,"rentalId"
+:null,"pendingBuffered":0,"msSinceLastData":5927,"wasAuthorized":true,"wasFallback":true,"upstreamReady"
+:true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778079715236,"pid":496534,"hostname":"vmi3202752","rigId":10,"msg":"str
+atum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778079762049,"pid":496534,"hostname":"vmi3202752","remoteAddress":"165.
+227.153.169","legacyMode":false,"msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1778079762432,"pid":496534,"hostname":"vmi3202752","rigId":10,"rentalId"
+:null,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778079762432,"pid":496534,"hostname":"vmi3202752","rigId":10,"source":"
+parked-fallback-claimed","prevExtranonce1":"7208c7993f20a5b9ab","newExtranonce1":"112126e577303d756e","m
+sg":"stratum:downstream upstream extranonce value changed — forwarding mining.set_extranonce (safe, same
+ sizes)"}
+0|tedt-api | {"level":30,"time":1778079762449,"pid":496534,"hostname":"vmi3202752","rigId":10,"poolUrl":
+"stratum+tcp://sha256.auto.nicehash.com:9200","worker":"NHbXfCSmmb7ubzWHqmEY7eT97kxXSjzLU7p1.003","msg":
+"stratum:downstream reused parked fallback upstream — miner gets pool extranonce immediately"}
+0|tedt-api | {"level":30,"time":1778079767700,"pid":496534,"hostname":"vmi3202752","rigId":10,"rentalId"
+:null,"pendingBuffered":0,"msSinceLastData":5325,"wasAuthorized":true,"wasFallback":true,"upstreamReady"
+:true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778079767701,"pid":496534,"hostname":"vmi3202752","rigId":10,"msg":"str
+atum:downstream closed"}
+root@vmi3202752:/var/www/livehashrate.com#

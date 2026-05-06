@@ -20,6 +20,7 @@ export class UpstreamClient extends EventEmitter {
   private subscriptionId: string | null = null;
   private extranonce1: string | null = null;
   private extranonce2Size = 4;
+  private lastNotifyParams: unknown[] | null = null;
   private currentDifficulty = 1;
   /**
    * Difficulty active at the moment each job was issued by the pool. Used so
@@ -470,6 +471,7 @@ export class UpstreamClient extends EventEmitter {
             if (firstKey !== undefined) this.jobDifficulty.delete(firstKey);
           }
         }
+        this.lastNotifyParams = msg.params as unknown[];
         this.emit("notify", msg.params);
         break;
       }
@@ -535,6 +537,11 @@ export class UpstreamClient extends EventEmitter {
   /** The extranonce2_size last issued by the pool for this upstream connection. */
   getExtranonce2Size(): number {
     return this.extranonce2Size;
+  }
+
+  /** The params of the last mining.notify message received from the pool, or null if none yet. */
+  getLastJob(): unknown[] | null {
+    return this.lastNotifyParams;
   }
 
   /**

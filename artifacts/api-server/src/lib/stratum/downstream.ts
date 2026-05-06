@@ -840,8 +840,22 @@ export class DownstreamSession extends EventEmitter {
       const e2size = claimed.getExtranonce2Size();
       if (e1) {
         this._applyUpstreamExtranonce(e1, e2size, "parked-fallback-claimed");
+        // _applyUpstreamExtranonce may have force-closed (size mismatch) — don't continue.
+        if (this.destroyed) return;
         proxyState.setUpstreamConnected(rig.id, true);
         void this._flushSubmitBuffer();
+        // Send the last buffered job so the miner can start working immediately.
+        // Without this, the miner receives set_extranonce but no mining.notify and
+        // disconnects after its internal timeout (~5-6 s on most firmwares).
+        const lastJob = claimed.getLastJob();
+        if (lastJob) {
+          this.lastJobId = Array.isArray(lastJob) ? String(lastJob[0]) : null;
+          this._notify("mining.notify", lastJob);
+          logger.debug(
+            { rigId: rig.id, jobId: this.lastJobId },
+            "stratum:downstream sent buffered job to miner after parked upstream claim",
+          );
+        }
       }
       logger.info(
         { rigId: rig.id, poolUrl, worker },
