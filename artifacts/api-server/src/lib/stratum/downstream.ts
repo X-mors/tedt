@@ -302,7 +302,15 @@ export class DownstreamSession extends EventEmitter {
     //     4-byte default so plain SHA-256 listings keep working.
     const isModernAsicboostMiner = this.versionRollingMask !== null;
     const sizeBytes = isModernAsicboostMiner ? 8 : 4;
-    this.extranonce1 = randomBytes(sizeBytes).toString("hex");
+    // For legacy miners: if the upstream is already connected and we know the
+    // pool's extranonce1, give it to the miner directly. This avoids needing
+    // mining.set_extranonce (which old firmware — S9, cgminer, bfgminer —
+    // silently ignores), which would cause every share to be rejected by the
+    // pool because the miner computes the coinbase with the wrong prefix.
+    // Common path: miner reconnects after a force-close triggered below.
+    this.extranonce1 = (!isModernAsicboostMiner && this.upstreamExtranonce1)
+      ? this.upstreamExtranonce1
+      : randomBytes(sizeBytes).toString("hex");
     this.extranonce2Size = sizeBytes;
 
     this._reply(msg.id, [
@@ -998,6 +1006,30 @@ export class DownstreamSession extends EventEmitter {
     this.upstreamExtranonce1 = newExtranonce1;
     this.extranonce1 = newExtranonce1;
     // Intentionally do NOT mutate this.extranonce2Size here.
+
+    // Legacy miners (no version-rolling / versionRollingMask is null) run old
+    // firmware (S9, generic cgminer/bfgminer) that silently ignores
+    // mining.set_extranonce. Sending it does nothing: the miner keeps hashing
+    // with the original extranonce1 prefix assigned during subscribe, so every
+    // share it submits has the wrong coinbase prefix from the pool's
+    // perspective → all shares rejected → zero hashrate.
+    //
+    // Fix: force-close the miner socket. On reconnect _handleSubscribe detects
+    // that upstreamExtranonce1 is already known and hands the correct prefix
+    // directly in the subscribe response — no mid-session update needed.
+    //
+    // Modern AsicBoost miners (versionRollingMask != null) support
+    // mining.set_extranonce reliably, so we keep the existing non-disruptive
+    // path for them.
+    if (this.versionRollingMask === null) {
+      logger.info(
+        { rigId: this.rigId, source, prevExtranonce1, newExtranonce1 },
+        "stratum:downstream legacy miner: upstream extranonce changed — force-closing for clean reconnect",
+      );
+      this._close();
+      return;
+    }
+
     logger.debug(
       { rigId: this.rigId, source, prevExtranonce1, newExtranonce1 },
       "stratum:downstream upstream extranonce changed — forwarding mining.set_extranonce",
