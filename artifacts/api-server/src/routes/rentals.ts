@@ -1093,6 +1093,12 @@ router.post("/rentals/:id/cancel", async (req, res) => {
       //   3. Undelivered portion of elapsed time → FROZEN. Admin has 24h to
       //      award it to either party. Auto-resolves in renter's favour if
       //      no admin action by then.
+      //
+      // Cancellation penalty (cancelFee): applies only when deliveryRatio > 0
+      // (i.e. the rig was partially delivering — renter cancelled voluntarily).
+      // When deliveryRatio = 0 (rig completely offline / disconnected), NO
+      // penalty — it is entirely the rig's fault. The cancel fee is deducted
+      // from the frozen amount before it is put in dispute.
       const totalSecondsD =
         (rental.endsAt.getTime() - rental.startedAt.getTime()) / 1000;
       const usedSecondsD = Math.max(
@@ -1103,8 +1109,15 @@ router.post("/rentals/:id/cancel", async (req, res) => {
       const unusedRefund = round6(toNum(rental.renterTotalUsd) * (1 - usedRatioD));
       // Owner earned deliveryRatio of the elapsed portion — pay immediately.
       const ownerDeliveredPayout = round6(toNum(rental.ownerEarningsUsd) * usedRatioD * deliveryRatio);
-      // Only the shortfall (undelivered share of elapsed cost) is in dispute.
-      const frozenAmount = round6(toNum(rental.renterTotalUsd) * usedRatioD * (1 - deliveryRatio));
+      // Cancel fee on elapsed cost (only when rig was partially delivering).
+      const elapsedCostD = round6(toNum(rental.renterTotalUsd) * usedRatioD);
+      const cD = deliveryRatio > 0 ? await getCommission() : null;
+      const cancelFeePctD = cD ? Math.max(0, Math.min(100, cD.cancellationFeePct)) : 0;
+      const cancelFeeD = round6(elapsedCostD * (cancelFeePctD / 100));
+      // Frozen = undelivered share of elapsed cost, minus cancel fee (which
+      // goes to platform immediately). Floored at 0 to prevent negatives.
+      const frozenBeforeD = round6(toNum(rental.renterTotalUsd) * usedRatioD * (1 - deliveryRatio));
+      const frozenAmount = round6(Math.max(0, frozenBeforeD - cancelFeeD));
 
       if (unusedRefund > 0) {
         const refundStr = toUsdString(unusedRefund);
@@ -1151,28 +1164,29 @@ router.post("/rentals/:id/cancel", async (req, res) => {
         }
       }
 
-      // Persist the frozen amount into the rental row so resolve-dispute can
-      // read it back and is guaranteed to use the exact same figure (avoids
-      // any drift caused by post-cancel deliveredHashrateAvg flush updates).
+      // Persist frozen amount and actual platform fee into the rental row.
+      // platformFeeUsd = delivered share of contracted fee + cancel fee (if any).
+      const platformFeeEarnedD = round6(toNum(rental.platformFeeUsd) * usedRatioD * deliveryRatio + cancelFeeD);
       await tx
         .update(rentalsTable)
         .set({
           frozenUsd: toUsdString(frozenAmount),
-          // Set platformFeeUsd to actual earned: delivered & elapsed portion only.
-          platformFeeUsd: toUsdString(round6(toNum(rental.platformFeeUsd) * usedRatioD * deliveryRatio)),
+          platformFeeUsd: toUsdString(platformFeeEarnedD),
         })
         .where(eq(rentalsTable.id, rental.id));
 
-      // Audit-only marker for the frozen amount. The renter's balance is NOT
-      // touched here — funds were already debited when the rental started.
-      // This entry documents what is on hold pending admin review (or
-      // auto-release to renter in 24h).
+      // Audit-only marker. The renter's balance is NOT touched here — funds
+      // were already debited when the rental started. This documents what is
+      // on hold pending admin review (or auto-release to renter in 24h).
+      const cancelNote = cancelFeeD > 0
+        ? ` Cancellation fee $${cancelFeeD.toFixed(6)} (${cancelFeePctD}% of elapsed) deducted from frozen.`
+        : " No cancellation fee (rig was completely offline).";
       await tx.insert(walletTransactionsTable).values({
         userId: rental.renterId,
         type: "rental_dispute",
         amountUsd: "0.000000",
         balanceAfterUsd: toUsdString(0),
-        memo: `Frozen $${frozenAmount.toFixed(6)} pending admin review — delivered ${Math.round(deliveryRatio * 100)}% of advertised hashrate (below ${Math.round(FULL_DELIVERY_THRESHOLD * 100)}% threshold). Owner received delivered portion ($${ownerDeliveredPayout.toFixed(6)}). Auto-refunds to renter in 24h if unresolved.`,
+        memo: `Frozen $${frozenAmount.toFixed(6)} pending admin review — delivered ${Math.round(deliveryRatio * 100)}% of advertised hashrate (below ${Math.round(FULL_DELIVERY_THRESHOLD * 100)}% threshold). Owner received delivered portion ($${ownerDeliveredPayout.toFixed(6)}).${cancelNote} Auto-refunds to renter in 24h if unresolved.`,
         relatedRentalId: rental.id,
       });
       return;
