@@ -1,0 +1,21 @@
+root@vmi3202752:/var/www/livehashrate.com# pm2 logs tedt-api --lines 200 --nostream 2>&1 | grep -E "hint|mismatch|force-clos|buffered job|set_extranonce|closing" | tail -30
+0|tedt-api | {"level":30,"time":1778079708539,"pid":496534,"hostname":"vmi3202752","rigId":10,"source":"subscribed","ourE1ByteLen":4,"poolE1ByteLen":9,"ourE2size":4,"poolE2size":3,"ip":"165.227.153.169","msg":"stratum:downstream pool extranonce size mismatch — stored hint and force-closing for clean reconnect"}
+0|tedt-api | {"level":30,"time":1778079708539,"pid":496534,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,"msSinceLastData":70,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778079709347,"pid":496534,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","prevExtranonce1":"b1411f53a9c667e2bb","newExtranonce1":"112126e577303d756e","msg":"stratum:downstream
+upstream extranonce value changed — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778079715235,"pid":496534,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,"msSinceLastData":5927,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778079762432,"pid":496534,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","prevExtranonce1":"7208c7993f20a5b9ab","newExtranonce1":"112126e577303d756e","msg":"stratum:downstream
+upstream extranonce value changed — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778079767700,"pid":496534,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,"msSinceLastData":5325,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778079822984,"pid":496534,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","prevExtranonce1":"b3ecb045af0d767388","newExtranonce1":"112126e577303d756e","msg":"stratum:downstream
+upstream extranonce value changed — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778079827820,"pid":496534,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,"msSinceLastData":4968,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778079882360,"pid":496534,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","prevExtranonce1":"fd896396ea73464971","newExtranonce1":"112126e577303d756e","msg":"stratum:downstream
+upstream extranonce value changed — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778079883151,"pid":496534,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,"msSinceLastData":824,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778079884078,"pid":496534,"hostname":"vmi3202752","rigId":10,"source":"parked-fallback-claimed","prevExtranonce1":"ba19e58bb1566bfad7","newExtranonce1":"112126e577303d756e","msg":"stratum:downstream
+upstream extranonce value changed — forwarding mining.set_extranonce (safe, same sizes)"}
+0|tedt-api | {"level":30,"time":1778079889017,"pid":496534,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,"msSinceLastData":5091,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778080262179,"pid":497355,"hostname":"vmi3202752","rigId":10,"source":"subscribed","ourE1ByteLen":4,"poolE1ByteLen":9,"ourE2size":4,"poolE2size":3,"ip":"165.227.153.169","msg":"stratum:downstream pool extranonce size mismatch — stored hint and force-closing for clean reconnect"}
+0|tedt-api | {"level":30,"time":1778080262180,"pid":497355,"hostname":"vmi3202752","rigId":10,"rentalId":null,"pendingBuffered":0,"msSinceLastData":194,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+root@vmi3202752:/var/www/livehashrate.com#
