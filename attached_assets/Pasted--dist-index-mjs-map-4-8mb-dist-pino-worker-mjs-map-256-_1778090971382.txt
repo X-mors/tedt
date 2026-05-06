@@ -1,0 +1,991 @@
+  dist/index.mjs.map                   4.8mb
+  dist/pino-worker.mjs.map           256.9kb
+  dist/pino-file.mjs.map             229.0kb
+  dist/pino-pretty.mjs.map           203.9kb
+  dist/thread-stream-worker.mjs.map   12.0kb
+⚡  Done in 3503ms
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [tedt-api](ids: [ 0 ])
+[PM2] [tedt-api](0) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ tedt-api           │ fork     │ 143  │ online    │ 0%       │ 20.4mb   │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+root@vmi3202752:/var/www/livehashrate.com# pm2 logs tedt-api --lines 100 --nostr
+eam
+[TAILING] Tailing last 100 lines for [tedt-api] process (change the value with -
+-lines option)
+/root/.pm2/logs/tedt-api-error.log last 100 lines:
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/
+.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/rou
+ter@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/ro
+uter@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/
+router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.
+2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.p
+npm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/a
+pp.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/co
+rs@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnp
+m/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm
+/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/
+.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/rou
+ter@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/ro
+uter@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/
+router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.
+2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.p
+npm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/a
+pp.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/co
+rs@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnp
+m/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm
+/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/
+.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/rou
+ter@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/ro
+uter@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/
+router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.
+2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.p
+npm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/a
+pp.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/co
+rs@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnp
+m/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm
+/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/
+.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/rou
+ter@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/ro
+uter@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/
+router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.
+2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.p
+npm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/a
+pp.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/co
+rs@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnp
+m/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm
+/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/
+.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/rou
+ter@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/ro
+uter@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/
+router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.
+2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.p
+npm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/a
+pp.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/co
+rs@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnp
+m/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm
+/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/
+.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/rou
+ter@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/ro
+uter@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/
+router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.
+2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.p
+npm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/a
+pp.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/co
+rs@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnp
+m/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm
+/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/
+.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/rou
+ter@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/ro
+uter@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/
+router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.
+2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.p
+npm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/a
+pp.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/co
+rs@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnp
+m/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm
+/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/
+.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/rou
+ter@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/ro
+uter@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/
+router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.
+2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.p
+npm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/a
+pp.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/co
+rs@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnp
+m/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm
+/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/
+.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/rou
+ter@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/ro
+uter@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/
+router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.
+2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.p
+npm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | (node:275633) [DEP0169] DeprecationWarning: `url.parse()` behavior
+is not standardized and prone to errors that have security implications. Use the
+ WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+0|tedt-api | (Use `node --trace-deprecation ...` to show where the warning was c
+reated)
+0|tedt-api | (node:407732) [DEP0169] DeprecationWarning: `url.parse()` behavior
+is not standardized and prone to errors that have security implications. Use the
+ WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+0|tedt-api | (Use `node --trace-deprecation ...` to show where the warning was c
+reated)
+0|tedt-api | (node:499413) [DEP0169] DeprecationWarning: `url.parse()` behavior
+is not standardized and prone to errors that have security implications. Use the
+ WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+0|tedt-api | (Use `node --trace-deprecation ...` to show where the warning was c
+reated)
+/root/.pm2/logs/tedt-api-out.log last 100 lines:
+0|tedt-api | {"level":30,"time":1778089439212,"pid":507261,"hostname":"vmi320275
+2","port":3333,"legacyMode":false,"msg":"stratum:server listening"}
+0|tedt-api | {"level":50,"time":1778089439212,"pid":507261,"hostname":"vmi320275
+2","err":{"type":"Error","message":"listen EADDRINUSE: address already in use 0.
+0.0.0:3334","stack":"Error: listen EADDRINUSE: address already in use 0.0.0.0:33
+34\n    at Server.setupListenHandle [as _listen2] (node:net:2008:16)\n    at lis
+tenInCluster (node:net:2065:12)\n    at node:net:2274:7\n    at process.processT
+icksAndRejections (node:internal/process/task_queues:90:21)","code":"EADDRINUSE"
+,"errno":-98,"syscall":"listen","address":"0.0.0.0","port":3334},"legacyMode":tr
+ue,"msg":"stratum:server TCP error"}
+0|tedt-api | {"level":30,"time":1778089439914,"pid":507261,"hostname":"vmi320275
+2","remoteAddress":"165.227.153.169","legacyMode":false,"msg":"stratum:server ne
+w connection"}
+0|tedt-api | {"level":30,"time":1778089445903,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"rentalId":null,"pendingBuffered":0,"msSinceLastData":5281,"wasA
+uthorized":false,"wasFallback":false,"upstreamReady":false,"msg":"stratum:downst
+ream session closing"}
+0|tedt-api | {"level":30,"time":1778089445903,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778089456547,"pid":507261,"hostname":"vmi320275
+2","req":{"id":1,"method":"GET","url":"/api/rigs"},"res":{"statusCode":200},"res
+ponseTime":445,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089456568,"pid":507261,"hostname":"vmi320275
+2","req":{"id":2,"method":"GET","url":"/api/algorithms"},"res":{"statusCode":200
+},"responseTime":441,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089457489,"pid":507261,"hostname":"vmi320275
+2","req":{"id":3,"method":"POST","url":"/api/me/sync"},"res":{"statusCode":200},
+"responseTime":64,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089457563,"pid":507261,"hostname":"vmi320275
+2","req":{"id":4,"method":"GET","url":"/api/me"},"res":{"statusCode":200},"respo
+nseTime":99,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089458047,"pid":507261,"hostname":"vmi320275
+2","req":{"id":5,"method":"GET","url":"/api/algorithms"},"res":{"statusCode":304
+},"responseTime":92,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089458049,"pid":507261,"hostname":"vmi320275
+2","req":{"id":6,"method":"GET","url":"/api/rigs"},"res":{"statusCode":304},"res
+ponseTime":93,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089458845,"pid":507261,"hostname":"vmi320275
+2","req":{"id":8,"method":"GET","url":"/api/me"},"res":{"statusCode":304},"respo
+nseTime":121,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089458847,"pid":507261,"hostname":"vmi320275
+2","req":{"id":7,"method":"POST","url":"/api/me/sync"},"res":{"statusCode":200},
+"responseTime":161,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089462334,"pid":507261,"hostname":"vmi320275
+2","req":{"id":9,"method":"GET","url":"/api/me/rentals"},"res":{"statusCode":200
+},"responseTime":63,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089465570,"pid":507261,"hostname":"vmi320275
+2","req":{"id":10,"method":"GET","url":"/api/algorithms"},"res":{"statusCode":30
+4},"responseTime":170,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089465573,"pid":507261,"hostname":"vmi320275
+2","req":{"id":11,"method":"GET","url":"/api/rigs"},"res":{"statusCode":304},"re
+sponseTime":99,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089466921,"pid":507261,"hostname":"vmi320275
+2","req":{"id":12,"method":"GET","url":"/api/algorithms"},"res":{"statusCode":30
+4},"responseTime":18,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089466929,"pid":507261,"hostname":"vmi320275
+2","req":{"id":13,"method":"GET","url":"/api/rigs"},"res":{"statusCode":304},"re
+sponseTime":21,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089467501,"pid":507261,"hostname":"vmi320275
+2","req":{"id":14,"method":"POST","url":"/api/me/sync"},"res":{"statusCode":200}
+,"responseTime":15,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089467510,"pid":507261,"hostname":"vmi320275
+2","req":{"id":15,"method":"GET","url":"/api/me"},"res":{"statusCode":304},"resp
+onseTime":14,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089468206,"pid":507261,"hostname":"vmi320275
+2","req":{"id":16,"method":"GET","url":"/api/algorithms"},"res":{"statusCode":30
+4},"responseTime":16,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089468211,"pid":507261,"hostname":"vmi320275
+2","req":{"id":17,"method":"GET","url":"/api/rigs"},"res":{"statusCode":304},"re
+sponseTime":10,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089468794,"pid":507261,"hostname":"vmi320275
+2","req":{"id":19,"method":"GET","url":"/api/me"},"res":{"statusCode":304},"resp
+onseTime":20,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089468799,"pid":507261,"hostname":"vmi320275
+2","req":{"id":18,"method":"POST","url":"/api/me/sync"},"res":{"statusCode":200}
+,"responseTime":34,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089469588,"pid":507261,"hostname":"vmi320275
+2","req":{"id":20,"method":"GET","url":"/api/algorithms"},"res":{"statusCode":30
+4},"responseTime":29,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089469596,"pid":507261,"hostname":"vmi320275
+2","req":{"id":21,"method":"GET","url":"/api/rigs"},"res":{"statusCode":304},"re
+sponseTime":25,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089470291,"pid":507261,"hostname":"vmi320275
+2","req":{"id":22,"method":"POST","url":"/api/me/sync"},"res":{"statusCode":200}
+,"responseTime":40,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089470293,"pid":507261,"hostname":"vmi320275
+2","req":{"id":23,"method":"GET","url":"/api/me"},"res":{"statusCode":304},"resp
+onseTime":23,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089472839,"pid":507261,"hostname":"vmi320275
+2","req":{"id":24,"method":"GET","url":"/api/algorithms"},"res":{"statusCode":30
+4},"responseTime":16,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089472842,"pid":507261,"hostname":"vmi320275
+2","req":{"id":25,"method":"GET","url":"/api/rigs"},"res":{"statusCode":304},"re
+sponseTime":18,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089473565,"pid":507261,"hostname":"vmi320275
+2","req":{"id":26,"method":"POST","url":"/api/me/sync"},"res":{"statusCode":200}
+,"responseTime":179,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089473567,"pid":507261,"hostname":"vmi320275
+2","req":{"id":27,"method":"GET","url":"/api/me"},"res":{"statusCode":304},"resp
+onseTime":172,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089478107,"pid":507261,"hostname":"vmi320275
+2","req":{"id":28,"method":"GET","url":"/api/algorithms"},"res":{"statusCode":30
+4},"responseTime":12,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089478119,"pid":507261,"hostname":"vmi320275
+2","req":{"id":29,"method":"GET","url":"/api/rigs"},"res":{"statusCode":304},"re
+sponseTime":22,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089478738,"pid":507261,"hostname":"vmi320275
+2","req":{"id":30,"method":"POST","url":"/api/me/sync"},"res":{"statusCode":200}
+,"responseTime":52,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089478767,"pid":507261,"hostname":"vmi320275
+2","req":{"id":31,"method":"GET","url":"/api/me"},"res":{"statusCode":304},"resp
+onseTime":68,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089479467,"pid":507261,"hostname":"vmi320275
+2","req":{"id":32,"method":"GET","url":"/api/algorithms"},"res":{"statusCode":30
+4},"responseTime":16,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089479469,"pid":507261,"hostname":"vmi320275
+2","req":{"id":33,"method":"GET","url":"/api/rigs"},"res":{"statusCode":304},"re
+sponseTime":16,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089480113,"pid":507261,"hostname":"vmi320275
+2","req":{"id":34,"method":"POST","url":"/api/me/sync"},"res":{"statusCode":200}
+,"responseTime":34,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089480117,"pid":507261,"hostname":"vmi320275
+2","req":{"id":35,"method":"GET","url":"/api/me"},"res":{"statusCode":304},"resp
+onseTime":37,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089480799,"pid":507261,"hostname":"vmi320275
+2","req":{"id":36,"method":"GET","url":"/api/algorithms"},"res":{"statusCode":30
+4},"responseTime":61,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089480847,"pid":507261,"hostname":"vmi320275
+2","req":{"id":37,"method":"GET","url":"/api/rigs"},"res":{"statusCode":304},"re
+sponseTime":82,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089481534,"pid":507261,"hostname":"vmi320275
+2","req":{"id":38,"method":"POST","url":"/api/me/sync"},"res":{"statusCode":200}
+,"responseTime":85,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089481541,"pid":507261,"hostname":"vmi320275
+2","req":{"id":39,"method":"GET","url":"/api/me"},"res":{"statusCode":304},"resp
+onseTime":80,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089482040,"pid":507261,"hostname":"vmi320275
+2","remoteAddress":"165.227.153.169","legacyMode":false,"msg":"stratum:server ne
+w connection"}
+0|tedt-api | {"level":30,"time":1778089483037,"pid":507261,"hostname":"vmi320275
+2","req":{"id":40,"method":"GET","url":"/api/algorithms"},"res":{"statusCode":30
+4},"responseTime":132,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089483071,"pid":507261,"hostname":"vmi320275
+2","req":{"id":41,"method":"GET","url":"/api/rigs"},"res":{"statusCode":304},"re
+sponseTime":165,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089483499,"pid":507261,"hostname":"vmi320275
+2","req":{"id":42,"method":"POST","url":"/api/me/sync"},"res":{"statusCode":200}
+,"responseTime":20,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089483503,"pid":507261,"hostname":"vmi320275
+2","req":{"id":43,"method":"GET","url":"/api/me"},"res":{"statusCode":304},"resp
+onseTime":9,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089484732,"pid":507261,"hostname":"vmi320275
+2","req":{"id":44,"method":"GET","url":"/api/algorithms"},"res":{"statusCode":30
+4},"responseTime":18,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089484746,"pid":507261,"hostname":"vmi320275
+2","req":{"id":45,"method":"GET","url":"/api/rigs"},"res":{"statusCode":304},"re
+sponseTime":22,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089485348,"pid":507261,"hostname":"vmi320275
+2","req":{"id":46,"method":"POST","url":"/api/me/sync"},"res":{"statusCode":200}
+,"responseTime":36,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089485349,"pid":507261,"hostname":"vmi320275
+2","req":{"id":47,"method":"GET","url":"/api/me"},"res":{"statusCode":304},"resp
+onseTime":20,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089487780,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"rentalId":null,"pendingBuffered":0,"msSinceLastData":5335,"wasA
+uthorized":false,"wasFallback":false,"upstreamReady":false,"msg":"stratum:downst
+ream session closing"}
+0|tedt-api | {"level":30,"time":1778089487780,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778089490810,"pid":507261,"hostname":"vmi320275
+2","remoteAddress":"165.227.153.169","legacyMode":false,"msg":"stratum:server ne
+w connection"}
+0|tedt-api | {"level":30,"time":1778089495144,"pid":507261,"hostname":"vmi320275
+2","req":{"id":48,"method":"GET","url":"/api/algorithms"},"res":{"statusCode":30
+4},"responseTime":24,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089495154,"pid":507261,"hostname":"vmi320275
+2","req":{"id":49,"method":"GET","url":"/api/rigs"},"res":{"statusCode":304},"re
+sponseTime":23,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089495966,"pid":507261,"hostname":"vmi320275
+2","req":{"id":50,"method":"GET","url":"/api/me"},"res":{"statusCode":304},"resp
+onseTime":9,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089495983,"pid":507261,"hostname":"vmi320275
+2","req":{"id":51,"method":"POST","url":"/api/me/sync"},"res":{"statusCode":200}
+,"responseTime":26,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089496550,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"rentalId":null,"pendingBuffered":0,"msSinceLastData":5008,"wasA
+uthorized":false,"wasFallback":false,"upstreamReady":false,"msg":"stratum:downst
+ream session closing"}
+0|tedt-api | {"level":30,"time":1778089496550,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778089497714,"pid":507261,"hostname":"vmi320275
+2","req":{"id":52,"method":"GET","url":"/api/algorithms"},"res":{"statusCode":30
+4},"responseTime":80,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089497738,"pid":507261,"hostname":"vmi320275
+2","req":{"id":53,"method":"GET","url":"/api/rigs"},"res":{"statusCode":304},"re
+sponseTime":97,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089501795,"pid":507261,"hostname":"vmi320275
+2","req":{"id":55,"method":"GET","url":"/api/rigs"},"res":{"statusCode":304},"re
+sponseTime":223,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089501804,"pid":507261,"hostname":"vmi320275
+2","req":{"id":54,"method":"GET","url":"/api/algorithms"},"res":{"statusCode":30
+4},"responseTime":247,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089502610,"pid":507261,"hostname":"vmi320275
+2","req":{"id":56,"method":"POST","url":"/api/me/sync"},"res":{"statusCode":200}
+,"responseTime":386,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089502621,"pid":507261,"hostname":"vmi320275
+2","req":{"id":57,"method":"GET","url":"/api/me"},"res":{"statusCode":304},"resp
+onseTime":195,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089542075,"pid":507261,"hostname":"vmi320275
+2","remoteAddress":"165.227.153.169","legacyMode":false,"msg":"stratum:server ne
+w connection"}
+0|tedt-api | {"level":30,"time":1778089547847,"pid":507261,"hostname":"vmi320275
+2","remoteAddress":"165.227.153.169","legacyMode":false,"msg":"stratum:server ne
+w connection"}
+0|tedt-api | {"level":30,"time":1778089548672,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"rentalId":null,"pendingBuffered":0,"msSinceLastData":5867,"wasA
+uthorized":false,"wasFallback":false,"upstreamReady":false,"msg":"stratum:downst
+ream session closing"}
+0|tedt-api | {"level":30,"time":1778089548672,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778089554514,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"rentalId":null,"pendingBuffered":0,"msSinceLastData":5810,"wasA
+uthorized":false,"wasFallback":false,"upstreamReady":false,"msg":"stratum:downst
+ream session closing"}
+0|tedt-api | {"level":30,"time":1778089554514,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778089602080,"pid":507261,"hostname":"vmi320275
+2","remoteAddress":"165.227.153.169","legacyMode":false,"msg":"stratum:server ne
+w connection"}
+0|tedt-api | {"level":30,"time":1778089607869,"pid":507261,"hostname":"vmi320275
+2","remoteAddress":"165.227.153.169","legacyMode":false,"msg":"stratum:server ne
+w connection"}
+0|tedt-api | {"level":30,"time":1778089608563,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"rentalId":null,"pendingBuffered":0,"msSinceLastData":5690,"wasA
+uthorized":false,"wasFallback":false,"upstreamReady":false,"msg":"stratum:downst
+ream session closing"}
+0|tedt-api | {"level":30,"time":1778089608563,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778089614428,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"rentalId":null,"pendingBuffered":0,"msSinceLastData":5831,"wasA
+uthorized":false,"wasFallback":false,"upstreamReady":false,"msg":"stratum:downst
+ream session closing"}
+0|tedt-api | {"level":30,"time":1778089614428,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778089662063,"pid":507261,"hostname":"vmi320275
+2","remoteAddress":"165.227.153.169","legacyMode":false,"msg":"stratum:server ne
+w connection"}
+0|tedt-api | {"level":30,"time":1778089667847,"pid":507261,"hostname":"vmi320275
+2","remoteAddress":"165.227.153.169","legacyMode":false,"msg":"stratum:server ne
+w connection"}
+0|tedt-api | {"level":30,"time":1778089667916,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"rentalId":null,"pendingBuffered":0,"msSinceLastData":5084,"wasA
+uthorized":false,"wasFallback":false,"upstreamReady":false,"msg":"stratum:downst
+ream session closing"}
+0|tedt-api | {"level":30,"time":1778089667919,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778089673018,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"rentalId":null,"pendingBuffered":0,"msSinceLastData":5060,"wasA
+uthorized":false,"wasFallback":false,"upstreamReady":false,"msg":"stratum:downst
+ream session closing"}
+0|tedt-api | {"level":30,"time":1778089673018,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778089675475,"pid":507261,"hostname":"vmi320275
+2","req":{"id":58,"method":"GET","url":"/api/rigs"},"res":{"statusCode":304},"re
+sponseTime":68,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089675477,"pid":507261,"hostname":"vmi320275
+2","req":{"id":59,"method":"GET","url":"/api/algorithms"},"res":{"statusCode":30
+4},"responseTime":68,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089676215,"pid":507261,"hostname":"vmi320275
+2","req":{"id":60,"method":"POST","url":"/api/me/sync"},"res":{"statusCode":200}
+,"responseTime":9,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089676226,"pid":507261,"hostname":"vmi320275
+2","req":{"id":61,"method":"GET","url":"/api/me"},"res":{"statusCode":304},"resp
+onseTime":10,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778089722175,"pid":507261,"hostname":"vmi320275
+2","remoteAddress":"165.227.153.169","legacyMode":false,"msg":"stratum:server ne
+w connection"}
+0|tedt-api | {"level":30,"time":1778089727979,"pid":507261,"hostname":"vmi320275
+2","remoteAddress":"165.227.153.169","legacyMode":false,"msg":"stratum:server ne
+w connection"}
+0|tedt-api | {"level":30,"time":1778089728619,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"rentalId":null,"pendingBuffered":0,"msSinceLastData":5769,"wasA
+uthorized":false,"wasFallback":false,"upstreamReady":false,"msg":"stratum:downst
+ream session closing"}
+0|tedt-api | {"level":30,"time":1778089728619,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778089733696,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"rentalId":null,"pendingBuffered":0,"msSinceLastData":4976,"wasA
+uthorized":false,"wasFallback":false,"upstreamReady":false,"msg":"stratum:downst
+ream session closing"}
+0|tedt-api | {"level":30,"time":1778089733698,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778089782100,"pid":507261,"hostname":"vmi320275
+2","remoteAddress":"165.227.153.169","legacyMode":false,"msg":"stratum:server ne
+w connection"}
+0|tedt-api | {"level":30,"time":1778089787864,"pid":507261,"hostname":"vmi320275
+2","remoteAddress":"165.227.153.169","legacyMode":false,"msg":"stratum:server ne
+w connection"}
+0|tedt-api | {"level":30,"time":1778089788297,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"rentalId":null,"pendingBuffered":0,"msSinceLastData":5465,"wasA
+uthorized":false,"wasFallback":false,"upstreamReady":false,"msg":"stratum:downst
+ream session closing"}
+0|tedt-api | {"level":30,"time":1778089788298,"pid":507261,"hostname":"vmi320275
+2","rigId":null,"msg":"stratum:downstream closed"}
+root@vmi3202752:/var/www/livehashrate.com# cd /var/www/livehashrate.com && git l
+og --oneline -5
+161b194 (HEAD -> main, origin/main, origin/HEAD) Fix hashrate issue when multipl
+e devices share the same IP address
+1385819 Update rental mining to consistently send correct difficulty and jobs
+ad69714 Saved progress at the end of the loop
+0ce6aba Ensure miners receive correct pool difficulty after connection
+853073f Send correct mining difficulty to miners after upstream connection
+root@vmi3202752:/var/www/livehashrate.com# cd /var/www/livehashrate.com && git pull && pnpm --f
+ilter @workspace/api-server run build && pm2 restart tedt-api
+remote: Enumerating objects: 20, done.
+remote: Counting objects: 100% (20/20), done.
+remote: Compressing objects: 100% (3/3), done.
+remote: Total 11 (delta 8), reused 11 (delta 8), pack-reused 0 (from 0)
+Unpacking objects: 100% (11/11), 7.10 KiB | 92.00 KiB/s, done.
+From https://github.com/X-mors/tedt
+   161b194..0b5d70c  main       -> origin/main
+Updating 161b194..0b5d70c
+Fast-forward
+ artifacts/api-server/src/lib/stratum/downstream.ts           |  95 +++--
+ artifacts/api-server/src/lib/stratum/state.ts                |  28 +-
+ ...u-24-04-4-LTS-GNU-Linux-6-8-0-110-gener_1778089827760.txt | 581 ++++++++++++++++++++++++++
+ 3 files changed, 654 insertions(+), 50 deletions(-)
+ create mode 100644 attached_assets/Pasted-Welcome-to-Ubuntu-24-04-4-LTS-GNU-Linux-6-8-0-110-ge
+ner_1778089827760.txt
+> @workspace/api-server@0.0.0 build /var/www/livehashrate.com/artifacts/api-server
+> node ./build.mjs
+  dist/index.mjs                       2.6mb ⚠️
+  dist/pino-worker.mjs               153.4kb
+  dist/pino-file.mjs                 142.1kb
+  dist/pino-pretty.mjs               114.6kb
+  dist/thread-stream-worker.mjs        7.3kb
+  dist/index.mjs.map                   4.8mb
+  dist/pino-worker.mjs.map           256.9kb
+  dist/pino-file.mjs.map             229.0kb
+  dist/pino-pretty.mjs.map           203.9kb
+  dist/thread-stream-worker.mjs.map   12.0kb
+⚡  Done in 563ms
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [tedt-api](ids: [ 0 ])
+[PM2] [tedt-api](0) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ tedt-api           │ fork     │ 144  │ online    │ 0%       │ 7.4mb    │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+root@vmi3202752:/var/www/livehashrate.com# pm2 logs tedt-api --lines 100 --nostream
+[TAILING] Tailing last 100 lines for [tedt-api] process (change the value with --lines option)
+/root/.pm2/logs/tedt-api-error.log last 100 lines:
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_
+modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/r
+outer/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/
+router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_module
+s/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/
+index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/nod
+e_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/co
+rs/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_module
+s/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules
+/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_
+modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/r
+outer/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/
+router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_module
+s/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/
+index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/nod
+e_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/co
+rs/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_module
+s/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules
+/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_
+modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/r
+outer/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/
+router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_module
+s/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/
+index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/nod
+e_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/co
+rs/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_module
+s/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules
+/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_
+modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/r
+outer/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/
+router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_module
+s/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/
+index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/nod
+e_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/co
+rs/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_module
+s/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules
+/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_
+modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/r
+outer/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/
+router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_module
+s/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/
+index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/nod
+e_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/co
+rs/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_module
+s/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules
+/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_
+modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/r
+outer/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/
+router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_module
+s/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/
+index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/nod
+e_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/co
+rs/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_module
+s/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules
+/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_
+modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/r
+outer/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/
+router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_module
+s/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/
+index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/nod
+e_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/co
+rs/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_module
+s/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules
+/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_
+modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/r
+outer/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/
+router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_module
+s/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/
+index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/nod
+e_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/co
+rs/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_module
+s/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules
+/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_
+modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/r
+outer/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/
+router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_module
+s/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/
+index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/nod
+e_modules/pino-http/logger.js:206:7)
+0|tedt-api | (node:275633) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and
+prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for
+ `url.parse()` vulnerabilities.
+0|tedt-api | (Use `node --trace-deprecation ...` to show where the warning was created)
+0|tedt-api | (node:407732) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and
+prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for
+ `url.parse()` vulnerabilities.
+0|tedt-api | (Use `node --trace-deprecation ...` to show where the warning was created)
+0|tedt-api | (node:499413) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and
+prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for
+ `url.parse()` vulnerabilities.
+0|tedt-api | (Use `node --trace-deprecation ...` to show where the warning was created)
+/root/.pm2/logs/tedt-api-out.log last 100 lines:
+0|tedt-api | {"level":30,"time":1778090798816,"pid":508475,"hostname":"vmi3202752","req":{"id":142,"meth
+od":"POST","url":"/api/me/sync"},"res":{"statusCode":200},"responseTime":17,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090798821,"pid":508475,"hostname":"vmi3202752","req":{"id":143,"meth
+od":"GET","url":"/api/me"},"res":{"statusCode":304},"responseTime":20,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090799673,"pid":508475,"hostname":"vmi3202752","req":{"id":144,"meth
+od":"GET","url":"/api/me/rentals"},"res":{"statusCode":304},"responseTime":67,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090801190,"pid":508475,"hostname":"vmi3202752","req":{"id":145,"meth
+od":"GET","url":"/api/me/rentals"},"res":{"statusCode":304},"responseTime":77,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090801743,"pid":508475,"hostname":"vmi3202752","req":{"id":146,"meth
+od":"GET","url":"/api/me"},"res":{"statusCode":304},"responseTime":36,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090801765,"pid":508475,"hostname":"vmi3202752","req":{"id":147,"meth
+od":"GET","url":"/api/rentals/57"},"res":{"statusCode":304},"responseTime":40,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090801917,"pid":508475,"hostname":"vmi3202752","req":{"id":148,"meth
+od":"GET","url":"/api/rentals/57/stats"},"res":{"statusCode":200},"responseTime":50,"msg":"request compl
+eted"}
+0|tedt-api | {"level":30,"time":1778090801926,"pid":508475,"hostname":"vmi3202752","req":{"id":150,"meth
+od":"GET","url":"/api/me"},"res":{"statusCode":304},"responseTime":20,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090801928,"pid":508475,"hostname":"vmi3202752","req":{"id":149,"meth
+od":"POST","url":"/api/me/sync"},"res":{"statusCode":200},"responseTime":32,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090802057,"pid":508475,"hostname":"vmi3202752","remoteAddress":"165.
+227.153.169","legacyMode":false,"msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1778090802243,"pid":508475,"hostname":"vmi3202752","rigId":6,"rentalId":
+65,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778090802247,"pid":508475,"hostname":"vmi3202752","rentalId":65,"host":
+"btc.viabtc.io","candidates":["172.65.24.253"],"port":3333,"msg":"stratum:upstream connecting (racing al
+l addresses)"}
+0|tedt-api | {"level":30,"time":1778090802262,"pid":508475,"hostname":"vmi3202752","rigId":6,"source":"s
+ubscribed","ourE1ByteLen":9,"poolE1ByteLen":4,"ourE2size":3,"poolE2size":8,"msg":"stratum:downstream poo
+l extranonce size mismatch — stored hint and force-closing for clean reconnect"}
+0|tedt-api | {"level":30,"time":1778090802263,"pid":508475,"hostname":"vmi3202752","rigId":6,"rentalId":
+65,"pendingBuffered":0,"msSinceLastData":61,"wasAuthorized":true,"wasFallback":false,"upstreamReady":tru
+e,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778090802263,"pid":508475,"hostname":"vmi3202752","rigId":6,"msg":"stra
+tum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778090802268,"pid":508475,"hostname":"vmi3202752","rentalId":65,"worker
+":"AhmadSamir.y","msg":"stratum:upstream pool auth OK"}
+0|tedt-api | {"level":30,"time":1778090802796,"pid":508475,"hostname":"vmi3202752","req":{"id":151,"meth
+od":"GET","url":"/api/me/rentals"},"res":{"statusCode":304},"responseTime":44,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090803041,"pid":508475,"hostname":"vmi3202752","remoteAddress":"165.
+227.153.169","legacyMode":false,"msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1778090803713,"pid":508475,"hostname":"vmi3202752","req":{"id":152,"meth
+od":"GET","url":"/api/me"},"res":{"statusCode":304},"responseTime":16,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090803722,"pid":508475,"hostname":"vmi3202752","req":{"id":153,"meth
+od":"GET","url":"/api/rentals/64"},"res":{"statusCode":304},"responseTime":23,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090803808,"pid":508475,"hostname":"vmi3202752","rigId":10,"rentalId"
+:64,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778090803809,"pid":508475,"hostname":"vmi3202752","rigId":10,"source":"
+parked-upstream-claimed","ourE1ByteLen":4,"poolE1ByteLen":9,"ourE2size":8,"poolE2size":3,"msg":"stratum:
+downstream pool extranonce size mismatch — stored hint and force-closing for clean reconnect"}
+0|tedt-api | {"level":30,"time":1778090803809,"pid":508475,"hostname":"vmi3202752","rigId":10,"rentalId"
+:64,"jobId":"00000000b8a77fc7","poolDiff":32768,"msg":"stratum:downstream sent buffered job to miner aft
+er parked upstream claim"}
+0|tedt-api | {"level":30,"time":1778090803809,"pid":508475,"hostname":"vmi3202752","rigId":10,"rentalId"
+:64,"e1":"100000055c8094bbb6","e2size":3,"msg":"stratum:downstream reused parked upstream — miner update
+d with pool extranonce immediately"}
+0|tedt-api | {"level":30,"time":1778090803809,"pid":508475,"hostname":"vmi3202752","rigId":10,"rentalId"
+:64,"pendingBuffered":0,"msSinceLastData":14,"wasAuthorized":true,"wasFallback":false,"upstreamReady":tr
+ue,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778090803809,"pid":508475,"hostname":"vmi3202752","rigId":10,"msg":"str
+atum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778090803833,"pid":508475,"hostname":"vmi3202752","req":{"id":154,"meth
+od":"GET","url":"/api/me/pools"},"res":{"statusCode":304},"responseTime":10,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090803840,"pid":508475,"hostname":"vmi3202752","req":{"id":155,"meth
+od":"GET","url":"/api/rentals/64/live"},"res":{"statusCode":200},"responseTime":14,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1778090803844,"pid":508475,"hostname":"vmi3202752","req":{"id":156,"meth
+od":"GET","url":"/api/rentals/64/stats"},"res":{"statusCode":200},"responseTime":16,"msg":"request compl
+eted"}
+0|tedt-api | {"level":30,"time":1778090805770,"pid":508475,"hostname":"vmi3202752","req":{"id":157,"meth
+od":"GET","url":"/api/me/rentals"},"res":{"statusCode":304},"responseTime":55,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090806911,"pid":508475,"hostname":"vmi3202752","req":{"id":158,"meth
+od":"GET","url":"/api/me"},"res":{"statusCode":304},"responseTime":27,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090806939,"pid":508475,"hostname":"vmi3202752","req":{"id":159,"meth
+od":"GET","url":"/api/rentals/65"},"res":{"statusCode":304},"responseTime":44,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090807049,"pid":508475,"hostname":"vmi3202752","req":{"id":160,"meth
+od":"GET","url":"/api/me/pools"},"res":{"statusCode":304},"responseTime":12,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090807049,"pid":508475,"hostname":"vmi3202752","req":{"id":161,"meth
+od":"GET","url":"/api/rentals/65/live"},"res":{"statusCode":200},"responseTime":11,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1778090807055,"pid":508475,"hostname":"vmi3202752","req":{"id":162,"meth
+od":"GET","url":"/api/rentals/65/stats"},"res":{"statusCode":200},"responseTime":14,"msg":"request compl
+eted"}
+0|tedt-api | {"level":30,"time":1778090808319,"pid":508475,"hostname":"vmi3202752","req":{"id":164,"meth
+od":"GET","url":"/api/me"},"res":{"statusCode":304},"responseTime":40,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090808333,"pid":508475,"hostname":"vmi3202752","req":{"id":163,"meth
+od":"GET","url":"/api/rentals/65"},"res":{"statusCode":304},"responseTime":54,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090808461,"pid":508475,"hostname":"vmi3202752","req":{"id":165,"meth
+od":"GET","url":"/api/me/pools"},"res":{"statusCode":304},"responseTime":35,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090808504,"pid":508475,"hostname":"vmi3202752","req":{"id":166,"meth
+od":"GET","url":"/api/rentals/65/live"},"res":{"statusCode":200},"responseTime":58,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1778090808514,"pid":508475,"hostname":"vmi3202752","req":{"id":167,"meth
+od":"GET","url":"/api/rentals/65/stats"},"res":{"statusCode":200},"responseTime":63,"msg":"request compl
+eted"}
+0|tedt-api | {"level":30,"time":1778090809347,"pid":508475,"hostname":"vmi3202752","req":{"id":168,"meth
+od":"POST","url":"/api/me/sync"},"res":{"statusCode":200},"responseTime":487,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090809370,"pid":508475,"hostname":"vmi3202752","req":{"id":169,"meth
+od":"GET","url":"/api/me"},"res":{"statusCode":304},"responseTime":281,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090809407,"pid":508475,"hostname":"vmi3202752","req":{"id":170,"meth
+od":"GET","url":"/api/me/rentals"},"res":{"statusCode":304},"responseTime":39,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090810460,"pid":508475,"hostname":"vmi3202752","req":{"id":171,"meth
+od":"GET","url":"/api/me"},"res":{"statusCode":304},"responseTime":10,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090810477,"pid":508475,"hostname":"vmi3202752","req":{"id":172,"meth
+od":"GET","url":"/api/rentals/64"},"res":{"statusCode":304},"responseTime":26,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090810690,"pid":508475,"hostname":"vmi3202752","req":{"id":173,"meth
+od":"GET","url":"/api/me/pools"},"res":{"statusCode":304},"responseTime":94,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090810718,"pid":508475,"hostname":"vmi3202752","req":{"id":175,"meth
+od":"GET","url":"/api/rentals/64/stats"},"res":{"statusCode":200},"responseTime":91,"msg":"request compl
+eted"}
+0|tedt-api | {"level":30,"time":1778090810724,"pid":508475,"hostname":"vmi3202752","req":{"id":174,"meth
+od":"GET","url":"/api/rentals/64/live"},"res":{"statusCode":200},"responseTime":110,"msg":"request compl
+eted"}
+0|tedt-api | {"level":30,"time":1778090812991,"pid":508475,"hostname":"vmi3202752","req":{"id":176,"meth
+od":"GET","url":"/api/marketplace/summary"},"res":{"statusCode":200},"responseTime":98,"msg":"request co
+mpleted"}
+0|tedt-api | {"level":30,"time":1778090818183,"pid":508475,"hostname":"vmi3202752","req":{"id":177,"meth
+od":"GET","url":"/api/me"},"res":{"statusCode":200},"responseTime":10,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090818218,"pid":508475,"hostname":"vmi3202752","req":{"id":179,"meth
+od":"GET","url":"/api/rigs"},"res":{"statusCode":200},"responseTime":14,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090818220,"pid":508475,"hostname":"vmi3202752","req":{"id":178,"meth
+od":"GET","url":"/api/algorithms"},"res":{"statusCode":200},"responseTime":16,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090818228,"pid":508475,"hostname":"vmi3202752","req":{"id":180,"meth
+od":"POST","url":"/api/me/sync"},"res":{"statusCode":200},"responseTime":5,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090820263,"pid":508475,"hostname":"vmi3202752","req":{"id":181,"meth
+od":"GET","url":"/api/algorithms"},"res":{"statusCode":304},"responseTime":28,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090820267,"pid":508475,"hostname":"vmi3202752","req":{"id":182,"meth
+od":"GET","url":"/api/rigs"},"res":{"statusCode":304},"responseTime":30,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090821112,"pid":508475,"hostname":"vmi3202752","req":{"id":183,"meth
+od":"POST","url":"/api/me/sync"},"res":{"statusCode":200},"responseTime":165,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090821225,"pid":508475,"hostname":"vmi3202752","req":{"id":184,"meth
+od":"GET","url":"/api/me"},"res":{"statusCode":304},"responseTime":202,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090825996,"pid":508475,"hostname":"vmi3202752","req":{"id":185,"meth
+od":"GET","url":"/api/me/rigs"},"res":{"statusCode":200},"responseTime":25,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090826007,"pid":508475,"hostname":"vmi3202752","req":{"id":186,"meth
+od":"GET","url":"/api/me/rentals/lessor"},"res":{"statusCode":400},"responseTime":29,"msg":"request comp
+leted"}
+0|tedt-api | {"level":30,"time":1778090828060,"pid":508475,"hostname":"vmi3202752","req":{"id":188,"meth
+od":"GET","url":"/api/rigs/10/reviews"},"res":{"statusCode":304},"responseTime":23,"msg":"request comple
+ted"}
+0|tedt-api | {"level":30,"time":1778090828063,"pid":508475,"hostname":"vmi3202752","req":{"id":187,"meth
+od":"GET","url":"/api/me"},"res":{"statusCode":304},"responseTime":30,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090828069,"pid":508475,"hostname":"vmi3202752","req":{"id":190,"meth
+od":"GET","url":"/api/rigs/10"},"res":{"statusCode":200},"responseTime":17,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090828091,"pid":508475,"hostname":"vmi3202752","req":{"id":189,"meth
+od":"GET","url":"/api/rigs/10/stats"},"res":{"statusCode":304},"responseTime":48,"msg":"request complete
+d"}
+0|tedt-api | {"level":30,"time":1778090828187,"pid":508475,"hostname":"vmi3202752","req":{"id":191,"meth
+od":"GET","url":"/api/me/rigs/10"},"res":{"statusCode":200},"responseTime":22,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090830229,"pid":508475,"hostname":"vmi3202752","req":{"id":193,"meth
+od":"GET","url":"/api/me/rigs"},"res":{"statusCode":200},"responseTime":71,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090830243,"pid":508475,"hostname":"vmi3202752","req":{"id":192,"meth
+od":"GET","url":"/api/me/rentals/lessor"},"res":{"statusCode":400},"responseTime":89,"msg":"request comp
+leted"}
+0|tedt-api | {"level":30,"time":1778090831935,"pid":508475,"hostname":"vmi3202752","req":{"id":194,"meth
+od":"GET","url":"/api/me/rentals/lessor"},"res":{"statusCode":400},"responseTime":61,"msg":"request comp
+leted"}
+0|tedt-api | {"level":30,"time":1778090831936,"pid":508475,"hostname":"vmi3202752","req":{"id":195,"meth
+od":"GET","url":"/api/me/rigs"},"res":{"statusCode":304},"responseTime":57,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090832745,"pid":508475,"hostname":"vmi3202752","req":{"id":197,"meth
+od":"GET","url":"/api/me"},"res":{"statusCode":304},"responseTime":131,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090832766,"pid":508475,"hostname":"vmi3202752","req":{"id":196,"meth
+od":"POST","url":"/api/me/sync"},"res":{"statusCode":200},"responseTime":163,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778090862074,"pid":508475,"hostname":"vmi3202752","remoteAddress":"165.
+227.153.169","legacyMode":false,"msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1778090862266,"pid":508475,"hostname":"vmi3202752","rentalId":65,"msg":"
+stratum:upstream closed"}
+0|tedt-api | {"level":30,"time":1778090862905,"pid":508475,"hostname":"vmi3202752","rigId":6,"rentalId":
+65,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778090862908,"pid":508475,"hostname":"vmi3202752","rentalId":65,"host":
+"btc.viabtc.io","candidates":["172.65.24.253"],"port":3333,"msg":"stratum:upstream connecting (racing al
+l addresses)"}
+0|tedt-api | {"level":30,"time":1778090862921,"pid":508475,"hostname":"vmi3202752","rigId":6,"source":"s
+ubscribed","ourE1ByteLen":9,"poolE1ByteLen":4,"ourE2size":3,"poolE2size":8,"msg":"stratum:downstream poo
+l extranonce size mismatch — stored hint and force-closing for clean reconnect"}
+0|tedt-api | {"level":30,"time":1778090862924,"pid":508475,"hostname":"vmi3202752","rigId":6,"rentalId":
+65,"pendingBuffered":0,"msSinceLastData":91,"wasAuthorized":true,"wasFallback":false,"upstreamReady":tru
+e,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778090862924,"pid":508475,"hostname":"vmi3202752","rigId":6,"msg":"stra
+tum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778090862930,"pid":508475,"hostname":"vmi3202752","rentalId":65,"worker
+":"AhmadSamir.y","msg":"stratum:upstream pool auth OK"}
+0|tedt-api | {"level":30,"time":1778090863717,"pid":508475,"hostname":"vmi3202752","remoteAddress":"165.
+227.153.169","legacyMode":false,"msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1778090863809,"pid":508475,"hostname":"vmi3202752","rentalId":64,"msg":"
+stratum:upstream closed"}
+0|tedt-api | {"level":30,"time":1778090864486,"pid":508475,"hostname":"vmi3202752","rigId":10,"rentalId"
+:64,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778090864488,"pid":508475,"hostname":"vmi3202752","rentalId":64,"host":
+"sha256.auto.nicehash.com","candidates":["34.111.151.233","2600:1901:0:bd25::"],"port":9200,"msg":"strat
+um:upstream connecting (racing all addresses)"}
+0|tedt-api | {"level":30,"time":1778090864512,"pid":508475,"hostname":"vmi3202752","rigId":10,"source":"
+subscribed","ourE1ByteLen":4,"poolE1ByteLen":9,"ourE2size":8,"poolE2size":3,"msg":"stratum:downstream po
+ol extranonce size mismatch — stored hint and force-closing for clean reconnect"}
+0|tedt-api | {"level":30,"time":1778090864513,"pid":508475,"hostname":"vmi3202752","rigId":10,"rentalId"
+:64,"pendingBuffered":0,"msSinceLastData":50,"wasAuthorized":true,"wasFallback":false,"upstreamReady":tr
+ue,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778090864513,"pid":508475,"hostname":"vmi3202752","rigId":10,"msg":"str
+atum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778090864527,"pid":508475,"hostname":"vmi3202752","rentalId":64,"worker
+":"NHbXfCSmmb7ubzWHqmEY7eT97kxXSjzLU7p1.003","msg":"stratum:upstream pool auth OK"}
+0|tedt-api | {"level":30,"time":1778090922039,"pid":508475,"hostname":"vmi3202752","remoteAddress":"165.
+227.153.169","legacyMode":false,"msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1778090922803,"pid":508475,"hostname":"vmi3202752","rigId":6,"rentalId":
+65,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778090922803,"pid":508475,"hostname":"vmi3202752","rigId":6,"source":"p
+arked-upstream-claimed","ourE1ByteLen":9,"poolE1ByteLen":4,"ourE2size":3,"poolE2size":8,"msg":"stratum:d
+ownstream pool extranonce size mismatch — stored hint and force-closing for clean reconnect"}
+0|tedt-api | {"level":30,"time":1778090922803,"pid":508475,"hostname":"vmi3202752","rigId":6,"rentalId":
+65,"jobId":"9208","poolDiff":16384,"msg":"stratum:downstream sent buffered job to miner after parked ups
+tream claim"}
+0|tedt-api | {"level":30,"time":1778090922803,"pid":508475,"hostname":"vmi3202752","rigId":6,"rentalId":
+65,"e1":"6c0986f0","e2size":8,"msg":"stratum:downstream reused parked upstream — miner updated with pool
+ extranonce immediately"}
+0|tedt-api | {"level":30,"time":1778090922803,"pid":508475,"hostname":"vmi3202752","rigId":6,"rentalId":
+65,"pendingBuffered":0,"msSinceLastData":84,"wasAuthorized":true,"wasFallback":false,"upstreamReady":tru
+e,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778090922803,"pid":508475,"hostname":"vmi3202752","rigId":6,"msg":"stra
+tum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778090923422,"pid":508475,"hostname":"vmi3202752","remoteAddress":"165.
+227.153.169","legacyMode":false,"msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1778090923455,"pid":508475,"hostname":"vmi3202752","rigId":10,"rentalId"
+:64,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778090923455,"pid":508475,"hostname":"vmi3202752","rigId":10,"source":"
+parked-upstream-claimed","ourE1ByteLen":4,"poolE1ByteLen":9,"ourE2size":8,"poolE2size":3,"msg":"stratum:
+downstream pool extranonce size mismatch — stored hint and force-closing for clean reconnect"}
+0|tedt-api | {"level":30,"time":1778090923455,"pid":508475,"hostname":"vmi3202752","rigId":10,"rentalId"
+:64,"jobId":"0000000038bd0fd8","poolDiff":32768,"msg":"stratum:downstream sent buffered job to miner aft
+er parked upstream claim"}
+0|tedt-api | {"level":30,"time":1778090923455,"pid":508475,"hostname":"vmi3202752","rigId":10,"rentalId"
+:64,"e1":"10000005d18194bbb6","e2size":3,"msg":"stratum:downstream reused parked upstream — miner update
+d with pool extranonce immediately"}
+0|tedt-api | {"level":30,"time":1778090923455,"pid":508475,"hostname":"vmi3202752","rigId":10,"rentalId"
+:64,"pendingBuffered":0,"msSinceLastData":10,"wasAuthorized":true,"wasFallback":false,"upstreamReady":tr
+ue,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778090923455,"pid":508475,"hostname":"vmi3202752","rigId":10,"msg":"str
+atum:downstream closed"}
+root@vmi3202752:/var/www/livehashrate.com#
+root@vmi3202752:/var/www/livehashrate.com#
