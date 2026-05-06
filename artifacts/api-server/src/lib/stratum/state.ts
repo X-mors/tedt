@@ -935,38 +935,23 @@ class ProxyState {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Per-rig extranonce format hints (dual-keyed: rigId + IP:port)
+  // Per-IP extranonce format hints
   // ──────────────────────────────────────────────────────────────────────────
 
   /**
-   * Persist the pool's extranonce format under BOTH the rigId key and the
-   * miner's IP+port key.
-   *
-   * The IP hint is keyed by `ip:${ip}:${port}` (port-scoped) so that two
-   * miners on the same NAT'd IP but different Stratum ports (e.g. 3333 for
-   * ASICBoost and 3334 for legacy SHA-256) never overwrite each other's hint.
-   *
-   * ip may be null when the socket has already been destroyed; in that case
-   * only the rigId key is written.
+   * Persist the pool's extranonce format for a miner IP so future connections
+   * from the same machine can generate a proxy-extranonce1 of the correct byte
+   * length, avoiding size changes in subsequent set_extranonce calls.
    */
-  storeExtranonceHint(rigId: number, ip: string | null, e1: string, e2size: number, port?: number): void {
-    this.extranonceHints.set(`rig:${rigId}`, { e1, e2size });
-    if (ip) {
-      const ipKey = port != null ? `ip:${ip}:${port}` : `ip:${ip}`;
-      this.extranonceHints.set(ipKey, { e1, e2size });
-    }
+  storeExtranonceHint(ip: string, e1: string, e2size: number): void {
+    // Store the pool's full extranonce1 VALUE so the next subscribe reply can
+    // use it verbatim — making set_extranonce unnecessary on that session.
+    this.extranonceHints.set(ip, { e1, e2size });
   }
 
-  /** Return the stored extranonce hint for a rig, or null if unknown. */
-  getExtranonceHint(rigId: number): { e1: string; e2size: number } | null {
-    return this.extranonceHints.get(`rig:${rigId}`) ?? null;
-  }
-
-  /** Return the stored extranonce hint keyed by IP+port (used at subscribe
-   *  time before the rigId is known), or null if unknown. */
-  getExtranonceHintByIp(ip: string, port?: number): { e1: string; e2size: number } | null {
-    const ipKey = port != null ? `ip:${ip}:${port}` : `ip:${ip}`;
-    return this.extranonceHints.get(ipKey) ?? null;
+  /** Return the stored extranonce hint for an IP, or null if unknown. */
+  getExtranonceHint(ip: string): { e1: string; e2size: number } | null {
+    return this.extranonceHints.get(ip) ?? null;
   }
 }
 

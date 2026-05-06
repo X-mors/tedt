@@ -51,7 +51,7 @@ export class StratumServer {
         { remoteAddress: socket.remoteAddress, legacyMode: this.legacyMode },
         "stratum:server new connection",
       );
-      new DownstreamSession(socket, { legacyMode: this.legacyMode, port: this.port });
+      new DownstreamSession(socket, { legacyMode: this.legacyMode });
     });
 
     this.tcpServer.on("error", (err: Error) => {
