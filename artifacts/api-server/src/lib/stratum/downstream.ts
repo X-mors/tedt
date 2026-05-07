@@ -1129,22 +1129,24 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
 
-    // SAFETY CHECK: if the pool's extranonce1 byte-length or extranonce2_size
-    // differs from what we told the miner at subscribe time, sending
-    // set_extranonce would change the coinbase template length — nearly all ASIC
-    // firmwares disconnect immediately when this happens (Antminer S9 / S19,
-    // Whatsminer M30, etc.). Instead we store the pool's format as an IP hint
-    // and force-close so the miner reconnects. On the next connection the hint
-    // is used to generate a subscribe reply whose extranonce sizes already match
-    // the pool → set_extranonce will only change the VALUE (safe).
     const ourE1ByteLen = prevExtranonce1.length / 2;
     const poolE1ByteLen = newExtranonce1.length / 2;
-    if (poolE1ByteLen !== ourE1ByteLen || extranonce2Size !== prevSize) {
-      // Update our size fields to the POOL's real values NOW so that _onClose
-      // stores the correct hint (it reads this.extranonce2Size).  We don't
-      // update extranonce1 here because the miner was never told the new value.
-      this.extranonce2Size = extranonce2Size;
-      if (this.rigId != null) proxyState.storeExtranonceHint(this.rigId, newExtranonce1, extranonce2Size);
+    const sizeChanged = poolE1ByteLen !== ourE1ByteLen || extranonce2Size !== prevSize;
+
+    // Always update internal state and store hint with pool's real values.
+    this.extranonce1 = newExtranonce1;
+    this.extranonce2Size = extranonce2Size;
+    if (this.rigId != null) proxyState.storeExtranonceHint(this.rigId, newExtranonce1, extranonce2Size);
+
+    if (sizeChanged) {
+      // Sizes changed: send set_extranonce to the miner anyway.
+      // Modern firmware (S19 Pro, Whatsminer M3x, etc.) accepts size-changing
+      // set_extranonce. If older firmware disconnects, the next reconnect will
+      // use the stored hint and subscribe with the correct sizes from the start,
+      // avoiding this path entirely. This is far better than force-closing here,
+      // which caused an infinite reconnect loop when two miners behind the same
+      // NAT both reconnected simultaneously and both got default (4/4) extranonce
+      // from subscribe (because getRigIdByIp couldn't tell them apart).
       logger.info(
         {
           rigId: this.rigId, source,
@@ -1152,20 +1154,14 @@ export class DownstreamSession extends EventEmitter {
           ourE2size: prevSize, poolE2size: extranonce2Size,
           ip: this.socket.remoteAddress ?? "",
         },
-        "stratum:downstream pool extranonce size mismatch — stored hint and force-closing for clean reconnect",
+        "stratum:downstream pool extranonce size mismatch — sending set_extranonce and storing hint",
       );
-      this._close();
-      return;
+    } else {
+      logger.info(
+        { rigId: this.rigId, source, prevExtranonce1, newExtranonce1 },
+        "stratum:downstream upstream extranonce value changed — forwarding mining.set_extranonce (same sizes)",
+      );
     }
-
-    // Sizes match → only the VALUE of extranonce1 changed (safe for all firmwares).
-    this.extranonce1 = newExtranonce1;
-    this.extranonce2Size = extranonce2Size;
-
-    logger.info(
-      { rigId: this.rigId, source, prevExtranonce1, newExtranonce1 },
-      "stratum:downstream upstream extranonce value changed — forwarding mining.set_extranonce (safe, same sizes)",
-    );
     this._notify("mining.set_extranonce", [newExtranonce1, extranonce2Size]);
   }
 
