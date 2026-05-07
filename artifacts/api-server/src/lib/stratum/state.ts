@@ -82,12 +82,18 @@ class ProxyState {
    */
   private extranonceHints = new Map<number, { e1: string; e2size: number }>();
   /**
-   * Secondary index: "remoteIp:localPort" → rigId.
+   * Secondary index: "remoteIp:localPort" → Set<rigId>.
    * Populated after mining.authorize so that _handleSubscribe (which runs
    * BEFORE auth) can look up the rigId for a returning miner and then fetch
    * the correct extranonce hint by rigId.
+   *
+   * NOTE: A single IP:port key can map to MULTIPLE rigs when several physical
+   * devices share the same public IP (e.g. a farm behind NAT).  We keep a Set
+   * of all rigIds ever seen from that IP and, at subscribe time, pick the one
+   * offline rig — so two devices on the same LAN each get their own correct
+   * hint without overwriting each other.
    */
-  private ipToRigId = new Map<string, number>();
+  private ipToRigIds = new Map<string, Set<number>>();
   /** Background GC handle — sweeps stale snapshots and idle fallback buffers. */
   private gcTimer: NodeJS.Timeout;
 
@@ -962,14 +968,40 @@ class ProxyState {
    * Record the mapping "remoteIp:localPort" → rigId after a successful auth.
    * Used by _handleSubscribe (which runs before auth) to look up the rigId
    * of a returning miner so it can fetch the correct extranonce hint.
+   *
+   * Adds rigId to the Set for this IP (never removes) so multiple devices
+   * behind the same NAT each retain their individual rigId ↔ IP association.
    */
   storeIpRigMapping(ipPort: string, rigId: number): void {
-    this.ipToRigId.set(ipPort, rigId);
+    let set = this.ipToRigIds.get(ipPort);
+    if (!set) {
+      set = new Set();
+      this.ipToRigIds.set(ipPort, set);
+    }
+    set.add(rigId);
   }
 
-  /** Look up the rigId previously authenticated from this "remoteIp:localPort". */
+  /**
+   * Return the best rigId for an extranonce hint lookup at subscribe time.
+   *
+   * "Best" means: the sole rigId known for this IP that currently has NO live
+   * session (i.e. the device is reconnecting).  If multiple offline rigIds are
+   * known (e.g. both devices just rebooted simultaneously) we cannot reliably
+   * tell them apart and return undefined so each gets a fresh random extranonce
+   * and goes through one force-close cycle to re-establish their hints.
+   *
+   * If the only known rigId IS currently live, this is a different physical
+   * device sharing the same NAT IP — again return undefined so it starts fresh.
+   */
   getRigIdByIp(ipPort: string): number | undefined {
-    return this.ipToRigId.get(ipPort);
+    const set = this.ipToRigIds.get(ipPort);
+    if (!set || set.size === 0) return undefined;
+    // Collect rigIds that have NO live session right now.
+    const offline: number[] = [];
+    for (const id of set) {
+      if (!this.rigConnections.get(id)) offline.push(id);
+    }
+    return offline.length === 1 ? offline[0] : undefined;
   }
 }
 
