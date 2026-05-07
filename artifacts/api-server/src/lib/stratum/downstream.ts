@@ -321,9 +321,15 @@ export class DownstreamSession extends EventEmitter {
     // First-time connect (no hint): use a random 4B e1 + e2size=4. The pool
     // will give us its real format; we store it and force-close. Second connect
     // uses the exact pool e1 → no set_extranonce ever sent → miner stays connected.
+    // Two-step hint lookup: IP:port → rigId → extranonce hint.
+    // rigId is the only truly rig-specific identifier — two different rigs
+    // behind the same NAT (same IP) on the same server port would share a hint
+    // if keyed by IP:port alone.  We populate ipToRigId after every successful
+    // auth so returning miners can be identified here before auth completes.
     const remoteIp = this.socket.remoteAddress ?? "";
-    const hintKey = remoteIp ? `${remoteIp}:${this.localPort}` : "";
-    const hint = proxyState.getExtranonceHint(hintKey);
+    const ipPort = remoteIp ? `${remoteIp}:${this.localPort}` : "";
+    const knownRigId = ipPort ? proxyState.getRigIdByIp(ipPort) : undefined;
+    const hint = knownRigId != null ? proxyState.getExtranonceHint(knownRigId) : null;
     this.extranonce2Size = hint?.e2size ?? 4;
     this.extranonce1 = hint?.e1 ?? makeExtranonce1(4);
 
@@ -595,6 +601,10 @@ export class DownstreamSession extends EventEmitter {
     this.ownerId = rig.ownerId;
     this.authorized = true;
     proxyState.addRig(rig.id, rig.ownerId, this, rig.name);
+    // Record IP:port → rigId so _handleSubscribe can look up the hint on the
+    // NEXT connect (subscribe runs before auth, so we need this secondary index).
+    const authIp = this.socket.remoteAddress ?? "";
+    if (authIp) proxyState.storeIpRigMapping(`${authIp}:${this.localPort}`, rig.id);
 
     // Persist online state and last-seen timestamp so admin can track connectivity.
     await db
@@ -1122,12 +1132,11 @@ export class DownstreamSession extends EventEmitter {
     const ourE1ByteLen = prevExtranonce1.length / 2;
     const poolE1ByteLen = newExtranonce1.length / 2;
     if (poolE1ByteLen !== ourE1ByteLen || extranonce2Size !== prevSize) {
-      const remoteIp = this.socket.remoteAddress ?? "";
       // Update our size fields to the POOL's real values NOW so that _onClose
       // stores the correct hint (it reads this.extranonce2Size).  We don't
       // update extranonce1 here because the miner was never told the new value.
       this.extranonce2Size = extranonce2Size;
-      if (remoteIp) proxyState.storeExtranonceHint(`${remoteIp}:${this.localPort}`, newExtranonce1, extranonce2Size);
+      if (this.rigId != null) proxyState.storeExtranonceHint(this.rigId, newExtranonce1, extranonce2Size);
       logger.info(
         {
           rigId: this.rigId, source,
@@ -1397,8 +1406,7 @@ export class DownstreamSession extends EventEmitter {
     // gets the correct e1 byte-length and e2size in the subscribe reply.
     // We store it here (at natural close) AND at force-close in _applyUpstreamExtranonce.
     if (this.upstreamExtranonce1 && this.rigId != null) {
-      const remoteIp = this.socket.remoteAddress ?? "";
-      if (remoteIp) proxyState.storeExtranonceHint(`${remoteIp}:${this.localPort}`, this.upstreamExtranonce1, this.extranonce2Size);
+      proxyState.storeExtranonceHint(this.rigId, this.upstreamExtranonce1, this.extranonce2Size);
     }
 
     if (this.upstream != null) {

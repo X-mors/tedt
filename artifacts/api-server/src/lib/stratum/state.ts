@@ -74,16 +74,20 @@ class ProxyState {
    *  so the owner UI does not flap to OFFLINE / 0 shares on transient drops. */
   private lastSeenRigEntries = new Map<number, RigSnapshot>();
   /**
-   * Per-IP extranonce format hint.  When a miner disconnects after we learned
-   * the pool's extranonce1 byte-length and extranonce2_size, we store those
-   * values keyed by the miner's remote IP address.  On the next connection from
-   * the same IP we can generate our proxy-extranonce1 with the EXACT same byte
-   * length so that a later mining.set_extranonce only changes the VALUE (not the
-   * size), which almost all ASIC firmwares accept.  A size change in
-   * set_extranonce invalidates the coinbase template and most firmwares
-   * disconnect immediately when they receive it.
+   * Per-rig extranonce format hint keyed by rigId.
+   * Stores the pool's exact extranonce1 VALUE and extranonce2_size so the next
+   * subscribe reply can use them verbatim — making set_extranonce unnecessary.
+   * Using rigId (not IP) means two different rigs behind the same NAT never
+   * share each other's hint, regardless of which port they connect on.
    */
-  private extranonceHints = new Map<string, { e1: string; e2size: number }>();
+  private extranonceHints = new Map<number, { e1: string; e2size: number }>();
+  /**
+   * Secondary index: "remoteIp:localPort" → rigId.
+   * Populated after mining.authorize so that _handleSubscribe (which runs
+   * BEFORE auth) can look up the rigId for a returning miner and then fetch
+   * the correct extranonce hint by rigId.
+   */
+  private ipToRigId = new Map<string, number>();
   /** Background GC handle — sweeps stale snapshots and idle fallback buffers. */
   private gcTimer: NodeJS.Timeout;
 
@@ -937,23 +941,35 @@ class ProxyState {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Per-IP extranonce format hints
+  // Per-rig extranonce format hints (keyed by rigId)
   // ──────────────────────────────────────────────────────────────────────────
 
   /**
-   * Persist the pool's extranonce format for a miner IP so future connections
-   * from the same machine can generate a proxy-extranonce1 of the correct byte
-   * length, avoiding size changes in subsequent set_extranonce calls.
+   * Persist the pool's extranonce format keyed by rigId.
+   * Called on session close so the next subscribe from the same rig can reply
+   * with the correct e1 length/value and e2size — avoiding set_extranonce entirely.
    */
-  storeExtranonceHint(ip: string, e1: string, e2size: number): void {
-    // Store the pool's full extranonce1 VALUE so the next subscribe reply can
-    // use it verbatim — making set_extranonce unnecessary on that session.
-    this.extranonceHints.set(ip, { e1, e2size });
+  storeExtranonceHint(rigId: number, e1: string, e2size: number): void {
+    this.extranonceHints.set(rigId, { e1, e2size });
   }
 
-  /** Return the stored extranonce hint for an IP, or null if unknown. */
-  getExtranonceHint(ip: string): { e1: string; e2size: number } | null {
-    return this.extranonceHints.get(ip) ?? null;
+  /** Return the stored extranonce hint for a rigId, or null if unknown. */
+  getExtranonceHint(rigId: number): { e1: string; e2size: number } | null {
+    return this.extranonceHints.get(rigId) ?? null;
+  }
+
+  /**
+   * Record the mapping "remoteIp:localPort" → rigId after a successful auth.
+   * Used by _handleSubscribe (which runs before auth) to look up the rigId
+   * of a returning miner so it can fetch the correct extranonce hint.
+   */
+  storeIpRigMapping(ipPort: string, rigId: number): void {
+    this.ipToRigId.set(ipPort, rigId);
+  }
+
+  /** Look up the rigId previously authenticated from this "remoteIp:localPort". */
+  getRigIdByIp(ipPort: string): number | undefined {
+    return this.ipToRigId.get(ipPort);
   }
 }
 
