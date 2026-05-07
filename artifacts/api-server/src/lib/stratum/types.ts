@@ -28,6 +28,8 @@ export interface ShareSample {
  */
 export interface RecordedShare {
   sample: ShareSample;
+  /** Unique session identifier — immutable scope tag for markShareRejected routing. */
+  sessionId: string;
   rigId: number;
   rentalId: number | null;
   /** True if the sample was actually appended to a buffer. False means the
@@ -78,6 +80,8 @@ export interface ShareWindow {
 }
 
 export interface ProxyRigEntry {
+  /** Unique per-connection identifier — never changes, even if rigId does. */
+  sessionId: string;
   rigId: number;
   /** Database ownerId — used to locate a session when rigId lookup misses due to stratumName mismatch. */
   ownerId: number;

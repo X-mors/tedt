@@ -62,7 +62,19 @@ export interface FlushSnapshot {
 }
 
 class ProxyState {
-  private rigConnections = new Map<number, RigConnection>();
+  /**
+   * Primary connection index: sessionId (UUID) → RigConnection.
+   * Each TCP connection has its own unique sessionId regardless of rigId.
+   * Two devices with the same worker name get different sessionIds and never
+   * interfere with each other.
+   */
+  private rigConnections = new Map<string, RigConnection>();
+  /**
+   * Secondary index: rigId → Set<sessionId>.
+   * Allows lookups by rigId (for rental routing, admin UI, etc.) without
+   * collapsing multiple sessions for the same rig into one.
+   */
+  private rigIdToSessionIds = new Map<number, Set<string>>();
   private shareWindows = new Map<number, ShareWindow>();
   /** Per-rig fallback share buffer (used when no rental is active). */
   private fallbackWindows = new Map<number, ShareWindow>();
@@ -136,7 +148,12 @@ class ProxyState {
    * no longer exists in the database.
    */
   forgetRig(rigId: number): void {
-    this.rigConnections.delete(rigId);
+    // Disconnect all sessions for this rig.
+    const sids = this.rigIdToSessionIds.get(rigId);
+    if (sids) {
+      for (const sid of sids) this.rigConnections.delete(sid);
+      this.rigIdToSessionIds.delete(rigId);
+    }
     this.lastSeenRigEntries.delete(rigId);
     this.fallbackWindows.delete(rigId);
     const pf = this.parkedFallbacks.get(rigId);
@@ -302,27 +319,21 @@ class ProxyState {
   // Rig connection lifecycle
   // ──────────────────────────────────────────────────────────────────────────
 
-  addRig(rigId: number, ownerId: number, session: DownstreamSession, rigName: string): void {
-    // CRITICAL: if a previous session is still registered for this rigId, force
-    // it to disconnect BEFORE we overwrite the map entry. Otherwise the old
-    // session's upstream (e.g. owner's fallback to viabtc as `ahmed.m30`) keeps
-    // mining in parallel with the new session's upstream (renter's pool as
-    // `AhmadSamir.y`), producing two simultaneous TCP connections to the pool
-    // and inconsistent stats. Also when the orphaned old session eventually
-    // closes, its _onClose calls removeRig(rigId) and accidentally evicts the
-    // NEW session's entry from the map.
-    const existing = this.rigConnections.get(rigId);
-    if (existing && existing.session !== session) {
-      existing.session.disconnect("replaced by new connection for same rigId");
-    }
+  /**
+   * Register a new TCP session. Each call gets its own sessionId (UUID) so
+   * multiple devices with the same rigId coexist without evicting each other.
+   * No kick logic — every connection is independent.
+   */
+  addRig(sessionId: string, rigId: number, ownerId: number, session: DownstreamSession, rigName: string): void {
     // If we have a recent snapshot for this rigId, restore lifetime counters
     // so a quick reconnect doesn't reset shares-accepted/rejected display.
     const snap = this.lastSeenRigEntries.get(rigId);
     const restored =
       snap && Date.now() - snap.seenAt < RIG_SNAPSHOT_TTL_MS ? snap.entry : null;
-    this.rigConnections.set(rigId, {
+    this.rigConnections.set(sessionId, {
       session,
       entry: {
+        sessionId,
         rigId,
         ownerId,
         rigName,
@@ -339,49 +350,68 @@ class ProxyState {
         upstreamDisconnects: 0,
       },
     });
-    // Drop the snapshot now that the live entry has taken over.
+    // Register sessionId in the rigId → sessionIds index.
+    let sids = this.rigIdToSessionIds.get(rigId);
+    if (!sids) { sids = new Set(); this.rigIdToSessionIds.set(rigId, sids); }
+    sids.add(sessionId);
+    // Drop the snapshot now that a live entry has taken over.
     this.lastSeenRigEntries.delete(rigId);
   }
 
-  incrementDropped(rigId: number): void {
-    const conn = this.rigConnections.get(rigId);
+  incrementDropped(sessionId: string): void {
+    const conn = this.rigConnections.get(sessionId);
     if (conn) conn.entry.submitsDropped++;
   }
 
-  incrementUpstreamError(rigId: number): void {
-    const conn = this.rigConnections.get(rigId);
+  incrementUpstreamError(sessionId: string): void {
+    const conn = this.rigConnections.get(sessionId);
     if (conn) conn.entry.upstreamErrors++;
   }
 
-  incrementUpstreamDisconnect(rigId: number): void {
-    const conn = this.rigConnections.get(rigId);
+  incrementUpstreamDisconnect(sessionId: string): void {
+    const conn = this.rigConnections.get(sessionId);
     if (conn) conn.entry.upstreamDisconnects++;
   }
 
-  removeRig(rigId: number, session?: DownstreamSession): void {
-    const conn = this.rigConnections.get(rigId);
-    // Guard against the orphaned-session race: if a previous session for the
-    // same rigId is closing AFTER a new session has already taken over the
-    // map entry, do nothing — otherwise we would evict the live session.
-    if (conn && session && conn.session !== session) return;
-    if (conn) {
-      // Snapshot so the owner UI keeps showing share counts and lastShareAt
-      // during the reconnect grace window. Mark upstream as disconnected
-      // since the rig is going away.
-      this.lastSeenRigEntries.set(rigId, {
-        entry: {
-          ...conn.entry,
-          upstreamConnected: false,
-          upstreamAuthFailed: false,
-        },
-        seenAt: Date.now(),
-      });
-      this.rigConnections.delete(rigId);
+  removeRig(sessionId: string): void {
+    const conn = this.rigConnections.get(sessionId);
+    if (!conn) return;
+    const rigId = conn.entry.rigId;
+    // Snapshot so the owner UI keeps showing share counts and lastShareAt
+    // during the reconnect grace window.
+    this.lastSeenRigEntries.set(rigId, {
+      entry: { ...conn.entry, upstreamConnected: false, upstreamAuthFailed: false },
+      seenAt: Date.now(),
+    });
+    this.rigConnections.delete(sessionId);
+    const sids = this.rigIdToSessionIds.get(rigId);
+    if (sids) {
+      sids.delete(sessionId);
+      if (sids.size === 0) this.rigIdToSessionIds.delete(rigId);
     }
   }
 
+  /** Return the first live session for a rigId, or undefined if none connected. */
   getRigSession(rigId: number): DownstreamSession | undefined {
-    return this.rigConnections.get(rigId)?.session;
+    const sids = this.rigIdToSessionIds.get(rigId);
+    if (!sids) return undefined;
+    for (const sid of sids) {
+      const conn = this.rigConnections.get(sid);
+      if (conn) return conn.session;
+    }
+    return undefined;
+  }
+
+  /** Return ALL live sessions for a rigId. */
+  getRigSessions(rigId: number): DownstreamSession[] {
+    const sids = this.rigIdToSessionIds.get(rigId);
+    if (!sids) return [];
+    const out: DownstreamSession[] = [];
+    for (const sid of sids) {
+      const conn = this.rigConnections.get(sid);
+      if (conn) out.push(conn.session);
+    }
+    return out;
   }
 
   /**
@@ -401,11 +431,7 @@ class ProxyState {
 
   /**
    * Find the session currently routing shares for `rentalId`. This is the
-   * authoritative lookup when terminating/settling a rental, because shadow
-   * rigs (auto-created when miner uses a non-matching stratumName) have a
-   * different rigId from rental.rigId — looking up by rigId would silently
-   * miss them and leave the upstream pool connection alive, continuing to
-   * mine for the renter after termination.
+   * authoritative lookup when terminating/settling a rental.
    */
   getSessionByRentalId(rentalId: number): DownstreamSession | undefined {
     for (const conn of this.rigConnections.values()) {
@@ -414,24 +440,24 @@ class ProxyState {
     return undefined;
   }
 
-  setRigAuthorized(rigId: number, rentalId: number | null): void {
-    const conn = this.rigConnections.get(rigId);
+  setRigAuthorized(sessionId: string, rentalId: number | null): void {
+    const conn = this.rigConnections.get(sessionId);
     if (conn) {
       conn.entry.authorized = true;
       conn.entry.rentalId = rentalId;
     }
   }
 
-  setUpstreamConnected(rigId: number, connected: boolean): void {
-    const conn = this.rigConnections.get(rigId);
+  setUpstreamConnected(sessionId: string, connected: boolean): void {
+    const conn = this.rigConnections.get(sessionId);
     if (conn) {
       conn.entry.upstreamConnected = connected;
       if (connected) conn.entry.upstreamAuthFailed = false;
     }
   }
 
-  setUpstreamAuthFailed(rigId: number, failed: boolean): void {
-    const conn = this.rigConnections.get(rigId);
+  setUpstreamAuthFailed(sessionId: string, failed: boolean): void {
+    const conn = this.rigConnections.get(sessionId);
     if (conn) conn.entry.upstreamAuthFailed = failed;
   }
 
@@ -439,15 +465,17 @@ class ProxyState {
    * Returns fallback pool connection status only when the rig is connected and
    * NOT currently in an active rental (i.e. miner is running in fallback mode).
    * Returns null when the rig is offline or when a rental is active.
+   * If multiple sessions exist for this rigId, returns status of first idle one.
    */
   getFallbackPoolStatus(rigId: number): { connected: boolean; authFailed: boolean } | null {
-    const conn = this.rigConnections.get(rigId);
-    if (!conn) return null;
-    if (conn.entry.rentalId !== null) return null;
-    return {
-      connected: conn.entry.upstreamConnected,
-      authFailed: conn.entry.upstreamAuthFailed,
-    };
+    const sids = this.rigIdToSessionIds.get(rigId);
+    if (!sids) return null;
+    for (const sid of sids) {
+      const conn = this.rigConnections.get(sid);
+      if (!conn || conn.entry.rentalId !== null) continue;
+      return { connected: conn.entry.upstreamConnected, authFailed: conn.entry.upstreamAuthFailed };
+    }
+    return null;
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -463,12 +491,13 @@ class ProxyState {
    * rig connection has gone away entirely.
    */
   recordShare(
-    rigId: number,
+    sessionId: string,
     accepted: boolean,
     difficulty: number,
   ): RecordedShare | null {
-    const conn = this.rigConnections.get(rigId);
+    const conn = this.rigConnections.get(sessionId);
     if (!conn) return null;
+    const { rigId } = conn.entry;
     const nowMs = Date.now();
     if (accepted) {
       conn.entry.sharesAccepted++;
@@ -479,12 +508,9 @@ class ProxyState {
 
     const rentalId = conn.entry.rentalId;
     if (rentalId == null) {
-      // No rental window yet (rare auth race); still return a handle so the
-      // caller can roll back the conn.entry increment if the pool rejects.
-      // The orphan sample isn't in any buffer — mutating its `accepted` flag
-      // is a no-op for hashrate, which is the desired behaviour.
       return {
         sample: { tsMs: nowMs, difficulty, accepted },
+        sessionId,
         rigId,
         rentalId: null,
         appended: false,
@@ -497,24 +523,15 @@ class ProxyState {
       this.shareWindows.set(rentalId, window);
     }
     const sample = this._appendSample(window, accepted, difficulty, nowMs);
-    return { sample, rigId, rentalId, appended: true };
+    return { sample, sessionId, rigId, rentalId, appended: true };
   }
 
-  /**
-   * Downgrade a previously-recorded accepted share to rejected. Used when we
-   * optimistically credit a share at submit time (downstream truth) but the
-   * upstream pool eventually returns a rejection.
-   *
-   * Routing uses the IMMUTABLE scope captured in the handle, NOT the rig's
-   * current rental/mode state — so a correction that lands after the rental
-   * ended or after the rig flipped to fallback still adjusts the original
-   * window, never the wrong one.
-   */
   markShareRejected(handle: RecordedShare): void {
     if (!handle.sample.accepted) return;
     handle.sample.accepted = false;
 
-    const conn = this.rigConnections.get(handle.rigId);
+    // Update session counter via sessionId (immutable scope).
+    const conn = this.rigConnections.get(handle.sessionId);
     if (conn) {
       if (conn.entry.sharesAccepted > 0) conn.entry.sharesAccepted--;
       conn.entry.sharesRejected++;
@@ -537,19 +554,14 @@ class ProxyState {
     }
   }
 
-  /**
-   * Track shares submitted while the rig is in fallback mode (no active
-   * rental). These shares go to the OWNER's pool and are not part of any
-   * rental accounting, but we still buffer them so the owner UI can show
-   * a meaningful "current hashrate" for an idle rig.
-   */
   recordFallbackShare(
-    rigId: number,
+    sessionId: string,
     accepted: boolean,
     difficulty: number,
   ): RecordedShare | null {
-    const conn = this.rigConnections.get(rigId);
+    const conn = this.rigConnections.get(sessionId);
     const nowMs = Date.now();
+    const rigId = conn?.entry.rigId ?? 0;
     if (conn) {
       if (accepted) {
         conn.entry.sharesAccepted++;
@@ -564,7 +576,7 @@ class ProxyState {
       this.fallbackWindows.set(rigId, window);
     }
     const sample = this._appendSample(window, accepted, difficulty, nowMs);
-    return { sample, rigId, rentalId: null, appended: true };
+    return { sample, sessionId, rigId, rentalId: null, appended: true };
   }
 
   setCurrentDifficulty(rentalId: number, difficulty: number): void {
@@ -780,22 +792,22 @@ class ProxyState {
    * null. Used by owner-side live telemetry to show share counts and
    * connection state when no rental is active (idle fallback mining).
    */
+  /** Return the first live entry for a rigId, or null. */
   getRigEntry(rigId: number): ProxyRigEntry | null {
-    return this.rigConnections.get(rigId)?.entry ?? null;
+    const sids = this.rigIdToSessionIds.get(rigId);
+    if (!sids) return null;
+    for (const sid of sids) {
+      const conn = this.rigConnections.get(sid);
+      if (conn) return conn.entry;
+    }
+    return null;
   }
 
-  /**
-   * Return the live entry, OR a recent snapshot taken when the rig last
-   * disconnected (within RIG_SNAPSHOT_TTL_MS). The `live` flag tells the
-   * caller whether the data is from an active session or a snapshot —
-   * useful for grace-period UI display that should not flap to OFFLINE
-   * during transient ASIC reconnects.
-   */
   getRigEntryWithGrace(
     rigId: number,
   ): { entry: ProxyRigEntry; live: boolean } | null {
-    const live = this.rigConnections.get(rigId);
-    if (live) return { entry: live.entry, live: true };
+    const entry = this.getRigEntry(rigId);
+    if (entry) return { entry, live: true };
     const snap = this.lastSeenRigEntries.get(rigId);
     if (snap) {
       if (Date.now() - snap.seenAt < RIG_SNAPSHOT_TTL_MS) {
@@ -807,7 +819,7 @@ class ProxyState {
   }
 
   getConnectedRigIds(): number[] {
-    return Array.from(this.rigConnections.keys());
+    return Array.from(this.rigIdToSessionIds.keys());
   }
 
   /** Return the distinct set of ownerIds for all currently-connected miners. */
@@ -851,9 +863,9 @@ class ProxyState {
   }
 
   forceDisconnect(rigId: number): boolean {
-    const conn = this.rigConnections.get(rigId);
-    if (!conn) return false;
-    conn.session.disconnect("Admin forced disconnect");
+    const sessions = this.getRigSessions(rigId);
+    if (sessions.length === 0) return false;
+    for (const s of sessions) s.disconnect("Admin forced disconnect");
     return true;
   }
 

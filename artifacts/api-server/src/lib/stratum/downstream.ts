@@ -1,6 +1,7 @@
 import * as net from "node:net";
 import { EventEmitter } from "node:events";
 import { randomBytes } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { eq, and, asc } from "drizzle-orm";
 import { db, rigsTable, rentalsTable, proxyAuthFailuresTable, usersTable, algorithmsTable } from "@workspace/db";
 import { logger } from "../logger";
@@ -41,6 +42,8 @@ function makeExtranonce1(byteLen = 4): string {
 }
 
 export class DownstreamSession extends EventEmitter {
+  /** Unique identifier for this TCP connection — never changes even if rigId does. */
+  readonly sessionId: string = randomUUID();
   private buffer = "";
   private msgIdCounter = 1;
   private destroyed = false;
@@ -610,7 +613,7 @@ export class DownstreamSession extends EventEmitter {
     this.rigId = rig.id;
     this.ownerId = rig.ownerId;
     this.authorized = true;
-    proxyState.addRig(rig.id, rig.ownerId, this, rig.name);
+    proxyState.addRig(this.sessionId, rig.id, rig.ownerId, this, rig.name);
     // Record IP:port → rigId so _handleSubscribe can look up the hint on the
     // NEXT connect (subscribe runs before auth, so we need this secondary index).
     const authIp = this.socket.remoteAddress ?? "";
@@ -624,7 +627,7 @@ export class DownstreamSession extends EventEmitter {
 
     const activeRental = await this._findActiveRental(rig.id, rig.ownerId);
     this.rentalId = activeRental?.id ?? null;
-    proxyState.setRigAuthorized(rig.id, this.rentalId);
+    proxyState.setRigAuthorized(this.sessionId, this.rentalId);
 
     this._reply(msg.id, true);
     logger.info({ rigId: rig.id, rentalId: this.rentalId }, "stratum:downstream authorized");
@@ -712,7 +715,7 @@ export class DownstreamSession extends EventEmitter {
     this._clearSubmitBuffer();
     this.isFallback = false;
     this.rentalId = rentalId;
-    if (this.rigId != null) proxyState.setRigAuthorized(this.rigId, rentalId);
+    if (this.rigId != null) proxyState.setRigAuthorized(this.sessionId, rentalId);
 
     // Force-disconnect the miner so it reconnects from scratch.
     //
@@ -762,10 +765,8 @@ export class DownstreamSession extends EventEmitter {
     // OLD-pool upstream and silently keep mining to the previous pool.
     proxyState.removeParkedUpstream(rentalId);
     this._clearSubmitBuffer();
-    if (this.rigId != null) {
-      proxyState.setUpstreamConnected(this.rigId, false);
-      proxyState.setUpstreamAuthFailed(this.rigId, false);
-    }
+    proxyState.setUpstreamConnected(this.sessionId, false);
+    proxyState.setUpstreamAuthFailed(this.sessionId, false);
     logger.info(
       { rigId: this.rigId, rentalId },
       "stratum:downstream rental pool switched — force-closing miner for clean reconnect",
@@ -782,10 +783,8 @@ export class DownstreamSession extends EventEmitter {
     this._clearSubmitBuffer();
     this.rentalId = null;
     this.isFallback = false;
-    if (this.rigId != null) {
-      proxyState.setRigAuthorized(this.rigId, null);
-      proxyState.setUpstreamConnected(this.rigId, false);
-    }
+    proxyState.setRigAuthorized(this.sessionId, null);
+    proxyState.setUpstreamConnected(this.sessionId, false);
     // Flush any unflushed share counters into the rentals row, then remove
     // the share window so the flush loop stops inserting samples. Fire and
     // forget — deactivateRental is sync and the persist is best-effort; any
@@ -817,10 +816,10 @@ export class DownstreamSession extends EventEmitter {
       this.upstream.destroy();
       this.upstream = null;
       this.isFallback = false;
-      proxyState.setUpstreamConnected(this.rigId, false);
+      proxyState.setUpstreamConnected(this.sessionId, false);
     }
     // Also evict any parked fallback so the next reconnect uses the new config.
-    proxyState.removeParkedFallbackUpstream(this.rigId);
+    if (this.rigId != null) proxyState.removeParkedFallbackUpstream(this.rigId);
     // Force the miner to reconnect for a clean stratum subscription with the
     // new pool's extranonce. Many ASIC firmwares (Antminer, Whatsminer, …) do
     // NOT honour mid-session `mining.set_extranonce`, so without a clean
@@ -888,7 +887,7 @@ export class DownstreamSession extends EventEmitter {
         this._applyUpstreamExtranonce(e1, e2size, "parked-fallback-claimed");
         // _applyUpstreamExtranonce may have force-closed (size mismatch) — don't continue.
         if (this.destroyed) return;
-        proxyState.setUpstreamConnected(rig.id, true);
+        proxyState.setUpstreamConnected(this.sessionId, true);
         void this._flushSubmitBuffer();
         // Re-send the pool's current difficulty so the miner uses the correct
         // target. We sent currentDifficulty=1 in subscribe (before the upstream
@@ -935,9 +934,10 @@ export class DownstreamSession extends EventEmitter {
   }
 
   /** Wire upstream events for a fallback pool connection (no rental accounting). */
-  private _wireFallbackUpstreamEvents(rigId: number): void {
+  private _wireFallbackUpstreamEvents(_rigId: number): void {
     const upstream = this.upstream;
     if (!upstream) return;
+    const sid = this.sessionId;
 
     upstream.on("setDifficulty", (diff: number) => {
       this._setDifficulty(diff);
@@ -957,23 +957,23 @@ export class DownstreamSession extends EventEmitter {
     });
 
     upstream.on("ready", () => {
-      proxyState.setUpstreamConnected(rigId, true);
+      proxyState.setUpstreamConnected(sid, true);
       void this._flushSubmitBuffer();
-      logger.info({ rigId }, "stratum:downstream fallback upstream ready");
+      logger.info({ sessionId: sid, rigId: this.rigId }, "stratum:downstream fallback upstream ready");
     });
 
     upstream.on("authFailed", () => {
-      proxyState.setUpstreamAuthFailed(rigId, true);
-      logger.warn({ rigId }, "stratum:downstream fallback pool rejected worker credentials");
+      proxyState.setUpstreamAuthFailed(sid, true);
+      logger.warn({ sessionId: sid, rigId: this.rigId }, "stratum:downstream fallback pool rejected worker credentials");
     });
 
     upstream.on("disconnected", () => {
-      proxyState.setUpstreamConnected(rigId, false);
-      proxyState.incrementUpstreamDisconnect(rigId);
+      proxyState.setUpstreamConnected(sid, false);
+      proxyState.incrementUpstreamDisconnect(sid);
     });
 
     upstream.on("error", () => {
-      proxyState.incrementUpstreamError(rigId);
+      proxyState.incrementUpstreamError(sid);
     });
   }
 
@@ -1004,7 +1004,7 @@ export class DownstreamSession extends EventEmitter {
         this._applyUpstreamExtranonce(e1, e2size, "parked-upstream-claimed");
         // _applyUpstreamExtranonce may have force-closed (size mismatch).
         if (this.destroyed) return;
-        proxyState.setUpstreamConnected(this.rigId, true);
+        proxyState.setUpstreamConnected(this.sessionId, true);
         void this._flushSubmitBuffer();
         // Re-send pool's current difficulty (subscribe sent default=1).
         const poolDiff = claimed.getCurrentDifficulty();
@@ -1052,11 +1052,10 @@ export class DownstreamSession extends EventEmitter {
   private _wireUpstreamEvents(rentalId: number): void {
     const upstream = this.upstream;
     if (!upstream) return;
+    const sid = this.sessionId;
 
     upstream.on("setDifficulty", (diff: number) => {
-      if (this.rigId != null) {
-        proxyState.setCurrentDifficulty(rentalId, diff);
-      }
+      proxyState.setCurrentDifficulty(rentalId, diff);
       this._setDifficulty(diff);
     });
 
@@ -1074,27 +1073,23 @@ export class DownstreamSession extends EventEmitter {
     });
 
     upstream.on("ready", () => {
-      if (this.rigId != null) proxyState.setUpstreamConnected(this.rigId, true);
-      logger.info({ rigId: this.rigId, rentalId }, "stratum:downstream upstream ready");
+      proxyState.setUpstreamConnected(sid, true);
+      logger.info({ sessionId: sid, rigId: this.rigId, rentalId }, "stratum:downstream upstream ready");
       void this._flushSubmitBuffer();
     });
 
     upstream.on("authFailed", () => {
-      if (this.rigId != null) {
-        proxyState.setUpstreamAuthFailed(this.rigId, true);
-        logger.warn({ rigId: this.rigId, rentalId }, "stratum:downstream pool rejected worker credentials");
-      }
+      proxyState.setUpstreamAuthFailed(sid, true);
+      logger.warn({ sessionId: sid, rigId: this.rigId, rentalId }, "stratum:downstream pool rejected worker credentials");
     });
 
     upstream.on("disconnected", () => {
-      if (this.rigId != null) {
-        proxyState.setUpstreamConnected(this.rigId, false);
-        proxyState.incrementUpstreamDisconnect(this.rigId);
-      }
+      proxyState.setUpstreamConnected(sid, false);
+      proxyState.incrementUpstreamDisconnect(sid);
     });
 
     upstream.on("error", () => {
-      if (this.rigId != null) proxyState.incrementUpstreamError(this.rigId);
+      proxyState.incrementUpstreamError(sid);
     });
   }
 
@@ -1258,10 +1253,10 @@ export class DownstreamSession extends EventEmitter {
       // downgrade in place (no double-count).
       if (this.submitBuffer.length < SUBMIT_BUFFER_MAX) {
         let handle: RecordedShare | null = null;
-        if (this.rigId != null && !this.isFallback) {
-          handle = proxyState.recordShare(this.rigId, true, this.currentDifficulty);
-        } else if (this.rigId != null && this.isFallback) {
-          handle = proxyState.recordFallbackShare(this.rigId, true, this.currentDifficulty);
+        if (!this.isFallback) {
+          handle = proxyState.recordShare(this.sessionId, true, this.currentDifficulty);
+        } else {
+          handle = proxyState.recordFallbackShare(this.sessionId, true, this.currentDifficulty);
         }
         this.submitBuffer.push({ jobId, extranonce2, ntime, nonce, versionBits, diff: this.currentDifficulty, handle });
         logger.debug(
@@ -1269,7 +1264,7 @@ export class DownstreamSession extends EventEmitter {
           "stratum:downstream share buffered (upstream unavailable)",
         );
       } else {
-        if (this.rigId != null) proxyState.incrementDropped(this.rigId);
+        proxyState.incrementDropped(this.sessionId);
         logger.warn({ rigId: this.rigId }, "stratum:downstream submit buffer full, share dropped");
       }
       // Optimistic accept keeps the miner connected and hashing.
@@ -1317,10 +1312,10 @@ export class DownstreamSession extends EventEmitter {
     //     mutates the same sample so the hashrate calc immediately stops
     //     counting its difficulty contribution.
     let handle = null;
-    if (this.rigId != null && !this.isFallback) {
-      handle = proxyState.recordShare(this.rigId, true, diff);
-    } else if (this.rigId != null && this.isFallback) {
-      handle = proxyState.recordFallbackShare(this.rigId, true, diff);
+    if (!this.isFallback) {
+      handle = proxyState.recordShare(this.sessionId, true, diff);
+    } else {
+      handle = proxyState.recordFallbackShare(this.sessionId, true, diff);
     }
 
     let accepted = false;
@@ -1414,19 +1409,16 @@ export class DownstreamSession extends EventEmitter {
     // never reached the pool. _clearSubmitBuffer() sweeps markShareRejected
     // over each handle and empties the queue.
     this._clearSubmitBuffer();
-    if (this.rigId != null) {
-      proxyState.removeRig(this.rigId, this);
-      // Mark rig offline ONLY if no new session has taken over this rigId.
-      // When addRig() kicks this session to make room for a reconnecting miner,
-      // the new session is already in rigConnections — writing isOnline=false
-      // here would race with (and potentially overwrite) the new session's
-      // isOnline=true written in _completeAuth, leaving the rig stuck offline.
-      if (!proxyState.getRigSession(this.rigId)) {
-        void db
-          .update(rigsTable)
-          .set({ isOnline: false })
-          .where(eq(rigsTable.id, this.rigId));
-      }
+    // Remove this specific session from state (other sessions for the same rig
+    // are unaffected — each session is independent).
+    proxyState.removeRig(this.sessionId);
+    // Mark rig offline in DB only when no OTHER session for this rigId is live.
+    // If a second device with the same rigId is still connected, keep isOnline=true.
+    if (this.rigId != null && !proxyState.getRigSession(this.rigId)) {
+      void db
+        .update(rigsTable)
+        .set({ isOnline: false })
+        .where(eq(rigsTable.id, this.rigId));
     }
     // Refresh the per-IP extranonce hint so the NEXT connect from this machine
     // gets the correct e1 byte-length and e2size in the subscribe reply.
