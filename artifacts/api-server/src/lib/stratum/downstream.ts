@@ -152,14 +152,24 @@ export class DownstreamSession extends EventEmitter {
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
+        let msg: JsonRpcMessage;
         try {
-          this._handleMessage(JSON.parse(trimmed) as JsonRpcMessage);
+          msg = JSON.parse(trimmed) as JsonRpcMessage;
         } catch {
           logger.warn(
             { rigId: this.rigId, line: trimmed },
             "stratum:downstream bad JSON",
           );
+          continue;
         }
+        // _handleMessage is async — attach .catch() so any DB/upstream error
+        // is logged and the socket closed cleanly instead of becoming an
+        // unhandled rejection that crashes the Node.js process (Node 15+
+        // terminates the process on unhandled rejections).
+        void this._handleMessage(msg).catch((err: unknown) => {
+          logger.error({ err, rigId: this.rigId }, "stratum:downstream unhandled message error");
+          this._close();
+        });
       }
     });
 
@@ -860,6 +870,8 @@ export class DownstreamSession extends EventEmitter {
     stratumUser: string;
     stratumPassword: string;
   }): Promise<void> {
+    // Abort if kicked by addRig() while a DB await was in progress.
+    if (this.destroyed) return;
     this.isFallback = true;
     const poolUrl = `stratum+tcp://${rig.stratumHost}:${rig.stratumPort}`;
     const worker = rig.stratumUser || `rig-${rig.id}`;
@@ -972,7 +984,8 @@ export class DownstreamSession extends EventEmitter {
     poolPassword: string;
     endsAt: Date;
   }): Promise<void> {
-    if (this.rigId == null) return;
+    // Abort if kicked by addRig() while a DB await was in progress.
+    if (this.destroyed || this.rigId == null) return;
     proxyState.initShareWindow(rental.id, this.rigId);
 
     // Prefer a parked upstream from a recent natural disconnect (within
@@ -1368,6 +1381,13 @@ export class DownstreamSession extends EventEmitter {
   }
 
   private _close(): void {
+    // Mark destroyed FIRST so any in-flight async handlers (e.g. _startFallbackUpstream
+    // or _startUpstream still awaiting DB) see the flag and abort before they
+    // create a second upstream for a rig that is already being taken over by a
+    // new session.  Without this, addRig() kicks the old session via disconnect()
+    // but the old session's _completeAuth continues running and opens a competing
+    // upstream connection for the same rigId.
+    this.destroyed = true;
     if (!this.socket.destroyed) this.socket.destroy();
   }
 
@@ -1396,11 +1416,17 @@ export class DownstreamSession extends EventEmitter {
     this._clearSubmitBuffer();
     if (this.rigId != null) {
       proxyState.removeRig(this.rigId, this);
-      // Mark rig offline in DB (best-effort — do not await to avoid blocking).
-      void db
-        .update(rigsTable)
-        .set({ isOnline: false })
-        .where(eq(rigsTable.id, this.rigId));
+      // Mark rig offline ONLY if no new session has taken over this rigId.
+      // When addRig() kicks this session to make room for a reconnecting miner,
+      // the new session is already in rigConnections — writing isOnline=false
+      // here would race with (and potentially overwrite) the new session's
+      // isOnline=true written in _completeAuth, leaving the rig stuck offline.
+      if (!proxyState.getRigSession(this.rigId)) {
+        void db
+          .update(rigsTable)
+          .set({ isOnline: false })
+          .where(eq(rigsTable.id, this.rigId));
+      }
     }
     // Refresh the per-IP extranonce hint so the NEXT connect from this machine
     // gets the correct e1 byte-length and e2size in the subscribe reply.
