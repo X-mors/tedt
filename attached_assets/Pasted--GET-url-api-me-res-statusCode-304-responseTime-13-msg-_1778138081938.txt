@@ -1,0 +1,47 @@
+"GET","url":"/api/me"},"res":{"statusCode":304},"responseTime":13,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137884049,"pid":564032,"hostname":"vmi3202752","req":{"id":51,"metho
+d":"POST","url":"/api/me/sync"},"res":{"statusCode":200},"responseTime":22,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137902044,"pid":564032,"hostname":"vmi3202752","remoteAddress":"165.
+227.153.169","legacyMode":false,"msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1778137902342,"pid":564032,"hostname":"vmi3202752","rigId":6,"rentalId":
+null,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778137902342,"pid":564032,"hostname":"vmi3202752","rigId":6,"source":"p
+arked-fallback-claimed","ourE1ByteLen":4,"poolE1ByteLen":4,"ourE2size":4,"poolE2size":8,"ip":"165.227.15
+3.169","msg":"stratum:downstream pool extranonce size mismatch — stored hint and force-closing for clean
+ reconnect"}
+0|tedt-api | {"level":30,"time":1778137902342,"pid":564032,"hostname":"vmi3202752","rigId":6,"rentalId":
+null,"pendingBuffered":0,"msSinceLastData":44,"wasAuthorized":true,"wasFallback":true,"upstreamReady":tr
+ue,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778137902343,"pid":564032,"hostname":"vmi3202752","rigId":6,"msg":"stra
+tum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778137902891,"pid":564032,"hostname":"vmi3202752","remoteAddress":"165.
+227.153.169","legacyMode":false,"msg":"stratum:server new connection"}
+0|tedt-api | {"level":30,"time":1778137903843,"pid":564032,"hostname":"vmi3202752","rigId":10,"rentalId"
+:null,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778137903843,"pid":564032,"hostname":"vmi3202752","rigId":10,"source":"
+parked-fallback-claimed","ourE1ByteLen":4,"poolE1ByteLen":9,"ourE2size":4,"poolE2size":3,"ip":"165.227.1
+53.169","msg":"stratum:downstream pool extranonce size mismatch — stored hint and force-closing for clea
+n reconnect"}
+0|tedt-api | {"level":30,"time":1778137903843,"pid":564032,"hostname":"vmi3202752","rigId":10,"rentalId"
+:null,"pendingBuffered":0,"msSinceLastData":41,"wasAuthorized":true,"wasFallback":true,"upstreamReady":t
+rue,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778137903843,"pid":564032,"hostname":"vmi3202752","rigId":10,"msg":"str
+atum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778137908149,"pid":564032,"hostname":"vmi3202752","rentalId":0,"msg":"s
+tratum:upstream pool requested reconnect"}
+0|tedt-api | {"level":30,"time":1778137908151,"pid":564032,"hostname":"vmi3202752","rentalId":0,"msg":"s
+tratum:upstream closed"}
+0|tedt-api | {"level":30,"time":1778137908151,"pid":564032,"hostname":"vmi3202752","rentalId":0,"delay":
+1000,"attempt":1,"msg":"stratum:upstream scheduling reconnect"}
+0|tedt-api | {"level":30,"time":1778137909184,"pid":564032,"hostname":"vmi3202752","rentalId":0,"host":"
+sha256.auto.nicehash.com","candidates":["34.111.151.233","2600:1901:0:bd25::"],"port":9200,"msg":"stratu
+m:upstream connecting (racing all addresses)"}
+0|tedt-api | {"level":30,"time":1778137909225,"pid":564032,"hostname":"vmi3202752","rentalId":0,"worker"
+:"NHbXfCSmmb7ubzWHqmEY7eT97kxXSjzLU7p1.003","msg":"stratum:upstream pool auth OK"}
+root@vmi3202752:/var/www/livehashrate.com# cd /var/www/livehashrate.com && git pull && echo "=== git status ===" && git log --oneline -3
+Already up to date.
+=== git status ===
+005b71e (HEAD -> main, origin/main, origin/HEAD) Allow website to communicate with the server by fixing a cross-origin error
+5b1a718 Fix error when applying extranonce for ASICBoost devices
+10c811d Make each device connection treated as a completely separate entity
+root@vmi3202752:/var/www/livehashrate.com#

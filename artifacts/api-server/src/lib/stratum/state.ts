@@ -1011,7 +1011,8 @@ class ProxyState {
     // Collect rigIds that have NO live session right now.
     const offline: number[] = [];
     for (const id of set) {
-      if (!this.rigConnections.get(id)) offline.push(id);
+      const sessions = this.rigIdToSessionIds.get(id);
+      if (!sessions || sessions.size === 0) offline.push(id);
     }
     return offline.length === 1 ? offline[0] : undefined;
   }
