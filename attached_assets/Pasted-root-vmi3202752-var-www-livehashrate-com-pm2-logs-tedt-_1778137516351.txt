@@ -1,0 +1,231 @@
+root@vmi3202752:/var/www/livehashrate.com# pm2 logs tedt-api --lines 150 --nostream 2>&1
+[TAILING] Tailing last 150 lines for [tedt-api] process (change the value with --lines option)
+/root/.pm2/logs/tedt-api-error.log last 150 lines:
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | Error: Origin https://www.livehashrate.com not allowed by CORS
+0|tedt-api |     at origin (/var/www/livehashrate.com/artifacts/api-server/src/app.ts:59:17)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:219:13)
+0|tedt-api |     at optionsCallback (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:199:9)
+0|tedt-api |     at corsMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/cors@2.8.6/node_modules/cors/lib/index.js:204:7)
+0|tedt-api |     at Layer.handleRequest (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+0|tedt-api |     at trimPrefix (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:342:13)
+0|tedt-api |     at <anonymous> (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:297:9)
+0|tedt-api |     at processParams (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:582:12)
+0|tedt-api |     at next (/var/www/livehashrate.com/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:291:5)
+0|tedt-api |     at loggingMiddleware (/var/www/livehashrate.com/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:206:7)
+0|tedt-api | (node:275633) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implicatio
+ns. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+0|tedt-api | (Use `node --trace-deprecation ...` to show where the warning was created)
+0|tedt-api | (node:407732) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implicatio
+ns. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+0|tedt-api | (Use `node --trace-deprecation ...` to show where the warning was created)
+0|tedt-api | (node:499413) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implicatio
+ns. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+0|tedt-api | (Use `node --trace-deprecation ...` to show where the warning was created)
+0|tedt-api | /var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:1145
+0|tedt-api |           ip: remoteIp,
+0|tedt-api |               ^
+0|tedt-api |
+0|tedt-api | ReferenceError: remoteIp is not defined
+0|tedt-api |     at DownstreamSession._applyUpstreamExtranonce (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:1145:15)
+0|tedt-api |     at DownstreamSession._startFallbackUpstream (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:876:14)
+0|tedt-api |     at DownstreamSession._completeAuth (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:626:18)
+0|tedt-api |     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+0|tedt-api |     at async DownstreamSession._authorizeByStratumToken (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:48
+1:7)
+0|tedt-api |     at async DownstreamSession._handleAuthorize (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:380:7)
+0|tedt-api |     at async DownstreamSession._handleMessage (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:215:9)
+0|tedt-api |
+0|tedt-api | Node.js v24.15.0
+0|tedt-api | /var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:1145
+0|tedt-api |           ip: remoteIp,
+0|tedt-api |               ^
+0|tedt-api |
+0|tedt-api | ReferenceError: remoteIp is not defined
+0|tedt-api |     at DownstreamSession._applyUpstreamExtranonce (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:1145:15)
+0|tedt-api |     at DownstreamSession._startFallbackUpstream (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:876:14)
+0|tedt-api |     at DownstreamSession._completeAuth (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:626:18)
+0|tedt-api |     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+0|tedt-api |     at async DownstreamSession._authorizeByStratumToken (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:48
+1:7)
+0|tedt-api |     at async DownstreamSession._handleAuthorize (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:380:7)
+0|tedt-api |     at async DownstreamSession._handleMessage (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:215:9)
+0|tedt-api |
+0|tedt-api | Node.js v24.15.0
+0|tedt-api | /var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:1145
+0|tedt-api |           ip: remoteIp,
+0|tedt-api |               ^
+0|tedt-api |
+0|tedt-api | ReferenceError: remoteIp is not defined
+0|tedt-api |     at DownstreamSession._applyUpstreamExtranonce (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:1145:15)
+0|tedt-api |     at DownstreamSession._startFallbackUpstream (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:876:14)
+0|tedt-api |     at DownstreamSession._completeAuth (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:626:18)
+0|tedt-api |     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+0|tedt-api |     at async DownstreamSession._authorizeByStratumToken (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:48
+1:7)
+0|tedt-api |     at async DownstreamSession._handleAuthorize (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:380:7)
+0|tedt-api |     at async DownstreamSession._handleMessage (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:215:9)
+0|tedt-api |
+0|tedt-api | Node.js v24.15.0
+0|tedt-api | /var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:1145
+0|tedt-api |           ip: remoteIp,
+0|tedt-api |               ^
+0|tedt-api |
+0|tedt-api | ReferenceError: remoteIp is not defined
+0|tedt-api |     at DownstreamSession._applyUpstreamExtranonce (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:1145:15)
+0|tedt-api |     at DownstreamSession._startFallbackUpstream (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:876:14)
+0|tedt-api |     at DownstreamSession._completeAuth (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:626:18)
+0|tedt-api |     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+0|tedt-api |     at async DownstreamSession._authorizeByStratumToken (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:48
+1:7)
+0|tedt-api |     at async DownstreamSession._handleAuthorize (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:380:7)
+0|tedt-api |     at async DownstreamSession._handleMessage (/var/www/livehashrate.com/artifacts/api-server/src/lib/stratum/downstream.ts:215:9)
+0|tedt-api |
+0|tedt-api | Node.js v24.15.0
+/root/.pm2/logs/tedt-api-out.log last 150 lines:
+0|tedt-api | {"level":30,"time":1778137065545,"pid":563176,"hostname":"vmi3202752","rentalId":0,"worker":"NHbXfCSmmb7ubzWHqmEY7eT97kxXSjzLU7p1.003","
+msg":"stratum:upstream pool auth OK"}
+0|tedt-api | {"level":30,"time":1778137122088,"pid":563176,"hostname":"vmi3202752","remoteAddress":"165.227.153.169","legacyMode":false,"msg":"stratu
+m:server new connection"}
+0|tedt-api | {"level":30,"time":1778137122728,"pid":563176,"hostname":"vmi3202752","rigId":6,"rentalId":null,"msg":"stratum:downstream authorized"}
+0|tedt-api | {"level":30,"time":1778137122728,"pid":563176,"hostname":"vmi3202752","rigId":6,"source":"parked-fallback-claimed","ourE1ByteLen":4,"poo
+lE1ByteLen":4,"ourE2size":4,"poolE2size":8,"ip":"165.227.153.169","msg":"stratum:downstream pool extranonce size mismatch — stored hint and force-clo
+sing for clean reconnect"}
+0|tedt-api | {"level":30,"time":1778137122728,"pid":563176,"hostname":"vmi3202752","rigId":6,"rentalId":null,"pendingBuffered":0,"msSinceLastData":30
+,"wasAuthorized":true,"wasFallback":true,"upstreamReady":true,"msg":"stratum:downstream session closing"}
+0|tedt-api | {"level":30,"time":1778137122729,"pid":563176,"hostname":"vmi3202752","rigId":6,"msg":"stratum:downstream closed"}
+0|tedt-api | {"level":30,"time":1778137125533,"pid":563176,"hostname":"vmi3202752","rentalId":0,"msg":"stratum:upstream closed"}
+0|tedt-api | {"level":30,"time":1778137153996,"pid":563176,"hostname":"vmi3202752","req":{"id":11,"method":"GET","url":"/api/rigs/6/stats"},"res":{"s
+tatusCode":304},"responseTime":233,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137155472,"pid":563176,"hostname":"vmi3202752","req":{"id":12,"method":"GET","url":"/api/rigs/6"},"res":{"statusC
+ode":304},"responseTime":11,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137155527,"pid":563176,"hostname":"vmi3202752","req":{"id":13,"method":"GET","url":"/api/me"},"res":{"statusCode"
+:304},"responseTime":65,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137155636,"pid":563176,"hostname":"vmi3202752","req":{"id":14,"method":"GET","url":"/api/rigs/6/stats"},"res":{"s
+tatusCode":304},"responseTime":36,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137155734,"pid":563176,"hostname":"vmi3202752","req":{"id":15,"method":"GET","url":"/api/rigs/6/reviews"},"res":{
+"statusCode":304},"responseTime":97,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137155757,"pid":563176,"hostname":"vmi3202752","req":{"id":16,"method":"GET","url":"/api/me/rigs/6"},"res":{"stat
+usCode":304},"responseTime":93,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137156868,"pid":563176,"hostname":"vmi3202752","req":{"id":17,"method":"POST","url":"/api/me/sync"},"res":{"statu
+sCode":200},"responseTime":503,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137156973,"pid":563176,"hostname":"vmi3202752","req":{"id":18,"method":"GET","url":"/api/me"},"res":{"statusCode"
+:304},"responseTime":584,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137158923,"pid":563176,"hostname":"vmi3202752","req":{"id":20,"method":"GET","url":"/api/me/rigs"},"res":{"status
+Code":304},"responseTime":83,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137158930,"pid":563176,"hostname":"vmi3202752","req":{"id":19,"method":"GET","url":"/api/me/rentals/lessor"},"res
+":{"statusCode":400},"responseTime":91,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137160858,"pid":563176,"hostname":"vmi3202752","req":{"id":21,"method":"GET","url":"/api/me/rentals/lessor"},"res
+":{"statusCode":400},"responseTime":31,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137160879,"pid":563176,"hostname":"vmi3202752","req":{"id":22,"method":"GET","url":"/api/me/rigs"},"res":{"status
+Code":304},"responseTime":17,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137161565,"pid":563176,"hostname":"vmi3202752","req":{"id":24,"method":"POST","url":"/api/me/sync"},"res":{"statu
+sCode":200},"responseTime":20,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137161582,"pid":563176,"hostname":"vmi3202752","req":{"id":23,"method":"GET","url":"/api/me"},"res":{"statusCode"
+:304},"responseTime":57,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137166420,"pid":563176,"hostname":"vmi3202752","req":{"id":25,"method":"GET","url":"/api/me/rentals/lessor"},"res
+":{"statusCode":400},"responseTime":148,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137166463,"pid":563176,"hostname":"vmi3202752","req":{"id":26,"method":"GET","url":"/api/me/rigs"},"res":{"status
+Code":200},"responseTime":90,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137166861,"pid":563176,"hostname":"vmi3202752","req":{"id":27,"method":"GET","url":"/api/me"},"res":{"statusCode"
+:304},"responseTime":20,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137166864,"pid":563176,"hostname":"vmi3202752","req":{"id":28,"method":"POST","url":"/api/me/sync"},"res":{"statu
+sCode":200},"responseTime":16,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137168023,"pid":563176,"hostname":"vmi3202752","req":{"id":29,"method":"GET","url":"/api/me/rentals/lessor"},"res
+":{"statusCode":400},"responseTime":39,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137168024,"pid":563176,"hostname":"vmi3202752","req":{"id":30,"method":"GET","url":"/api/me/rigs"},"res":{"status
+Code":304},"responseTime":34,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137168708,"pid":563176,"hostname":"vmi3202752","req":{"id":31,"method":"POST","url":"/api/me/sync"},"res":{"statu
+sCode":200},"responseTime":33,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137168710,"pid":563176,"hostname":"vmi3202752","req":{"id":32,"method":"GET","url":"/api/me"},"res":{"statusCode"
+:304},"responseTime":25,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137169456,"pid":563176,"hostname":"vmi3202752","req":{"id":34,"method":"GET","url":"/api/me/rigs"},"res":{"status
+Code":304},"responseTime":146,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137169678,"pid":563176,"hostname":"vmi3202752","req":{"id":33,"method":"GET","url":"/api/me/rentals/lessor"},"res
+":{"statusCode":400},"responseTime":390,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137170419,"pid":563176,"hostname":"vmi3202752","req":{"id":35,"method":"POST","url":"/api/me/sync"},"res":{"statu
+sCode":200},"responseTime":245,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137170456,"pid":563176,"hostname":"vmi3202752","req":{"id":36,"method":"GET","url":"/api/me"},"res":{"statusCode"
+:304},"responseTime":280,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137182733,"pid":563176,"hostname":"vmi3202752","rentalId":0,"msg":"stratum:upstream closed"}
+0|tedt-api | {"level":30,"time":1778137222172,"pid":563176,"hostname":"vmi3202752","req":{"id":38,"method":"GET","url":"/api/me/rigs"},"res":{"status
+Code":304},"responseTime":337,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137222174,"pid":563176,"hostname":"vmi3202752","req":{"id":37,"method":"GET","url":"/api/me/rentals/lessor"},"res
+":{"statusCode":400},"responseTime":351,"msg":"request completed"}
+0|tedt-api | {"level":30,"time":1778137222641,"pid":563176,"hostname":"vmi3202752","req":{"id":39,"method":"POST","url":"/api/me/sync"},"res":{"stat
