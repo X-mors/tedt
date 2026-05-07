@@ -1150,7 +1150,7 @@ export class DownstreamSession extends EventEmitter {
           rigId: this.rigId, source,
           ourE1ByteLen, poolE1ByteLen,
           ourE2size: prevSize, poolE2size: extranonce2Size,
-          ip: remoteIp,
+          ip: this.socket.remoteAddress ?? "",
         },
         "stratum:downstream pool extranonce size mismatch — stored hint and force-closing for clean reconnect",
       );
