@@ -47,11 +47,18 @@ function DeliveryBar({ ratio }: { ratio: number }) {
   );
 }
 
+const PAGE_SIZE = 10;
+
 export default function MyRentals() {
   const { data: rentals, isLoading } = useListMyRentals();
+  const [page, setPage] = useState(1);
 
   const active = rentals?.filter(r => r.status === "active") ?? [];
-  const history = rentals?.filter(r => r.status !== "active") ?? [];
+  const history = (rentals?.filter(r => r.status !== "active") ?? [])
+    .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+
+  const totalPages = Math.max(1, Math.ceil(history.length / PAGE_SIZE));
+  const pagedHistory = history.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const totalSpent = rentals?.reduce((s, r) => s + r.netPaidUsd, 0) ?? 0;
 
   return (
@@ -161,7 +168,7 @@ export default function MyRentals() {
             <h2 className="text-sm font-mono uppercase tracking-wider text-muted-foreground">History</h2>
           </div>
 
-          {history.length === 0 && active.length === 0 ? (
+          {pagedHistory.length === 0 && active.length === 0 ? (
             <Card className="bg-card/50 border-border/50">
               <CardContent className="py-16 text-center">
                 <Zap className="w-10 h-10 text-muted-foreground/30 mx-auto mb-4" />
@@ -171,12 +178,12 @@ export default function MyRentals() {
                 </Link>
               </CardContent>
             </Card>
-          ) : history.length === 0 ? (
+          ) : pagedHistory.length === 0 ? (
             <div className="text-sm text-muted-foreground font-mono text-center py-4">NO_HISTORY_YET</div>
           ) : (
             <Card className="bg-card/50 border-border/50 overflow-hidden">
               <div className="divide-y divide-border/50">
-                {history.map(rental => (
+                {pagedHistory.map(rental => (
                   <Link key={rental.id} href={`/rentals/${rental.id}`}>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3 hover:bg-muted/20 transition-colors cursor-pointer group">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -219,6 +226,32 @@ export default function MyRentals() {
                 ))}
               </div>
             </Card>
+          )}
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="font-mono text-xs"
+                disabled={page === 1}
+                onClick={() => setPage(p => p - 1)}
+              >
+                ← PREV
+              </Button>
+              <span className="text-xs text-muted-foreground font-mono">
+                {page} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="font-mono text-xs"
+                disabled={page === totalPages}
+                onClick={() => setPage(p => p + 1)}
+              >
+                NEXT →
+              </Button>
+            </div>
           )}
         </div>
       )}
