@@ -375,16 +375,18 @@ class ProxyState {
   }
 
   /**
-   * Fallback lookup: return the first connected session that belongs to `ownerId`.
-   * Used when the rental's rigId doesn't match the connected rig's rigId (which
-   * happens when the miner connected with a stratumName that differs from the
-   * listed rig's stratumName and the proxy auto-created a shadow rig).
+   * Fallback lookup: return the connected session for `ownerId` only when
+   * exactly ONE device is connected for that owner.  If multiple devices are
+   * connected we cannot safely pick which one should receive the rental
+   * activation — returning undefined forces the caller to wait for the correct
+   * device to reconnect and pick up the rental via `_findActiveRental`.
    */
   getAnySessionForOwner(ownerId: number): DownstreamSession | undefined {
+    const sessions: DownstreamSession[] = [];
     for (const conn of this.rigConnections.values()) {
-      if (conn.entry.ownerId === ownerId) return conn.session;
+      if (conn.entry.ownerId === ownerId) sessions.push(conn.session);
     }
-    return undefined;
+    return sessions.length === 1 ? sessions[0] : undefined;
   }
 
   /**

@@ -98,9 +98,12 @@ export class DownstreamSession extends EventEmitter {
    * what the miner asks, and constrains rigs to the legacy `sha256` algorithm.
    */
   private readonly legacyMode: boolean;
+  /** Captured at construction — socket.localPort may be null after close. */
+  private readonly localPort: number;
   constructor(private readonly socket: net.Socket, opts: { legacyMode?: boolean } = {}) {
     super();
     this.legacyMode = opts.legacyMode === true;
+    this.localPort = socket.localPort ?? 0;
     socket.setEncoding("utf8");
     // 10-min idle timeout — tolerates high-difficulty pools that produce only
     // a share every several minutes. Detection of truly dead sockets is handled
@@ -319,7 +322,8 @@ export class DownstreamSession extends EventEmitter {
     // will give us its real format; we store it and force-close. Second connect
     // uses the exact pool e1 → no set_extranonce ever sent → miner stays connected.
     const remoteIp = this.socket.remoteAddress ?? "";
-    const hint = proxyState.getExtranonceHint(remoteIp);
+    const hintKey = remoteIp ? `${remoteIp}:${this.localPort}` : "";
+    const hint = proxyState.getExtranonceHint(hintKey);
     this.extranonce2Size = hint?.e2size ?? 4;
     this.extranonce1 = hint?.e1 ?? makeExtranonce1(4);
 
@@ -640,9 +644,16 @@ export class DownstreamSession extends EventEmitter {
     // Fallback: miner may have connected under a stratumName that caused the
     // proxy to auto-create a shadow rig with a different ID.  Search by ownerId
     // so we can still route to the renter's pool when the IDs don't match.
-    const [ownerRental] = await db
+    //
+    // MULTI-RIG GUARD: only use this fallback when:
+    //   1. Exactly ONE active rental exists for this owner (unambiguous match).
+    //   2. No live session already exists for the rental's own rigId — meaning
+    //      the rented rig is not itself connected.  If it IS connected we must
+    //      not steal its rental for a different device.
+    const ownerRentals = await db
       .select({
         id: rentalsTable.id,
+        rigId: rentalsTable.rigId,
         poolUrl: rentalsTable.poolUrl,
         poolWorker: rentalsTable.poolWorker,
         poolPassword: rentalsTable.poolPassword,
@@ -655,11 +666,19 @@ export class DownstreamSession extends EventEmitter {
           eq(rentalsTable.status, "active"),
         ),
       );
-    if (!ownerRental || ownerRental.endsAt < now) return null;
+
+    // Ambiguous: owner has multiple active rentals — cannot safely pick one.
+    if (ownerRentals.length !== 1) return null;
+    const ownerRental = ownerRentals[0]!;
+    if (ownerRental.endsAt < now) return null;
+
+    // The rental's own rig already has a live session — don't redirect a
+    // different device onto it.
+    if (proxyState.getRigSession(ownerRental.rigId)) return null;
 
     logger.warn(
-      { shadowRigId: rigId, ownerId, rentalId: ownerRental.id },
-      "stratum:downstream _findActiveRental fallback via ownerId — stratumName mismatch",
+      { shadowRigId: rigId, ownerId, rentalId: ownerRental.id, rentalRigId: ownerRental.rigId },
+      "stratum:downstream _findActiveRental fallback via ownerId — stratumName mismatch (single-rental, no live session for rented rig)",
     );
     return ownerRental;
   }
@@ -1108,7 +1127,7 @@ export class DownstreamSession extends EventEmitter {
       // stores the correct hint (it reads this.extranonce2Size).  We don't
       // update extranonce1 here because the miner was never told the new value.
       this.extranonce2Size = extranonce2Size;
-      if (remoteIp) proxyState.storeExtranonceHint(remoteIp, newExtranonce1, extranonce2Size);
+      if (remoteIp) proxyState.storeExtranonceHint(`${remoteIp}:${this.localPort}`, newExtranonce1, extranonce2Size);
       logger.info(
         {
           rigId: this.rigId, source,
@@ -1379,7 +1398,7 @@ export class DownstreamSession extends EventEmitter {
     // We store it here (at natural close) AND at force-close in _applyUpstreamExtranonce.
     if (this.upstreamExtranonce1 && this.rigId != null) {
       const remoteIp = this.socket.remoteAddress ?? "";
-      if (remoteIp) proxyState.storeExtranonceHint(remoteIp, this.upstreamExtranonce1, this.extranonce2Size);
+      if (remoteIp) proxyState.storeExtranonceHint(`${remoteIp}:${this.localPort}`, this.upstreamExtranonce1, this.extranonce2Size);
     }
 
     if (this.upstream != null) {
