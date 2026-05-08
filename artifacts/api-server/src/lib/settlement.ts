@@ -147,23 +147,24 @@ export async function settleExpiredRentals(): Promise<number> {
 
     if (ok) settled++;
 
-    // Tear down any live proxy routing now that the rental is done.
-    // Look up by rentalId first — works for both normal rigs AND shadow rigs
-    // (auto-created when miner connects with a non-matching stratumName).
-    // Falling back to rigId would silently miss shadow rigs, leaving the
-    // renter's pool connection alive after settlement.
-    const session =
-      proxyState.getSessionByRentalId(id) ?? proxyState.getRigSession(rigId);
-    if (session) {
-      // deactivateRental() destroys upstream, clears rentalId, force-closes
-      // miner socket (so it reconnects to the owner's fallback pool), and
-      // removes the share window.
-      session.deactivateRental();
+    // Tear down ALL live proxy sessions for this rental. Using the plural
+    // getSessionsByRentalId ensures every connected worker (e.g. multiple
+    // ASICs under the same rig name) returns to the owner's fallback pool.
+    // Falling back to getRigSession only when no rentalId-indexed session
+    // exists (shadow-rig case or single-device reconnect mid-settle).
+    const sessions = proxyState.getSessionsByRentalId(id);
+    if (sessions.length > 0) {
+      for (const s of sessions) s.deactivateRental();
     } else {
-      // No live session — rig offline at time of settlement. Flush any
-      // unflushed share counters first so the renter's UI keeps a complete
-      // total post-settlement, then remove the window.
-      await flushAndRemoveRentalWindow(id);
+      const fallback = proxyState.getRigSession(rigId);
+      if (fallback) {
+        fallback.deactivateRental();
+      } else {
+        // No live session — rig offline at time of settlement. Flush any
+        // unflushed share counters first so the renter's UI keeps a complete
+        // total post-settlement, then remove the window.
+        await flushAndRemoveRentalWindow(id);
+      }
     }
   }
 
