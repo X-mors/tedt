@@ -361,6 +361,15 @@ export default function RentalCockpit() {
     },
   });
 
+  // When the /live endpoint reports the rental has ended (status != active),
+  // immediately invalidate the rental query so the page switches to the
+  // completed view without waiting for the 30-s rental polling interval.
+  useEffect(() => {
+    if (live?.status && live.status !== 'active') {
+      queryClient.invalidateQueries({ queryKey: getGetRentalQueryKey(rentalId) });
+    }
+  }, [live?.status, rentalId, queryClient]);
+
   const cancelRental = useCancelRental();
   const createReview = useCreateRentalReview();
 

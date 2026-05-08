@@ -111,17 +111,11 @@ export class StratumServer {
       const snapshot = proxyState.flushAndResetWindow(window.rentalId);
       if (!snapshot) continue;
 
-      // Skip zero-share snapshots — no real data to record.  These appear
-      // when a rental window lingers in memory briefly after settlement/cancel;
-      // writing them would pollute the chart with post-expiry zero samples
-      // and inflate the elapsed-time denominator used by deliveredHashrateAvg.
-      if (
+      // Detect zero-activity cycles (rig disconnected, no shares this minute).
+      const isZeroActivity =
         snapshot.difficultySum === 0 &&
         snapshot.sharesAccepted === 0 &&
-        snapshot.sharesRejected === 0
-      ) {
-        continue;
-      }
+        snapshot.sharesRejected === 0;
 
       const elapsedSec = Math.max(
         1,
@@ -139,6 +133,12 @@ export class StratumServer {
           difficultySum: String(snapshot.difficultySum),
           effectiveHashrateH: String(effectiveHashrateH),
         });
+
+        // Zero-activity cycle (rig offline / no shares this minute): the
+        // sample above keeps the chart timeline continuous with a flat zero
+        // line, but skip all metric updates — they require real data.
+        if (isZeroActivity) continue;
+
         // Mirror into the per-rig stream so the owner gets a continuous
         // history regardless of rental state. rentalId is set so the owner
         // chart can highlight rental periods in yellow.

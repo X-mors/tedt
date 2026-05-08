@@ -489,6 +489,13 @@ class ProxyState {
     if (conn) {
       conn.entry.authorized = true;
       conn.entry.rentalId = rentalId;
+      // Reset per-session share counters when a new rental activates so that
+      // shares restored from the reconnect snapshot (previous rental) don't
+      // bleed into the new rental's per-worker stats.
+      if (rentalId !== null) {
+        conn.entry.sharesAccepted = 0;
+        conn.entry.sharesRejected = 0;
+      }
     }
   }
 
