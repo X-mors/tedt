@@ -387,25 +387,26 @@ router.post("/rentals", async (req, res) => {
 
   const newRental = await loadRentalDetail(rentalId);
 
-  // If the rig owner's miner is already connected to the proxy, start routing immediately.
-  // Primary lookup: by the exact rigId stored in the session (happy path).
-  // Fallback lookup: by ownerId — handles the case where the miner connected with a
-  // stratumName that differs from the listed rig's stratumName (e.g. the rig was listed
-  // under a different name and the proxy auto-created a shadow rig entry). In that
-  // scenario the session is keyed under the shadow rig's ID, not body.rigId.
-  const session =
-    proxyState.getRigSession(body.rigId) ??
-    proxyState.getAnySessionForOwner(rigRow.ownerId);
+  // If the rig owner's miners are already connected to the proxy, start routing immediately.
+  // Activate ALL sessions for this rigId so every connected device switches to the
+  // renter's pool — not just the first one.
+  const sessions = proxyState.getRigSessions(body.rigId);
 
-  if (session) {
-    if (!proxyState.getRigSession(body.rigId)) {
-      // Fallback path used — log so admins can detect stratumName mismatches.
+  if (sessions.length > 0) {
+    for (const s of sessions) {
+      void s.activateRental(rentalId, body.poolUrl, body.poolWorker, body.poolPassword ?? "x");
+    }
+  } else {
+    // Fallback: miner connected under a different stratumName (shadow rig).
+    // Only safe when exactly one owner session exists (ambiguous otherwise).
+    const fallbackSession = proxyState.getAnySessionForOwner(rigRow.ownerId);
+    if (fallbackSession) {
       logger.warn(
         { rigId: body.rigId, ownerId: rigRow.ownerId, rentalId },
         "rental: activating on fallback session — possible stratumName mismatch (miner connected under a different rig ID)",
       );
+      void fallbackSession.activateRental(rentalId, body.poolUrl, body.poolWorker, body.poolPassword ?? "x");
     }
-    void session.activateRental(rentalId, body.poolUrl, body.poolWorker, body.poolPassword ?? "x");
   }
 
   res.status(201).json(newRental);
@@ -795,6 +796,8 @@ router.get("/rentals/:id/live", async (req, res) => {
       ? Math.min(1.05, cumulativeAvgH / advertisedH)
       : 0;
 
+  const workers = proxyState.getRentalWorkerStats(id);
+
   res.json({
     rentalId: id,
     status: rental.status,
@@ -812,6 +815,7 @@ router.get("/rentals/:id/live", async (req, res) => {
       rental.status === "active"
         ? Math.max(0, Math.floor((rental.endsAt.getTime() - Date.now()) / 1000))
         : 0,
+    workers,
   });
 });
 
@@ -1013,12 +1017,13 @@ router.post("/rentals/:id/switch-pool", async (req, res) => {
   // previous pool. Safe to call when nothing is parked.
   proxyState.removeParkedUpstream(rental.id);
 
-  // Find the live session — prefer rentalId lookup so shadow rigs work too.
-  const session =
-    proxyState.getSessionByRentalId(rental.id) ??
-    proxyState.getRigSession(rental.rigId);
-  if (session) {
-    void session.switchRentalPool(rental.id);
+  // Switch ALL live sessions for this rental (multiple devices on same rigId).
+  const switchSessions = proxyState.getSessionsByRentalId(rental.id);
+  if (switchSessions.length > 0) {
+    for (const s of switchSessions) void s.switchRentalPool(rental.id);
+  } else {
+    const fallback = proxyState.getRigSession(rental.rigId);
+    if (fallback) void fallback.switchRentalPool(rental.id);
   }
 
   const detail = await loadRentalDetail(rental.id);
@@ -1279,16 +1284,20 @@ router.post("/rentals/:id/cancel", async (req, res) => {
   // the listed rig). Falling back to rental.rigId would silently miss shadow
   // rigs, leaving the renter's pool connection alive — the rig would keep
   // mining for the renter after termination instead of returning to the owner.
-  const session =
-    proxyState.getSessionByRentalId(rental.id) ??
-    proxyState.getRigSession(rental.rigId);
-  if (session) {
-    session.deactivateRental();
+  // Deactivate ALL live sessions for this rental (multiple devices on same rigId).
+  const deactivateSessions = proxyState.getSessionsByRentalId(rental.id);
+  if (deactivateSessions.length > 0) {
+    for (const s of deactivateSessions) s.deactivateRental();
   } else {
-    // No live session — flush any unflushed share counters into the rentals
-    // row, then clean up the share window so the flush loop stops inserting
-    // samples for this finished rental.
-    await flushAndRemoveRentalWindow(rental.id);
+    const fallback = proxyState.getRigSession(rental.rigId);
+    if (fallback) {
+      fallback.deactivateRental();
+    } else {
+      // No live session — flush any unflushed share counters into the rentals
+      // row, then clean up the share window so the flush loop stops inserting
+      // samples for this finished rental.
+      await flushAndRemoveRentalWindow(rental.id);
+    }
   }
 
   const detail = await loadRentalDetail(rental.id);

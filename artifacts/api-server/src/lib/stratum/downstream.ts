@@ -214,6 +214,7 @@ export class DownstreamSession extends EventEmitter {
   private _setDifficulty(diff: number): void {
     const safe = Math.max(diff, 1);
     this.currentDifficulty = safe;
+    proxyState.setSessionDifficulty(this.sessionId, safe);
     this._notify("mining.set_difficulty", [safe]);
   }
 

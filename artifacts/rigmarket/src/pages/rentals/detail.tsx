@@ -582,6 +582,54 @@ export default function RentalCockpit() {
                       </div>
                     </div>
                   ) : null}
+                  {/* Workers table — only shown when multiple sessions exist */}
+                  {(() => {
+                    const ws = (live as any).workers as Array<{
+                      sessionId: string; rigName: string; currentDifficulty: number;
+                      sharesAccepted: number; sharesRejected: number;
+                      upstreamConnected: boolean; connectedAt: string;
+                    }> | undefined;
+                    if (!ws || ws.length < 2) return null;
+                    const fmtDiff = (d: number) =>
+                      d >= 1_000_000 ? `${(d/1_000_000).toFixed(2)}M`
+                      : d >= 1_000 ? `${(d/1_000).toFixed(1)}K`
+                      : d.toLocaleString();
+                    return (
+                      <div className="rounded-md border border-border/50 overflow-hidden">
+                        <div className="px-3 py-2 bg-muted/20 border-b border-border/30 flex items-center gap-2">
+                          <span className="text-[10px] font-mono font-semibold text-muted-foreground uppercase">Workers ({ws.length} connected)</span>
+                        </div>
+                        <table className="w-full text-xs font-mono">
+                          <thead>
+                            <tr className="border-b border-border/20 text-[9px] text-muted-foreground uppercase">
+                              <th className="px-3 py-1.5 text-left">Worker</th>
+                              <th className="px-3 py-1.5 text-right">Difficulty</th>
+                              <th className="px-3 py-1.5 text-right">Shares A/R</th>
+                              <th className="px-3 py-1.5 text-right">Pool</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {ws.map((w) => (
+                              <tr key={w.sessionId} className="border-b border-border/10 last:border-0 hover:bg-muted/10">
+                                <td className="px-3 py-1.5 text-foreground truncate max-w-[120px]">{w.rigName}</td>
+                                <td className="px-3 py-1.5 text-right text-sky-400">{fmtDiff(w.currentDifficulty)}</td>
+                                <td className="px-3 py-1.5 text-right">
+                                  <span className="text-green-500">{w.sharesAccepted}</span>
+                                  <span className="text-muted-foreground"> / </span>
+                                  <span className="text-destructive">{w.sharesRejected}</span>
+                                </td>
+                                <td className="px-3 py-1.5 text-right">
+                                  {w.upstreamConnected
+                                    ? <span className="text-green-500">●</span>
+                                    : <span className="text-muted-foreground">○</span>}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                     <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
                       <span className="text-[10px] text-muted-foreground uppercase font-semibold">Current Hashrate</span>

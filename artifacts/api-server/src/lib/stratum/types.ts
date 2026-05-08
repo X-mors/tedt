@@ -101,6 +101,8 @@ export interface ProxyRigEntry {
   upstreamErrors: number;
   /** Number of times the upstream disconnected / was lost during this session */
   upstreamDisconnects: number;
+  /** Latest pool-set difficulty for this specific session (set by mining.set_difficulty). */
+  currentDifficulty: number;
 }
 
 export interface ProxyAdminStatus {

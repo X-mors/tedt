@@ -348,6 +348,7 @@ class ProxyState {
         submitsDropped: 0,
         upstreamErrors: 0,
         upstreamDisconnects: 0,
+        currentDifficulty: 1,
       },
     });
     // Register sessionId in the rigId → sessionIds index.
@@ -356,6 +357,11 @@ class ProxyState {
     sids.add(sessionId);
     // Drop the snapshot now that a live entry has taken over.
     this.lastSeenRigEntries.delete(rigId);
+  }
+
+  setSessionDifficulty(sessionId: string, difficulty: number): void {
+    const conn = this.rigConnections.get(sessionId);
+    if (conn) conn.entry.currentDifficulty = difficulty;
   }
 
   incrementDropped(sessionId: string): void {
@@ -438,6 +444,44 @@ class ProxyState {
       if (conn.entry.rentalId === rentalId) return conn.session;
     }
     return undefined;
+  }
+
+  /**
+   * Return per-worker stats for all sessions currently routing this rental.
+   * Used by the /rentals/:id/live endpoint to show multi-device breakdowns.
+   */
+  getRentalWorkerStats(rentalId: number): Array<{
+    sessionId: string;
+    rigName: string;
+    currentDifficulty: number;
+    sharesAccepted: number;
+    sharesRejected: number;
+    upstreamConnected: boolean;
+    connectedAt: string;
+  }> {
+    const out = [];
+    for (const conn of this.rigConnections.values()) {
+      if (conn.entry.rentalId !== rentalId) continue;
+      out.push({
+        sessionId: conn.entry.sessionId,
+        rigName: conn.entry.rigName,
+        currentDifficulty: conn.entry.currentDifficulty,
+        sharesAccepted: conn.entry.sharesAccepted,
+        sharesRejected: conn.entry.sharesRejected,
+        upstreamConnected: conn.entry.upstreamConnected,
+        connectedAt: conn.entry.connectedAt.toISOString(),
+      });
+    }
+    return out;
+  }
+
+  /** Return ALL live sessions currently routing shares for `rentalId`. */
+  getSessionsByRentalId(rentalId: number): DownstreamSession[] {
+    const out: DownstreamSession[] = [];
+    for (const conn of this.rigConnections.values()) {
+      if (conn.entry.rentalId === rentalId) out.push(conn.session);
+    }
+    return out;
   }
 
   setRigAuthorized(sessionId: string, rentalId: number | null): void {
