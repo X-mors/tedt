@@ -73,6 +73,7 @@ import type {
   ResolveRentalDisputeResponse,
   Review,
   RigDetail,
+  RigLive,
   RigSummary,
   SwitchRentalPoolBody,
   UnauthorizedResponse,
@@ -6128,3 +6129,73 @@ export const useUpdateWalletSettings = <
 > => {
   return useMutation(getUpdateWalletSettingsMutationOptions(options));
 };
+
+/**
+ * @summary Public live telemetry for a rig (current hashrate + difficulty)
+ */
+export const getGetRigLiveUrl = (id: number) => {
+  return `/api/rigs/${id}/live`;
+};
+
+export const getRigLive = async (
+  id: number,
+  options?: RequestInit,
+): Promise<RigLive> => {
+  return customFetch<RigLive>(getGetRigLiveUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetRigLiveQueryKey = (id: number) => {
+  return [`/api/rigs/${id}/live`] as const;
+};
+
+export const getGetRigLiveQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRigLive>>,
+  TError = ErrorType<NotFoundResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getRigLive>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetRigLiveQueryKey(id);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getRigLive>>> = ({
+    signal,
+  }) => getRigLive(id, { signal, ...requestOptions });
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getRigLive>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetRigLiveQueryResult = NonNullable<Awaited<ReturnType<typeof getRigLive>>>;
+export type GetRigLiveQueryError = ErrorType<NotFoundResponse>;
+
+/**
+ * @summary Public live telemetry for a rig (current hashrate + difficulty)
+ */
+export function useGetRigLive<
+  TData = Awaited<ReturnType<typeof getRigLive>>,
+  TError = ErrorType<NotFoundResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getRigLive>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetRigLiveQueryOptions(id, options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+  query.queryKey = queryOptions.queryKey;
+  return query;
+}

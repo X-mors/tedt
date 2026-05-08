@@ -16,6 +16,7 @@ import {
 } from "@workspace/api-zod";
 import { getCommission } from "../lib/commission";
 import { toNum, unitMultiplier } from "../lib/money";
+import { proxyState } from "../lib/stratum/state";
 
 const router: IRouter = Router();
 
@@ -318,6 +319,52 @@ router.get("/rigs/:id/stats", async (req, res) => {
     samples,
   });
   res.json(data);
+});
+
+/**
+ * Public live telemetry for a rig. Returns current hashrate and share
+ * difficulty so visitors can see whether a rig is actively hashing.
+ * No auth required — no sensitive pool or renter data is exposed.
+ */
+router.get("/rigs/:id/live", async (req, res) => {
+  const id = Number(req.params["id"]);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [rig] = await db
+    .select({
+      id: rigsTable.id,
+      isOnline: rigsTable.isOnline,
+      algorithmUnit: algorithmsTable.unit,
+    })
+    .from(rigsTable)
+    .innerJoin(algorithmsTable, eq(algorithmsTable.id, rigsTable.algorithmId))
+    .where(and(eq(rigsTable.id, id), eq(rigsTable.approvalStatus, "approved")));
+  if (!rig) {
+    res.status(404).json({ error: "Rig not found" });
+    return;
+  }
+
+  const entry = proxyState.getRigEntry(id);
+  const rentalId = entry?.rentalId ?? null;
+  let currentHashrateH = 0;
+  if (rentalId != null) {
+    currentHashrateH = proxyState.getLiveStats(rentalId).effectiveHashrateH;
+  } else {
+    currentHashrateH = proxyState.getFallbackHashrateH(id);
+  }
+  const currentDifficulty = entry?.currentDifficulty ?? 1;
+  const algMultiplier = unitMultiplier(rig.algorithmUnit);
+
+  res.json({
+    rigId: id,
+    isOnline: rig.isOnline,
+    algorithmUnit: rig.algorithmUnit,
+    currentHashrateH,
+    currentHashrate: currentHashrateH / algMultiplier,
+    currentDifficulty,
+  });
 });
 
 router.get("/rigs/:id/reviews", async (req, res) => {

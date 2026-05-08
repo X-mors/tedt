@@ -660,11 +660,17 @@ export default function RentalCockpit() {
                       <span className="text-[9px] text-muted-foreground/60 mt-1 font-mono">actual / advertised</span>
                     </div>
                     <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
-                      <span className="text-[10px] text-muted-foreground uppercase font-semibold">Shares (A/R)</span>
-                      <span className="font-mono text-lg font-bold">
-                        <span className="text-green-500">{live.sharesAccepted}</span> / <span className="text-destructive">{live.sharesRejected}</span>
-                      </span>
-                      <span className="text-[9px] text-muted-foreground/60 mt-1 font-mono">accepted / rejected</span>
+                      <span className="text-[10px] text-muted-foreground uppercase font-semibold">Accept Rate</span>
+                      {(() => {
+                        const total = (live.sharesAccepted ?? 0) + (live.sharesRejected ?? 0);
+                        const rate = total > 0 ? (live.sharesAccepted ?? 0) / total : 1;
+                        return (
+                          <span className={`font-mono text-lg font-bold ${rate >= 0.99 ? 'text-green-500' : rate >= 0.95 ? 'text-yellow-500' : 'text-destructive'}`}>
+                            {(rate * 100).toFixed(1)}%
+                          </span>
+                        );
+                      })()}
+                      <span className="text-[9px] text-muted-foreground/60 mt-1 font-mono">{live.sharesAccepted ?? 0}A / {live.sharesRejected ?? 0}R</span>
                     </div>
                   </div>
 

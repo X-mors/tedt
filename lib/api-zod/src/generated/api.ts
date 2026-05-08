@@ -2534,3 +2534,19 @@ export const UpdateWalletSettingsResponse = zod.object({
     fixedUsdtUsd: zod.number(),
   }),
 });
+
+/**
+ * @summary Public live telemetry for a rig (current hashrate + difficulty)
+ */
+export const GetRigLiveParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetRigLiveResponse = zod.object({
+  rigId: zod.number(),
+  isOnline: zod.boolean(),
+  algorithmUnit: zod.string(),
+  currentHashrateH: zod.number(),
+  currentHashrate: zod.number(),
+  currentDifficulty: zod.number(),
+});

@@ -114,6 +114,15 @@ export const RigApprovalStatus = {
   rejected: "rejected",
 } as const;
 
+export interface RigLive {
+  rigId: number;
+  isOnline: boolean;
+  algorithmUnit: string;
+  currentHashrateH: number;
+  currentHashrate: number;
+  currentDifficulty: number;
+}
+
 export interface RigSummary {
   id: number;
   name: string;

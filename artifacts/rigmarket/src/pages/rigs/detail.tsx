@@ -1,5 +1,5 @@
 import { useParams, Link } from "wouter";
-import { useGetRig, useGetMyRig, getGetMyRigQueryKey, useListRigReviews, useGetMe, useGetRigStats, getGetRigStatsQueryKey } from "@workspace/api-client-react";
+import { useGetRig, useGetMyRig, getGetMyRigQueryKey, useListRigReviews, useGetMe, useGetRigStats, getGetRigStatsQueryKey, useGetRigLive } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatHashrate, formatMoney } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +34,10 @@ export default function RigDetail() {
   // reload.
   const { data: rigStats } = useGetRigStats(rigId, {
     query: { refetchInterval: 60_000, queryKey: getGetRigStatsQueryKey(rigId) },
+  });
+  // Live telemetry: current hashrate + share difficulty. Public, no auth needed.
+  const { data: rigLive } = useGetRigLive(rigId, {
+    query: { refetchInterval: 5_000, enabled: !!rigId, queryKey: [`/api/rigs/${rigId}/live`] },
   });
 
   // Group consecutive samples sharing the same rental state into contiguous
@@ -157,6 +161,32 @@ export default function RigDetail() {
               </div>
             </CardContent>
           </Card>
+
+          {rigLive && (
+            <Card className="bg-card/50 border-border/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-mono uppercase tracking-widest text-muted-foreground">Live Telemetry</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">Current Hashrate</span>
+                    <span className="font-mono text-lg font-bold text-primary">
+                      {rigLive.currentHashrateH > 0 ? formatHashrate(rigLive.currentHashrate, rigLive.algorithmUnit) : '—'}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground/60 mt-1 font-mono">live · 5s refresh</span>
+                  </div>
+                  <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">Share Difficulty</span>
+                    <span className="font-mono text-lg font-bold">
+                      {rigLive.currentDifficulty > 1 ? rigLive.currentDifficulty.toLocaleString() : '—'}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground/60 mt-1 font-mono">pool target</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {rigStats && (
             <Card className="bg-card/50 border-border/50">
