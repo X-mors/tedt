@@ -11,6 +11,7 @@ import {
   Area,
   AreaChart,
   ReferenceArea,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -259,6 +260,14 @@ export default function RigDetail() {
                             'Hashrate',
                           ]}
                           labelFormatter={(t: string) => new Date(t).toLocaleString()}
+                        />
+                        <ReferenceLine
+                          y={rigStats.advertisedHashrate}
+                          stroke="#ef4444"
+                          strokeDasharray="5 4"
+                          strokeWidth={1.5}
+                          label={{ value: formatHashrate(rigStats.advertisedHashrate, rigStats.algorithmUnit), position: 'insideTopRight', fontSize: 9, fill: '#ef4444', fontFamily: 'var(--font-mono)' }}
+                          ifOverflow="extendDomain"
                         />
                         <Area
                           type="monotone"

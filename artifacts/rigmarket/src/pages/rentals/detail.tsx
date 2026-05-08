@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Activity, Server, CheckCircle2, Wifi, WifiOff, BarChart2, ShieldAlert, Clock } from "lucide-react";
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 const toNum = (v: string | number | null | undefined): number => {
   if (v == null) return 0;
@@ -709,6 +709,14 @@ export default function RentalCockpit() {
                             formatter={(v: number) => [formatHashrate(v, rental.algorithmUnit), 'Hashrate']}
                             labelFormatter={(t: string) => new Date(t).toLocaleTimeString()}
                           />
+                          <ReferenceLine
+                            y={toNum(rental.hashrate)}
+                            stroke="#ef4444"
+                            strokeDasharray="5 4"
+                            strokeWidth={1.5}
+                            label={{ value: formatHashrate(toNum(rental.hashrate), rental.algorithmUnit), position: 'insideTopRight', fontSize: 9, fill: '#ef4444', fontFamily: 'var(--font-mono)' }}
+                            ifOverflow="extendDomain"
+                          />
                           <Area
                             type="monotone"
                             dataKey="hashrate"
@@ -819,6 +827,14 @@ export default function RentalCockpit() {
                             labelStyle={{ color: 'hsl(var(--muted-foreground))', fontSize: 10 }}
                             formatter={(v: number) => [formatHashrate(v, rental.algorithmUnit), 'Hashrate']}
                             labelFormatter={(t: string) => new Date(t).toLocaleString()}
+                          />
+                          <ReferenceLine
+                            y={toNum(rental.hashrate)}
+                            stroke="#ef4444"
+                            strokeDasharray="5 4"
+                            strokeWidth={1.5}
+                            label={{ value: formatHashrate(toNum(rental.hashrate), rental.algorithmUnit), position: 'insideTopRight', fontSize: 9, fill: '#ef4444', fontFamily: 'var(--font-mono)' }}
+                            ifOverflow="extendDomain"
                           />
                           <Area
                             type="monotone"
