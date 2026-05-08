@@ -2549,4 +2549,5 @@ export const GetRigLiveResponse = zod.object({
   currentHashrateH: zod.number(),
   currentHashrate: zod.number(),
   currentDifficulty: zod.number(),
+  workerCount: zod.number(),
 });

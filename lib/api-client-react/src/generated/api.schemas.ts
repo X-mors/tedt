@@ -121,6 +121,7 @@ export interface RigLive {
   currentHashrateH: number;
   currentHashrate: number;
   currentDifficulty: number;
+  workerCount: number;
 }
 
 export interface RigSummary {

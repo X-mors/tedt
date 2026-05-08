@@ -356,6 +356,7 @@ router.get("/rigs/:id/live", async (req, res) => {
   }
   const currentDifficulty = entry?.currentDifficulty ?? 1;
   const algMultiplier = unitMultiplier(rig.algorithmUnit);
+  const workerCount = proxyState.getRigSessions(id).length;
 
   res.json({
     rigId: id,
@@ -364,6 +365,7 @@ router.get("/rigs/:id/live", async (req, res) => {
     currentHashrateH,
     currentHashrate: currentHashrateH / algMultiplier,
     currentDifficulty,
+    workerCount,
   });
 });
 

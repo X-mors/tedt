@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { formatHashrate, formatMoney } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Server, Activity, MapPin, Clock, Star, ShieldCheck } from "lucide-react";
+import { Server, Activity, MapPin, Clock, Star, ShieldCheck, Cpu } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import {
@@ -168,7 +168,7 @@ export default function RigDetail() {
                 <CardTitle className="text-sm font-mono uppercase tracking-widest text-muted-foreground">Live Telemetry</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
                     <span className="text-[10px] text-muted-foreground uppercase font-semibold">Current Hashrate</span>
                     <span className="font-mono text-lg font-bold text-primary">
@@ -182,6 +182,15 @@ export default function RigDetail() {
                       {rigLive.currentDifficulty > 1 ? rigLive.currentDifficulty.toLocaleString() : '—'}
                     </span>
                     <span className="text-[9px] text-muted-foreground/60 mt-1 font-mono">pool target</span>
+                  </div>
+                  <div className="bg-background/50 p-4 rounded-md border border-border/50 flex flex-col">
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold flex items-center gap-1">
+                      <Cpu className="w-3 h-3" /> Workers
+                    </span>
+                    <span className="font-mono text-lg font-bold text-cyan-400">
+                      {rigLive.workerCount > 0 ? rigLive.workerCount : '—'}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground/60 mt-1 font-mono">connected devices</span>
                   </div>
                 </div>
               </CardContent>
