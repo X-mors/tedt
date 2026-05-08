@@ -469,19 +469,19 @@ export class StratumServer {
         }
       });
 
-      // Tear down live proxy routing — destroys upstream pool connection,
-      // clears rentalId, force-closes miner socket so it reconnects to the
-      // owner's fallback pool. Look up by rentalId to handle shadow rigs
-      // (auto-created when miner uses a non-matching stratumName).
-      const session =
-        proxyState.getSessionByRentalId(rental.id) ??
-        proxyState.getRigSession(rental.rigId);
-      if (session) {
-        // deactivateRental will flush + remove the share window itself.
-        session.deactivateRental();
+      // Tear down live proxy routing for ALL connected sessions (multi-device).
+      // Look up by rentalId first to handle shadow rigs, then fall back to rigId.
+      const autoSessions = proxyState.getSessionsByRentalId(rental.id);
+      if (autoSessions.length > 0) {
+        for (const s of autoSessions) s.deactivateRental();
       } else {
-        // No live session — flush unflushed counters before removing.
-        await flushAndRemoveRentalWindow(rental.id);
+        const fallback = proxyState.getRigSession(rental.rigId);
+        if (fallback) {
+          fallback.deactivateRental();
+        } else {
+          // No live session — flush unflushed counters before removing.
+          await flushAndRemoveRentalWindow(rental.id);
+        }
       }
       this.algUnitCache.delete(rental.id);
     } catch (err) {

@@ -589,7 +589,7 @@ export default function RentalCockpit() {
                       sharesAccepted: number; sharesRejected: number;
                       upstreamConnected: boolean; connectedAt: string;
                     }> | undefined;
-                    if (!ws || ws.length < 2) return null;
+                    if (!ws || ws.length < 1) return null;
                     const fmtDiff = (d: number) =>
                       d >= 1_000_000 ? `${(d/1_000_000).toFixed(2)}M`
                       : d >= 1_000 ? `${(d/1_000).toFixed(1)}K`
