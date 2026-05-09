@@ -82,6 +82,13 @@ export class DownstreamSession extends EventEmitter {
   private lastReceivedMs = Date.now();
   /** Timestamp of last data written TO the miner (write side). Used by keep-alive. */
   private lastSentMs = Date.now();
+  // ── Flood protection ─────────────────────────────────────────────────────
+  /** Auth-timeout timer — cleared on successful auth or close. */
+  private _authTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Rolling share counter for the current 1-second window. */
+  private _shareCountThisSec = 0;
+  /** Epoch-ms start of the current 1-second share window. */
+  private _shareWindowStart = 0;
   /** Most recent extranonce1 propagated to the miner. Kept for mid-session
    *  change detection only (force-close / set_extranonce paths). */
   private upstreamExtranonce1: string | null = null;
@@ -147,9 +154,37 @@ export class DownstreamSession extends EventEmitter {
     // and let the natural mining.notify traffic from the upstream pool
     // act as the application-level keep-alive.
 
+    // ── Auth timeout ─────────────────────────────────────────────────────────
+    // Disconnect unauthenticated connections after 30 s. Legacy SHA-256
+    // firmware (Antminer S9, cgminer) can take 5–10 s to boot and send
+    // mining.authorize after TCP connect. 30 s is generous for any legitimate
+    // miner while still defeating connection-flood attacks that never auth.
+    this._authTimer = setTimeout(() => {
+      if (!this.authorized) {
+        logger.warn(
+          { ip: socket.remoteAddress },
+          "stratum:downstream auth timeout — closing unauthenticated connection",
+        );
+        this._close();
+      }
+    }, 30_000);
+
     socket.on("data", (chunk: string) => {
       this.lastReceivedMs = Date.now();
+      // ── Payload size guard ───────────────────────────────────────────────
+      // A legitimate Stratum message is always < 1 KB. Disconnect anything
+      // larger before buffering to prevent heap exhaustion via JSON parsing.
+      if (chunk.length > 4_096) {
+        logger.warn({ rigId: this.rigId, bytes: chunk.length }, "stratum:downstream oversized chunk — disconnecting");
+        this._close();
+        return;
+      }
       this.buffer += chunk;
+      if (this.buffer.length > 4_096) {
+        logger.warn({ rigId: this.rigId, bufferLen: this.buffer.length }, "stratum:downstream oversized line buffer — disconnecting");
+        this._close();
+        return;
+      }
       const lines = this.buffer.split("\n");
       this.buffer = lines.pop() ?? "";
       for (const line of lines) {
@@ -614,6 +649,7 @@ export class DownstreamSession extends EventEmitter {
     this.rigId = rig.id;
     this.ownerId = rig.ownerId;
     this.authorized = true;
+    if (this._authTimer) { clearTimeout(this._authTimer); this._authTimer = null; }
     proxyState.addRig(this.sessionId, rig.id, rig.ownerId, this, rig.name);
     // Record IP:port → rigId so _handleSubscribe can look up the hint on the
     // NEXT connect (subscribe runs before auth, so we need this secondary index).
@@ -1226,6 +1262,26 @@ export class DownstreamSession extends EventEmitter {
       return;
     }
 
+    // ── Dynamic share-rate flood guard ──────────────────────────────────────
+    // Allow up to 10× the theoretical maximum shares/s at current difficulty.
+    {
+      const _now = Date.now();
+      if (_now - this._shareWindowStart >= 1_000) {
+        this._shareCountThisSec = 0;
+        this._shareWindowStart = _now;
+      }
+      this._shareCountThisSec++;
+      const _maxShares = Math.ceil((2 ** 32 / Math.max(this.currentDifficulty, 1)) * 10);
+      if (this._shareCountThisSec > _maxShares) {
+        logger.warn(
+          { rigId: this.rigId, sharesThisSec: this._shareCountThisSec, maxShares: _maxShares, difficulty: this.currentDifficulty },
+          "stratum:downstream share-rate exceeded — disconnecting",
+        );
+        this._close();
+        return;
+      }
+    }
+
     const params = (msg.params ?? []) as string[];
     const jobId = params[1] ?? "";
     const extranonce2 = params[2] ?? "";
@@ -1380,6 +1436,7 @@ export class DownstreamSession extends EventEmitter {
     // but the old session's _completeAuth continues running and opens a competing
     // upstream connection for the same rigId.
     this.destroyed = true;
+    if (this._authTimer) { clearTimeout(this._authTimer); this._authTimer = null; }
     if (!this.socket.destroyed) this.socket.destroy();
   }
 
