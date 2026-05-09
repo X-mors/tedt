@@ -155,9 +155,10 @@ export class DownstreamSession extends EventEmitter {
     // act as the application-level keep-alive.
 
     // ── Auth timeout ─────────────────────────────────────────────────────────
-    // Disconnect unauthenticated connections after 5 s. Legitimate miners
-    // complete mining.authorize within 1–2 s of subscribing. Holding sockets
-    // open without authenticating is the cheapest connection-flood vector.
+    // Disconnect unauthenticated connections after 30 s. Legacy SHA-256
+    // firmware (Antminer S9, cgminer) can take 5–10 s to boot and send
+    // mining.authorize after TCP connect. 30 s is generous for any legitimate
+    // miner while still defeating connection-flood attacks that never auth.
     this._authTimer = setTimeout(() => {
       if (!this.authorized) {
         logger.warn(
@@ -166,7 +167,7 @@ export class DownstreamSession extends EventEmitter {
         );
         this._close();
       }
-    }, 5_000);
+    }, 30_000);
 
     socket.on("data", (chunk: string) => {
       this.lastReceivedMs = Date.now();
