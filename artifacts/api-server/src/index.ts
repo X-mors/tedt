@@ -7,7 +7,6 @@ import { startDepositWorker } from "./lib/depositWorker";
 import { db, rigsTable } from "@workspace/db";
 import { eq, notInArray, inArray, and, or } from "drizzle-orm";
 import { proxyState } from "./lib/stratum/state";
-import { loadStratumHintsFromDb } from "./lib/stratum/persistence";
 
 const rawPort = process.env["PORT"];
 
@@ -49,7 +48,6 @@ seedDatabase()
   .then(() => backfillApprovedRigStatus())
   .then(() => db.update(rigsTable).set({ isOnline: false }))
   .then(() => logger.info("startup: reset all rigs to offline"))
-  .then(() => loadStratumHintsFromDb())
   .then(() => {
     stratumServer.start();
     stratumLegacyServer.start();
