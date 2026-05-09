@@ -13,3 +13,4 @@ export * from "./proxyAuthFailures";
 export * from "./depositAddresses";
 export * from "./cryptoDeposits";
 export * from "./userPools";
+export * from "./stratumHints";

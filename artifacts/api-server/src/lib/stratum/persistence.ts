@@ -1,5 +1,5 @@
 import { eq, sql } from "drizzle-orm";
-import { db, rentalsTable } from "@workspace/db";
+import { db, rentalsTable, stratumExtranonceHintsTable, stratumIpRigMappingsTable } from "@workspace/db";
 import { logger } from "../logger";
 import { proxyState } from "./state";
 
@@ -75,6 +75,66 @@ export async function persistRentalShareDelta(rentalId: number): Promise<void> {
   });
   sharePersistInFlight.set(rentalId, promise);
   await promise;
+}
+
+// ── Extranonce hint persistence ───────────────────────────────────────────────
+
+/**
+ * Upsert the extranonce hint for a rig into the DB.
+ * Called fire-and-forget after storeExtranonceHint so hints survive restarts.
+ */
+export async function persistExtranonceHint(rigId: number, extranonce1: string, e2size: number): Promise<void> {
+  try {
+    await db
+      .insert(stratumExtranonceHintsTable)
+      .values({ rigId, extranonce1, e2size, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: stratumExtranonceHintsTable.rigId,
+        set: { extranonce1, e2size, updatedAt: new Date() },
+      });
+  } catch (err) {
+    logger.warn({ err, rigId }, "stratum:persist extranonce hint error");
+  }
+}
+
+/**
+ * Upsert a single IP→rigId mapping into the DB.
+ * Called fire-and-forget after storeIpRigMapping.
+ */
+export async function persistIpRigMapping(ipPort: string, rigId: number): Promise<void> {
+  try {
+    await db
+      .insert(stratumIpRigMappingsTable)
+      .values({ ipPort, rigId })
+      .onConflictDoNothing();
+  } catch (err) {
+    logger.warn({ err, ipPort, rigId }, "stratum:persist ip-rig mapping error");
+  }
+}
+
+/**
+ * Load all persisted extranonce hints and IP→rig mappings from the DB into
+ * the in-memory proxy state. Call once at startup before accepting connections.
+ */
+export async function loadStratumHintsFromDb(): Promise<void> {
+  try {
+    const hints = await db.select().from(stratumExtranonceHintsTable);
+    for (const h of hints) {
+      proxyState.storeExtranonceHint(h.rigId, h.extranonce1, h.e2size);
+    }
+    logger.info({ count: hints.length }, "stratum:persist loaded extranonce hints from DB");
+  } catch (err) {
+    logger.warn({ err }, "stratum:persist failed to load extranonce hints from DB");
+  }
+  try {
+    const mappings = await db.select().from(stratumIpRigMappingsTable);
+    for (const m of mappings) {
+      proxyState.storeIpRigMapping(m.ipPort, m.rigId);
+    }
+    logger.info({ count: mappings.length }, "stratum:persist loaded IP-rig mappings from DB");
+  } catch (err) {
+    logger.warn({ err }, "stratum:persist failed to load IP-rig mappings from DB");
+  }
 }
 
 /**

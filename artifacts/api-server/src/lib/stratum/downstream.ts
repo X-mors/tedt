@@ -6,7 +6,7 @@ import { eq, and, asc } from "drizzle-orm";
 import { db, rigsTable, rentalsTable, proxyAuthFailuresTable, usersTable, algorithmsTable } from "@workspace/db";
 import { logger } from "../logger";
 import { proxyState } from "./state";
-import { flushAndRemoveRentalWindow } from "./persistence";
+import { flushAndRemoveRentalWindow, persistExtranonceHint, persistIpRigMapping } from "./persistence";
 import { UpstreamClient } from "./upstream";
 import type { JsonRpcMessage, RecordedShare } from "./types";
 
@@ -664,7 +664,10 @@ export class DownstreamSession extends EventEmitter {
     // Record IP:port → rigId so _handleSubscribe can look up the hint on the
     // NEXT connect (subscribe runs before auth, so we need this secondary index).
     const authIp = this.socket.remoteAddress ?? "";
-    if (authIp) proxyState.storeIpRigMapping(`${authIp}:${this.localPort}`, rig.id);
+    if (authIp) {
+      proxyState.storeIpRigMapping(`${authIp}:${this.localPort}`, rig.id);
+      persistIpRigMapping(`${authIp}:${this.localPort}`, rig.id).catch(() => {});
+    }
 
     // Persist online state and last-seen timestamp so admin can track connectivity.
     await db
@@ -1183,7 +1186,10 @@ export class DownstreamSession extends EventEmitter {
     // Always update internal state and store hint with pool's real values.
     this.extranonce1 = newExtranonce1;
     this.extranonce2Size = extranonce2Size;
-    if (this.rigId != null) proxyState.storeExtranonceHint(this.rigId, newExtranonce1, extranonce2Size);
+    if (this.rigId != null) {
+      proxyState.storeExtranonceHint(this.rigId, newExtranonce1, extranonce2Size);
+      persistExtranonceHint(this.rigId, newExtranonce1, extranonce2Size).catch(() => {});
+    }
 
     if (sizeChanged) {
       // Sizes changed: send set_extranonce to the miner anyway.
@@ -1494,6 +1500,7 @@ export class DownstreamSession extends EventEmitter {
     // We store it here (at natural close) AND at force-close in _applyUpstreamExtranonce.
     if (this.upstreamExtranonce1 && this.rigId != null) {
       proxyState.storeExtranonceHint(this.rigId, this.upstreamExtranonce1, this.extranonce2Size);
+      persistExtranonceHint(this.rigId, this.upstreamExtranonce1, this.extranonce2Size).catch(() => {});
     }
 
     if (this.upstream != null) {
