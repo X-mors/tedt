@@ -584,6 +584,7 @@ router.get("/me/rigs/:id/stats", async (req, res) => {
     retentionDays: RETENTION_DAYS,
     samples,
   });
+  res.setHeader("Cache-Control", "no-store");
   res.json(data);
 });
 

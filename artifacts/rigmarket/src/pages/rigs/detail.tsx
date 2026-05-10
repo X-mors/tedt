@@ -252,6 +252,11 @@ export default function RigDetail() {
                     }
                   }
 
+                  // rigLive refreshes every 5s — use it for the live offline
+                  // signal so we catch disconnects without a page reload.
+                  // ownerIsOnline (from the page-load snapshot) is too stale.
+                  const isRigCurrentlyOffline = rigLive != null && !rigLive.isOnline;
+
                   // Build coloring ranges from per-sample state.
                   // offlineRanges (red): hashrate=0 → rig was offline
                   // gapRanges (red): gaps > 90s → backward-compat for pre-fix data
@@ -280,16 +285,11 @@ export default function RigDetail() {
                   // If offStart is still open at the end of the list but the
                   // rig is now back online (rigLive updated before rigStats),
                   // close the range to nowStr so the history stays visible
-                  // during the gap before the next rigStats refresh (≤60s).
+                  // during the gap before the next rigStats refresh (≤90s).
                   if (offStart !== null && !isRigCurrentlyOffline) {
                     offlineRanges.push({ start: offStart, end: nowStr });
                     offStart = null;
                   }
-
-                  // rigLive refreshes every 5s — use it for the live offline
-                  // signal so we catch disconnects without a page reload.
-                  // ownerIsOnline (from the page-load snapshot) is too stale.
-                  const isRigCurrentlyOffline = rigLive != null && !rigLive.isOnline;
 
                   // Chart data: if the rig is currently offline, append a zero
                   // point at "now" so the area visually drops to zero.

@@ -725,6 +725,7 @@ router.get("/rentals/:id/stats", async (req, res) => {
     upstreamConnected: upstreamConnectedDisplay,
     poolAuthFailed: live.poolAuthFailed,
   });
+  res.setHeader("Cache-Control", "no-store");
   res.json(data);
 });
 

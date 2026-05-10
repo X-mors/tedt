@@ -716,6 +716,13 @@ export default function RentalCockpit() {
                     const nowStr = new Date().toISOString();
                     const lastFilteredSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
 
+                    // Current-state live areas (from last sample → now).
+                    // Use hashrateZeroNow (immediate signal) instead of !minerConnected
+                    // so the area appears during the 15-min grace period too.
+                    const showMinerOfflineArea =
+                      (!live?.minerConnected || (hasDelivered && hashrateZeroNow && (live?.upstreamConnected ?? true))) &&
+                      !!lastFilteredSample;
+
                     // Historical offline ranges: hashrate=0 → rig was offline (red).
                     const offlineRanges: { start: string; end: string }[] = [];
                     let offStart: string | null = null;
@@ -729,18 +736,11 @@ export default function RentalCockpit() {
                     }
                     // If offStart is still open but the rig is back online
                     // (live updated before stats refetched), close it now so
-                    // the red stays visible until the next stats refresh (≤60s).
+                    // the red stays visible until the next stats refresh (≤90s).
                     if (offStart !== null && !showMinerOfflineArea) {
                       offlineRanges.push({ start: offStart, end: nowStr });
                       offStart = null;
                     }
-
-                    // Current-state live areas (from last sample → now).
-                    // Use hashrateZeroNow (immediate signal) instead of !minerConnected
-                    // so the area appears during the 15-min grace period too.
-                    const showMinerOfflineArea =
-                      (!live?.minerConnected || (hasDelivered && hashrateZeroNow && (live?.upstreamConnected ?? true))) &&
-                      !!lastFilteredSample;
                     const showPoolOfflineArea =
                       !!(live?.minerConnected && !live?.upstreamConnected && lastFilteredSample);
 
