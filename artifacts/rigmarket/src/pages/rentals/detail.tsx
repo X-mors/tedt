@@ -376,6 +376,7 @@ export default function RentalCockpit() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewBody, setReviewBody] = useState("");
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [rentalRange, setRentalRange] = useState<number | null>(null);
 
   const handleCancel = () => {
     if (confirm("Are you sure you want to cancel this rental? You will be refunded for the remaining time.")) {
@@ -684,10 +685,38 @@ export default function RentalCockpit() {
                   </div>
 
                   {stats && stats.samples.length > 1 ? (() => {
-                    const rentalChartData = !live?.minerConnected && stats.samples.length > 0
-                      ? [...stats.samples, { timestamp: new Date().toISOString(), hashrate: 0 }]
+                    const rentalRangeOptions = [
+                      { label: '1H',  ms: 3_600_000 },
+                      { label: '6H',  ms: 6 * 3_600_000 },
+                      { label: '12H', ms: 12 * 3_600_000 },
+                      { label: '1D',  ms: 86_400_000 },
+                      { label: '1W',  ms: 7 * 86_400_000 },
+                      { label: 'MAX', ms: null },
+                    ] as const;
+                    const now = Date.now();
+                    const filtered = rentalRange !== null
+                      ? stats.samples.filter(s => new Date(s.timestamp).getTime() > now - rentalRange)
                       : stats.samples;
+                    const rentalChartData = !live?.minerConnected && filtered.length > 0
+                      ? [...filtered, { timestamp: new Date().toISOString(), hashrate: 0 }]
+                      : filtered;
                     return (
+                    <div className="space-y-1">
+                    <div className="flex justify-end gap-1">
+                      {rentalRangeOptions.map(opt => (
+                        <button
+                          key={opt.label}
+                          onClick={() => setRentalRange(opt.ms ?? null)}
+                          className={`px-1.5 py-0.5 text-[10px] font-mono rounded transition-colors ${
+                            rentalRange === (opt.ms ?? null)
+                              ? 'bg-primary text-primary-foreground'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
                     <div className="h-32 bg-background/30 rounded-md border border-border/30 px-2 py-2">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={rentalChartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
@@ -733,6 +762,7 @@ export default function RentalCockpit() {
                           />
                         </AreaChart>
                       </ResponsiveContainer>
+                    </div>
                     </div>
                     );
                   })() : (

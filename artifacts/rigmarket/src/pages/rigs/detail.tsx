@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, Link } from "wouter";
 import { useGetRig, useGetMyRig, getGetMyRigQueryKey, useListRigReviews, useGetMe, useGetRigStats, getGetRigStatsQueryKey, useGetRigLive } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -18,9 +19,19 @@ import {
   YAxis,
 } from "recharts";
 
+const RIG_RANGE_OPTIONS = [
+  { label: '1H',  ms: 3_600_000 },
+  { label: '6H',  ms: 6 * 3_600_000 },
+  { label: '12H', ms: 12 * 3_600_000 },
+  { label: '1D',  ms: 86_400_000 },
+  { label: '1W',  ms: 7 * 86_400_000 },
+  { label: 'MAX', ms: null },
+] as const;
+
 export default function RigDetail() {
   const { id } = useParams<{ id: string }>();
   const rigId = parseInt(id || "0");
+  const [rigRange, setRigRange] = useState<number | null>(null);
   
   const { data: rig, isLoading } = useGetRig(rigId);
   const { data: reviews } = useListRigReviews(rigId);
@@ -203,9 +214,21 @@ export default function RigDetail() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center justify-between">
                   <span>Hashrate History</span>
-                  <span className="text-[10px] font-mono uppercase text-muted-foreground">
-                    Last {rigStats.retentionDays}d
-                  </span>
+                  <div className="flex items-center gap-1">
+                    {RIG_RANGE_OPTIONS.map(opt => (
+                      <button
+                        key={opt.label}
+                        onClick={() => setRigRange(opt.ms ?? null)}
+                        className={`px-1.5 py-0.5 text-[10px] font-mono rounded transition-colors ${
+                          rigRange === (opt.ms ?? null)
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </CardTitle>
                 <CardDescription className="text-xs flex items-center gap-3 pt-1">
                   <span className="flex items-center gap-1.5">
@@ -218,9 +241,13 @@ export default function RigDetail() {
               </CardHeader>
               <CardContent>
                 {rigStats.samples.length > 1 ? (() => {
-                  const rigChartData = !ownerIsOnline && rigStats.samples.length > 0
-                    ? [...rigStats.samples, { timestamp: new Date().toISOString(), hashrate: 0, hasRental: false }]
+                  const now = Date.now();
+                  const filtered = rigRange !== null
+                    ? rigStats.samples.filter(s => new Date(s.timestamp).getTime() > now - rigRange)
                     : rigStats.samples;
+                  const rigChartData = !ownerIsOnline && filtered.length > 0
+                    ? [...filtered, { timestamp: new Date().toISOString(), hashrate: 0, hasRental: false }]
+                    : filtered;
                   return (
                   <div className="h-48 bg-background/30 rounded-md border border-border/30 px-2 py-2">
                     <ResponsiveContainer width="100%" height="100%">
