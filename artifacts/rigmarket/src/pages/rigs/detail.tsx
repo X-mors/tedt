@@ -254,24 +254,36 @@ export default function RigDetail() {
                   const nowStr = new Date().toISOString();
                   const lastSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
 
-                  // Historical gap ranges: gaps > 90 s between consecutive samples
-                  // mean the rig was offline (no shares, no pool-disconnect sample written).
-                  // Historical pool-disconnect ranges: consecutive samples with poolConnected=false
-                  // written by the flush loop when miner was up but pool was down.
-                  const gapRanges: { start: string; end: string }[] = [];
+                  // Build coloring ranges from per-sample state.
+                  // offlineRanges (red): hashrate=0 AND poolConnected=true  → rig problem
+                  // poolDisconnectRanges (purple): poolConnected=false       → pool problem
+                  // gapRanges (red): gaps > 90 s (backward-compat for pre-fix data)
+                  const offlineRanges: { start: string; end: string }[] = [];
                   const poolDisconnectRanges: { start: string; end: string }[] = [];
+                  const gapRanges: { start: string; end: string }[] = [];
                   const GAP_THRESHOLD_MS = 90_000;
+                  let offStart: string | null = null;
                   let pdStart: string | null = null;
                   for (let gi = 0; gi < filtered.length; gi++) {
-                    const s = filtered[gi];
-                    // pool disconnect ranges
-                    if (!s.poolConnected) {
+                    const s = filtered[gi]!;
+                    const isRigDown = s.hashrate === 0 && s.poolConnected;
+                    const isPoolDown = !s.poolConnected;
+                    // pool disconnect (purple)
+                    if (isPoolDown) {
                       if (!pdStart) pdStart = s.timestamp;
+                      if (offStart) { offlineRanges.push({ start: offStart, end: s.timestamp }); offStart = null; }
                     } else if (pdStart) {
                       poolDisconnectRanges.push({ start: pdStart, end: s.timestamp });
                       pdStart = null;
                     }
-                    // gap (rig offline) ranges
+                    // rig offline (red)
+                    if (isRigDown) {
+                      if (!offStart) offStart = s.timestamp;
+                    } else if (offStart) {
+                      offlineRanges.push({ start: offStart, end: s.timestamp });
+                      offStart = null;
+                    }
+                    // gap detection (backward compat — old data before zero-sample fix)
                     if (gi < filtered.length - 1) {
                       const t1 = new Date(s.timestamp).getTime();
                       const t2 = new Date(filtered[gi + 1]!.timestamp).getTime();
@@ -281,14 +293,32 @@ export default function RigDetail() {
                     }
                   }
 
+                  // Live state: pool disconnect (purple) — covers both renter pool
+                  // and owner fallback pool; no longer requires an active rental.
                   const isPoolDisconnected = ownerIsOnline &&
                     rigLive != null &&
                     rigLive.workerCount > 0 &&
-                    (!rigLive.upstreamConnected || rigLive.poolAuthFailed) &&
-                    rentalRanges.length > 0;
-                  const rigChartData = !ownerIsOnline && filtered.length > 0
-                    ? [...filtered, { timestamp: nowStr, hashrate: 0, hasRental: false }]
-                    : filtered;
+                    (!rigLive.upstreamConnected || rigLive.poolAuthFailed);
+
+                  // Build continuous chart data. For old-data gaps (no zero samples
+                  // yet written), inject zero points at gap boundaries so the line
+                  // drops to 0 and stays flat instead of drawing a diagonal skip.
+                  const rigChartData: typeof filtered = [];
+                  for (let ci = 0; ci < filtered.length; ci++) {
+                    const s = filtered[ci]!;
+                    rigChartData.push(s);
+                    if (ci < filtered.length - 1) {
+                      const t1 = new Date(s.timestamp).getTime();
+                      const t2 = new Date(filtered[ci + 1]!.timestamp).getTime();
+                      if (t2 - t1 > GAP_THRESHOLD_MS) {
+                        rigChartData.push({ timestamp: new Date(t1 + 500).toISOString(), hashrate: 0, hasRental: s.hasRental, poolConnected: s.poolConnected });
+                        rigChartData.push({ timestamp: new Date(t2 - 500).toISOString(), hashrate: 0, hasRental: filtered[ci + 1]!.hasRental, poolConnected: filtered[ci + 1]!.poolConnected });
+                      }
+                    }
+                  }
+                  if (!ownerIsOnline && filtered.length > 0) {
+                    rigChartData.push({ timestamp: nowStr, hashrate: 0, hasRental: false, poolConnected: true });
+                  }
                   return (
                   <div className="h-48 bg-background/30 rounded-md border border-border/30 px-2 py-2">
                     <ResponsiveContainer width="100%" height="100%">
@@ -316,7 +346,18 @@ export default function RigDetail() {
                             ifOverflow="extendDomain"
                           />
                         ))}
-                        {/* Historical offline gaps — red (persists after reconnection) */}
+                        {/* Historical offline (red): sample-based (new) + gap-based (old data) */}
+                        {offlineRanges.map((r, i) => (
+                          <ReferenceArea
+                            key={`off-${i}`}
+                            x1={r.start}
+                            x2={r.end}
+                            fill="#ef4444"
+                            fillOpacity={0.18}
+                            stroke="none"
+                            ifOverflow="extendDomain"
+                          />
+                        ))}
                         {gapRanges.map((r, i) => (
                           <ReferenceArea
                             key={`gap-${i}`}

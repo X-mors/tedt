@@ -156,24 +156,22 @@ export class StratumServer {
         });
         rentalSampledThisCycle.add(snapshot.rentalId);
 
-        // Zero-activity cycle (rig offline / no real shares this minute): the
-        // rental sample above keeps the chart timeline continuous with a flat
-        // zero line. If the pool is currently disconnected (miner up, pool
-        // down), also write a zero rig sample so the owner/public chart shades
-        // this gap purple instead of treating it as a rig-offline gap.
+        // Zero-activity cycle (no real shares this minute).
+        // Always write a zero rig sample so the owner chart has a continuous
+        // flat-zero line during offline / pool-down periods — no gaps.
+        //   poolConnected=false → miner up, pool down → purple on chart
+        //   poolConnected=true  → rig offline (red) or just no shares
         if (isZeroActivity) {
-          if (isPoolDisconnectActive) {
-            await db.insert(rigHashSamplesTable).values({
-              rigId: snapshot.rigId,
-              rentalId: snapshot.rentalId,
-              windowSeconds: Math.round(elapsedSec),
-              sharesAccepted: 0,
-              sharesRejected: 0,
-              effectiveHashrateH: "0",
-              poolConnected: false,
-            });
-            rigSampledThisCycle.add(snapshot.rigId);
-          }
+          await db.insert(rigHashSamplesTable).values({
+            rigId: snapshot.rigId,
+            rentalId: snapshot.rentalId,
+            windowSeconds: Math.round(elapsedSec),
+            sharesAccepted: 0,
+            sharesRejected: 0,
+            effectiveHashrateH: "0",
+            poolConnected: !isPoolDisconnectActive,
+          });
+          rigSampledThisCycle.add(snapshot.rigId);
           continue;
         }
 
@@ -285,6 +283,8 @@ export class StratumServer {
     // Per-rig fallback samples — for rigs mining to the owner's pool with
     // no active rental. These never reach the rental table but are
     // essential for the owner's continuous 14-day history chart.
+    // poolConnected tracks the owner's fallback pool status so the chart
+    // can shade pool-down periods purple (vs red for rig-offline).
     for (const rigId of proxyState.getFallbackRigIds()) {
       if (rigSampledThisCycle.has(rigId)) continue;
       const snap = proxyState.flushFallbackSnapshot(rigId);
@@ -292,6 +292,12 @@ export class StratumServer {
       const elapsedSec = Math.max(1, (Date.now() - snap.startedAt) / 1000);
       const effectiveHashrateH =
         (snap.difficultySum * 4294967296) / elapsedSec;
+      // getFallbackPoolStatus returns null when rig is offline — in that case
+      // it's a rig problem (poolConnected=true), not a pool problem.
+      const fallbackStatus = proxyState.getFallbackPoolStatus(rigId);
+      const fallbackPoolConnected = fallbackStatus !== null
+        ? fallbackStatus.connected
+        : true;
       try {
         await db.insert(rigHashSamplesTable).values({
           rigId,
@@ -300,6 +306,7 @@ export class StratumServer {
           sharesAccepted: snap.sharesAccepted,
           sharesRejected: snap.sharesRejected,
           effectiveHashrateH: String(effectiveHashrateH),
+          poolConnected: fallbackPoolConnected,
         });
       } catch (err) {
         logger.error(
