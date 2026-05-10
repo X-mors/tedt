@@ -125,16 +125,19 @@ export class StratumServer {
         (snapshot.difficultySum * 4294967296) / elapsedSec;
 
       try {
-        // Pool connectivity: if shares arrived this window the pool was
-        // reachable; otherwise check the live state at flush time so the
-        // DB sample can distinguish pool-down from rig-offline.
+        // Pool connectivity at flush time. Shares are recorded OPTIMISTICALLY
+        // even when the pool is down (buffered for replay), so isZeroActivity
+        // alone cannot indicate pool connectivity — the miner keeps sending
+        // shares and difficultySum > 0 even during a pool outage. Instead read
+        // the live upstream state directly:
+        //   poolConnected=false  ↔  miner up + pool down  → purple on chart
+        //   poolConnected=true   ↔  pool up OR miner offline → red/green
+        // (Rig-offline samples already show red via hashrate=0 / gap detection;
+        //  we must not mark them purple even if the pool happens to be down too.)
         const liveStats = proxyState.getLiveStats(snapshot.rentalId);
-        const poolConnectedThisWindow =
-          !isZeroActivity || liveStats.upstreamConnected;
-        const poolDisconnectWithMiner =
-          isZeroActivity &&
-          liveStats.minerConnected &&
-          !liveStats.upstreamConnected;
+        const isPoolDisconnectActive =
+          liveStats.minerConnected && !liveStats.upstreamConnected;
+        const poolConnectedThisWindow = !isPoolDisconnectActive;
 
         await db.insert(rentalHashSamplesTable).values({
           rentalId: snapshot.rentalId,
@@ -146,13 +149,13 @@ export class StratumServer {
           poolConnected: poolConnectedThisWindow,
         });
 
-        // Zero-activity cycle (rig offline / no shares this minute): the
-        // sample above keeps the rental chart timeline continuous with a
-        // flat zero line. If the miner is connected but pool is down, also
-        // write a rig sample so the owner/public chart shows a purple
-        // pool-disconnect gap instead of a red offline gap.
+        // Zero-activity cycle (rig offline / no real shares this minute): the
+        // rental sample above keeps the chart timeline continuous with a flat
+        // zero line. If the pool is currently disconnected (miner up, pool
+        // down), also write a zero rig sample so the owner/public chart shades
+        // this gap purple instead of treating it as a rig-offline gap.
         if (isZeroActivity) {
-          if (poolDisconnectWithMiner) {
+          if (isPoolDisconnectActive) {
             await db.insert(rigHashSamplesTable).values({
               rigId: snapshot.rigId,
               rentalId: snapshot.rentalId,
@@ -170,6 +173,9 @@ export class StratumServer {
         // Mirror into the per-rig stream so the owner gets a continuous
         // history regardless of rental state. rentalId is set so the owner
         // chart can highlight rental periods in yellow.
+        // poolConnected reflects the actual upstream state at flush time —
+        // optimistically buffered shares still count towards hashrate so this
+        // window may have difficultySum > 0 even during a pool outage.
         await db.insert(rigHashSamplesTable).values({
           rigId: snapshot.rigId,
           rentalId: snapshot.rentalId,
@@ -177,7 +183,7 @@ export class StratumServer {
           sharesAccepted: snapshot.sharesAccepted,
           sharesRejected: snapshot.sharesRejected,
           effectiveHashrateH: String(effectiveHashrateH),
-          poolConnected: true,
+          poolConnected: poolConnectedThisWindow,
         });
         rigSampledThisCycle.add(snapshot.rigId);
 
