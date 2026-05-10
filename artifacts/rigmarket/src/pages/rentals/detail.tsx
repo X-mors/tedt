@@ -299,16 +299,18 @@ function ExtendRentalDialog({
   );
 }
 
-function StatusDot({ connected, label, sublabel, error }: { connected: boolean; label: string; sublabel?: string; error?: boolean }) {
+function StatusDot({ connected, label, sublabel, error, warn }: { connected: boolean; label: string; sublabel?: string; error?: boolean; warn?: boolean }) {
   return (
     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
       error
         ? 'text-red-500 border-red-500/30 bg-red-500/10'
-        : connected
-          ? 'text-green-500 border-green-500/30 bg-green-500/10'
-          : 'text-muted-foreground border-border/40 bg-muted/20'
+        : warn
+          ? 'text-purple-400 border-purple-500/30 bg-purple-500/10'
+          : connected
+            ? 'text-green-500 border-green-500/30 bg-green-500/10'
+            : 'text-muted-foreground border-border/40 bg-muted/20'
     }`}>
-      <div className={`w-2 h-2 rounded-full shrink-0 ${error ? 'bg-red-500' : connected ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/50'}`} />
+      <div className={`w-2 h-2 rounded-full shrink-0 ${error ? 'bg-red-500' : warn ? 'bg-purple-400 animate-pulse' : connected ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/50'}`} />
       <div>
         <p className="text-xs font-mono font-semibold">{label}</p>
         {sublabel && <p className="text-[10px] opacity-70">{sublabel}</p>}
@@ -512,11 +514,12 @@ export default function RentalCockpit() {
               <StatusDot
                 connected={poolConnected}
                 error={!poolConnected && poolAuthFailed}
+                warn={minerConnected && !poolConnected && !poolAuthFailed}
                 label="YOUR POOL"
                 sublabel={
                   poolConnected ? "Receiving hashrate"
                   : poolAuthFailed ? "Pool rejected credentials"
-                  : minerConnected ? "Establishing pool link..."
+                  : minerConnected ? "Pool disconnected — reconnecting"
                   : "Waiting for rig first"
                 }
               />
@@ -575,20 +578,20 @@ export default function RentalCockpit() {
                 return (
                 <div className="space-y-6">
                   {showOffline ? (
-                    <div className="flex items-center gap-3 rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3">
-                      <WifiOff className="w-5 h-5 text-yellow-500 shrink-0" />
+                    <div className="flex items-center gap-3 rounded-md border border-red-500/30 bg-red-500/10 p-3">
+                      <WifiOff className="w-5 h-5 text-red-500 shrink-0" />
                       <div className="text-xs">
-                        <div className="font-mono font-bold text-yellow-500 uppercase">Rig offline — reconnecting</div>
+                        <div className="font-mono font-bold text-red-500 uppercase">Rig offline — reconnecting</div>
                         <div className="text-muted-foreground">Showing the most recent data from this rental. Live values resume the moment the rig sends a share.</div>
                       </div>
                     </div>
                   ) : null}
                   {showEstablishing ? (
-                    <div className="flex items-center gap-3 rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3">
-                      <Wifi className="w-5 h-5 text-yellow-500 shrink-0 animate-pulse" />
+                    <div className="flex items-center gap-3 rounded-md border border-purple-500/30 bg-purple-500/10 p-3">
+                      <Wifi className="w-5 h-5 text-purple-400 shrink-0 animate-pulse" />
                       <div className="text-xs">
-                        <div className="font-mono font-bold text-yellow-500 uppercase">Miner connected — establishing pool link</div>
-                        <div className="text-muted-foreground">Proxy is connecting to your destination pool. Hash will start flowing shortly.</div>
+                        <div className="font-mono font-bold text-purple-400 uppercase">Pool disconnected — reconnecting</div>
+                        <div className="text-muted-foreground">Rig is connected to proxy but pool link dropped. Will reconnect automatically.</div>
                       </div>
                     </div>
                   ) : null}
