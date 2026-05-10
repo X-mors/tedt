@@ -105,6 +105,12 @@ export class StratumServer {
     // NOT for every window — windows whose snapshot is null produce no
     // shares this cycle and must still be evaluated by the sweep.
     const lowDeliveryCheckedThisCycle = new Set<number>();
+    // Track rentals for which a hash sample was written this cycle.
+    // Any active rental NOT in this set at sweep time has no in-memory window
+    // (rig never connected since server start, or server just restarted with
+    // offline rig). We must write a zero sample for them so the renter chart
+    // timeline stays continuous across restarts and offline gaps.
+    const rentalSampledThisCycle = new Set<number>();
 
     const windows = proxyState.getAllWindows();
     for (const window of windows) {
@@ -148,6 +154,7 @@ export class StratumServer {
           effectiveHashrateH: String(effectiveHashrateH),
           poolConnected: poolConnectedThisWindow,
         });
+        rentalSampledThisCycle.add(snapshot.rentalId);
 
         // Zero-activity cycle (rig offline / no real shares this minute): the
         // rental sample above keeps the chart timeline continuous with a flat
@@ -234,6 +241,21 @@ export class StratumServer {
         .from(rentalsTable)
         .where(eq(rentalsTable.status, "active"));
       for (const r of activeRentals) {
+        // Write a zero hash sample for rentals that have no in-memory share
+        // window this cycle (rig offline before/after a server restart, or
+        // rental started but miner never connected). Without this the renter
+        // chart has gaps and offline red areas are missing for those periods.
+        if (!rentalSampledThisCycle.has(r.id)) {
+          await db.insert(rentalHashSamplesTable).values({
+            rentalId: r.id,
+            windowSeconds: 60,
+            sharesAccepted: 0,
+            sharesRejected: 0,
+            difficultySum: "0",
+            effectiveHashrateH: "0",
+            poolConnected: true,
+          });
+        }
         if (lowDeliveryCheckedThisCycle.has(r.id)) continue;
         await this._checkLowDelivery(r.id);
         // Also keep deliveredHashrateAvg current for offline rentals so the
