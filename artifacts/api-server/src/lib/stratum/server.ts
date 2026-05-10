@@ -105,6 +105,12 @@ export class StratumServer {
     // NOT for every window — windows whose snapshot is null produce no
     // shares this cycle and must still be evaluated by the sweep.
     const lowDeliveryCheckedThisCycle = new Set<number>();
+    // Track rentals for which a hash sample was written this cycle.
+    // Any active rental NOT in this set at sweep time has no in-memory window
+    // (rig never connected since server start, or server just restarted with
+    // offline rig). We must write a zero sample for them so the renter chart
+    // timeline stays continuous across restarts and offline gaps.
+    const rentalSampledThisCycle = new Set<number>();
 
     const windows = proxyState.getAllWindows();
     for (const window of windows) {
@@ -125,6 +131,20 @@ export class StratumServer {
         (snapshot.difficultySum * 4294967296) / elapsedSec;
 
       try {
+        // Pool connectivity at flush time. Shares are recorded OPTIMISTICALLY
+        // even when the pool is down (buffered for replay), so isZeroActivity
+        // alone cannot indicate pool connectivity — the miner keeps sending
+        // shares and difficultySum > 0 even during a pool outage. Instead read
+        // the live upstream state directly:
+        //   poolConnected=false  ↔  miner up + pool down  → purple on chart
+        //   poolConnected=true   ↔  pool up OR miner offline → red/green
+        // (Rig-offline samples already show red via hashrate=0 / gap detection;
+        //  we must not mark them purple even if the pool happens to be down too.)
+        const liveStats = proxyState.getLiveStats(snapshot.rentalId);
+        const isPoolDisconnectActive =
+          liveStats.minerConnected && !liveStats.upstreamConnected;
+        const poolConnectedThisWindow = !isPoolDisconnectActive;
+
         await db.insert(rentalHashSamplesTable).values({
           rentalId: snapshot.rentalId,
           windowSeconds: Math.round(elapsedSec),
@@ -132,16 +152,35 @@ export class StratumServer {
           sharesRejected: snapshot.sharesRejected,
           difficultySum: String(snapshot.difficultySum),
           effectiveHashrateH: String(effectiveHashrateH),
+          poolConnected: poolConnectedThisWindow,
         });
+        rentalSampledThisCycle.add(snapshot.rentalId);
 
-        // Zero-activity cycle (rig offline / no shares this minute): the
-        // sample above keeps the chart timeline continuous with a flat zero
-        // line, but skip all metric updates — they require real data.
-        if (isZeroActivity) continue;
+        // Zero-activity cycle (no real shares this minute).
+        // Always write a zero rig sample so the owner chart has a continuous
+        // flat-zero line during offline / pool-down periods — no gaps.
+        //   poolConnected=false → miner up, pool down → purple on chart
+        //   poolConnected=true  → rig offline (red) or just no shares
+        if (isZeroActivity) {
+          await db.insert(rigHashSamplesTable).values({
+            rigId: snapshot.rigId,
+            rentalId: snapshot.rentalId,
+            windowSeconds: Math.round(elapsedSec),
+            sharesAccepted: 0,
+            sharesRejected: 0,
+            effectiveHashrateH: "0",
+            poolConnected: !isPoolDisconnectActive,
+          });
+          rigSampledThisCycle.add(snapshot.rigId);
+          continue;
+        }
 
         // Mirror into the per-rig stream so the owner gets a continuous
         // history regardless of rental state. rentalId is set so the owner
         // chart can highlight rental periods in yellow.
+        // poolConnected reflects the actual upstream state at flush time —
+        // optimistically buffered shares still count towards hashrate so this
+        // window may have difficultySum > 0 even during a pool outage.
         await db.insert(rigHashSamplesTable).values({
           rigId: snapshot.rigId,
           rentalId: snapshot.rentalId,
@@ -149,6 +188,7 @@ export class StratumServer {
           sharesAccepted: snapshot.sharesAccepted,
           sharesRejected: snapshot.sharesRejected,
           effectiveHashrateH: String(effectiveHashrateH),
+          poolConnected: poolConnectedThisWindow,
         });
         rigSampledThisCycle.add(snapshot.rigId);
 
@@ -199,6 +239,21 @@ export class StratumServer {
         .from(rentalsTable)
         .where(eq(rentalsTable.status, "active"));
       for (const r of activeRentals) {
+        // Write a zero hash sample for rentals that have no in-memory share
+        // window this cycle (rig offline before/after a server restart, or
+        // rental started but miner never connected). Without this the renter
+        // chart has gaps and offline red areas are missing for those periods.
+        if (!rentalSampledThisCycle.has(r.id)) {
+          await db.insert(rentalHashSamplesTable).values({
+            rentalId: r.id,
+            windowSeconds: 60,
+            sharesAccepted: 0,
+            sharesRejected: 0,
+            difficultySum: "0",
+            effectiveHashrateH: "0",
+            poolConnected: true,
+          });
+        }
         if (lowDeliveryCheckedThisCycle.has(r.id)) continue;
         await this._checkLowDelivery(r.id);
         // Also keep deliveredHashrateAvg current for offline rentals so the
@@ -228,6 +283,8 @@ export class StratumServer {
     // Per-rig fallback samples — for rigs mining to the owner's pool with
     // no active rental. These never reach the rental table but are
     // essential for the owner's continuous 14-day history chart.
+    // poolConnected tracks the owner's fallback pool status so the chart
+    // can shade pool-down periods purple (vs red for rig-offline).
     for (const rigId of proxyState.getFallbackRigIds()) {
       if (rigSampledThisCycle.has(rigId)) continue;
       const snap = proxyState.flushFallbackSnapshot(rigId);
@@ -235,6 +292,12 @@ export class StratumServer {
       const elapsedSec = Math.max(1, (Date.now() - snap.startedAt) / 1000);
       const effectiveHashrateH =
         (snap.difficultySum * 4294967296) / elapsedSec;
+      // getFallbackPoolStatus returns null when rig is offline — in that case
+      // it's a rig problem (poolConnected=true), not a pool problem.
+      const fallbackStatus = proxyState.getFallbackPoolStatus(rigId);
+      const fallbackPoolConnected = fallbackStatus !== null
+        ? fallbackStatus.connected
+        : true;
       try {
         await db.insert(rigHashSamplesTable).values({
           rigId,
@@ -243,6 +306,7 @@ export class StratumServer {
           sharesAccepted: snap.sharesAccepted,
           sharesRejected: snap.sharesRejected,
           effectiveHashrateH: String(effectiveHashrateH),
+          poolConnected: fallbackPoolConnected,
         });
       } catch (err) {
         logger.error(

@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Activity, Server, CheckCircle2, Wifi, WifiOff, BarChart2, ShieldAlert, Clock } from "lucide-react";
-import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 const toNum = (v: string | number | null | undefined): number => {
   if (v == null) return 0;
@@ -299,16 +299,18 @@ function ExtendRentalDialog({
   );
 }
 
-function StatusDot({ connected, label, sublabel, error }: { connected: boolean; label: string; sublabel?: string; error?: boolean }) {
+function StatusDot({ connected, label, sublabel, error, warn }: { connected: boolean; label: string; sublabel?: string; error?: boolean; warn?: boolean }) {
   return (
     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
       error
         ? 'text-red-500 border-red-500/30 bg-red-500/10'
-        : connected
-          ? 'text-green-500 border-green-500/30 bg-green-500/10'
-          : 'text-muted-foreground border-border/40 bg-muted/20'
+        : warn
+          ? 'text-purple-400 border-purple-500/30 bg-purple-500/10'
+          : connected
+            ? 'text-green-500 border-green-500/30 bg-green-500/10'
+            : 'text-muted-foreground border-border/40 bg-muted/20'
     }`}>
-      <div className={`w-2 h-2 rounded-full shrink-0 ${error ? 'bg-red-500' : connected ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/50'}`} />
+      <div className={`w-2 h-2 rounded-full shrink-0 ${error ? 'bg-red-500' : warn ? 'bg-purple-400 animate-pulse' : connected ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/50'}`} />
       <div>
         <p className="text-xs font-mono font-semibold">{label}</p>
         {sublabel && <p className="text-[10px] opacity-70">{sublabel}</p>}
@@ -376,6 +378,7 @@ export default function RentalCockpit() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewBody, setReviewBody] = useState("");
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [rentalRange, setRentalRange] = useState<number | null>(null);
 
   const handleCancel = () => {
     if (confirm("Are you sure you want to cancel this rental? You will be refunded for the remaining time.")) {
@@ -511,11 +514,12 @@ export default function RentalCockpit() {
               <StatusDot
                 connected={poolConnected}
                 error={!poolConnected && poolAuthFailed}
+                warn={minerConnected && !poolConnected && !poolAuthFailed}
                 label="YOUR POOL"
                 sublabel={
                   poolConnected ? "Receiving hashrate"
                   : poolAuthFailed ? "Pool rejected credentials"
-                  : minerConnected ? "Establishing pool link..."
+                  : minerConnected ? "Pool disconnected — reconnecting"
                   : "Waiting for rig first"
                 }
               />
@@ -560,7 +564,20 @@ export default function RentalCockpit() {
                 }
                 // Either fully connected, OR temporarily disconnected but
                 // has past shares — render the live stats panel either way.
-                const showOffline = !live.minerConnected;
+                //
+                // Grace-period fix: the backend keeps minerConnected=true for
+                // 15 min after the last share so the UI doesn't flap on
+                // normal ASIC reconnect cycles. We detect a real disconnect by
+                // watching currentHashrateH drop to 0 — that signal is
+                // immediate and never smoothed by the grace period.
+                const hasDelivered = (live.sharesAccepted ?? 0) > 0;
+                const hashrateZeroNow = (live.currentHashrateH ?? 0) === 0;
+                // Red banner: confirmed offline (post-grace) OR hashrate dropped
+                // with prior delivery history (catches grace-period case).
+                const showOffline =
+                  !live.minerConnected ||
+                  (hasDelivered && hashrateZeroNow && (live.upstreamConnected ?? true));
+                // Purple banner: miner socket is up but pool uplink is down.
                 const showEstablishing =
                   live.minerConnected && !live.upstreamConnected;
                 const avgHashrateDisplay = stats
@@ -574,20 +591,20 @@ export default function RentalCockpit() {
                 return (
                 <div className="space-y-6">
                   {showOffline ? (
-                    <div className="flex items-center gap-3 rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3">
-                      <WifiOff className="w-5 h-5 text-yellow-500 shrink-0" />
+                    <div className="flex items-center gap-3 rounded-md border border-red-500/30 bg-red-500/10 p-3">
+                      <WifiOff className="w-5 h-5 text-red-500 shrink-0" />
                       <div className="text-xs">
-                        <div className="font-mono font-bold text-yellow-500 uppercase">Rig offline — reconnecting</div>
+                        <div className="font-mono font-bold text-red-500 uppercase">Rig offline — reconnecting</div>
                         <div className="text-muted-foreground">Showing the most recent data from this rental. Live values resume the moment the rig sends a share.</div>
                       </div>
                     </div>
                   ) : null}
                   {showEstablishing ? (
-                    <div className="flex items-center gap-3 rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3">
-                      <Wifi className="w-5 h-5 text-yellow-500 shrink-0 animate-pulse" />
+                    <div className="flex items-center gap-3 rounded-md border border-purple-500/30 bg-purple-500/10 p-3">
+                      <Wifi className="w-5 h-5 text-purple-400 shrink-0 animate-pulse" />
                       <div className="text-xs">
-                        <div className="font-mono font-bold text-yellow-500 uppercase">Miner connected — establishing pool link</div>
-                        <div className="text-muted-foreground">Proxy is connecting to your destination pool. Hash will start flowing shortly.</div>
+                        <div className="font-mono font-bold text-purple-400 uppercase">Pool disconnected — reconnecting</div>
+                        <div className="text-muted-foreground">Rig is connected to proxy but pool link dropped. Will reconnect automatically.</div>
                       </div>
                     </div>
                   ) : null}
@@ -683,10 +700,85 @@ export default function RentalCockpit() {
                     </div>
                   </div>
 
-                  {stats && stats.samples.length > 1 ? (
+                  {stats && stats.samples.length > 1 ? (() => {
+                    const rentalRangeOptions = [
+                      { label: '1H',  ms: 3_600_000 },
+                      { label: '6H',  ms: 6 * 3_600_000 },
+                      { label: '12H', ms: 12 * 3_600_000 },
+                      { label: '1D',  ms: 86_400_000 },
+                      { label: '1W',  ms: 7 * 86_400_000 },
+                      { label: 'MAX', ms: null },
+                    ] as const;
+                    const now = Date.now();
+                    const filtered = rentalRange !== null
+                      ? stats.samples.filter(s => new Date(s.timestamp).getTime() > now - rentalRange)
+                      : stats.samples;
+                    const nowStr = new Date().toISOString();
+                    const lastFilteredSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
+
+                    // Historical offline/pool-disconnect ranges from per-sample state.
+                    // offlineRanges (red): hashrate=0 with pool connected → rig was offline.
+                    // poolDisconnectRanges (purple): poolConnected=false → pool was down.
+                    const offlineRanges: { start: string; end: string }[] = [];
+                    const poolDisconnectRanges: { start: string; end: string }[] = [];
+                    let offStart: string | null = null;
+                    let poolStart: string | null = null;
+                    for (const s of filtered) {
+                      const isPoolDown = !s.poolConnected;
+                      const isRigDown = s.hashrate === 0 && s.poolConnected;
+                      // pool disconnect
+                      if (isPoolDown) {
+                        if (!poolStart) poolStart = s.timestamp;
+                        if (offStart) { offlineRanges.push({ start: offStart, end: s.timestamp }); offStart = null; }
+                      } else if (poolStart) {
+                        poolDisconnectRanges.push({ start: poolStart, end: s.timestamp });
+                        poolStart = null;
+                      }
+                      // rig offline
+                      if (isRigDown) {
+                        if (!offStart) offStart = s.timestamp;
+                      } else if (offStart) {
+                        offlineRanges.push({ start: offStart, end: s.timestamp });
+                        offStart = null;
+                      }
+                    }
+                    // Don't close an ongoing run here — the live area extends it to now.
+
+                    // Current-state live areas (from last sample → now).
+                    // Use hashrateZeroNow (immediate signal) instead of !minerConnected
+                    // so the area appears during the 15-min grace period too.
+                    const showMinerOfflineArea =
+                      (!live?.minerConnected || (hasDelivered && hashrateZeroNow && (live?.upstreamConnected ?? true))) &&
+                      !!lastFilteredSample;
+                    const showPoolOfflineArea =
+                      !!(live?.minerConnected && !live?.upstreamConnected && lastFilteredSample);
+
+                    // Append a zero data-point so the line drops to 0 visually
+                    // whenever hashrate is currently zero (not just when confirmed offline).
+                    const isCurrentlyZero = hasDelivered && hashrateZeroNow;
+                    const rentalChartData = isCurrentlyZero && filtered.length > 0
+                      ? [...filtered, { timestamp: nowStr, hashrate: 0 }]
+                      : filtered;
+                    return (
+                    <div className="space-y-1">
+                    <div className="flex justify-end gap-1">
+                      {rentalRangeOptions.map(opt => (
+                        <button
+                          key={opt.label}
+                          onClick={() => setRentalRange(opt.ms ?? null)}
+                          className={`px-1.5 py-0.5 text-[10px] font-mono rounded transition-colors ${
+                            rentalRange === (opt.ms ?? null)
+                              ? 'bg-primary text-primary-foreground'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
                     <div className="h-32 bg-background/30 rounded-md border border-border/30 px-2 py-2">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={stats.samples} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                        <AreaChart data={rentalChartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                           <defs>
                             <linearGradient id="hashrateFill" x1="0" y1="0" x2="0" y2="1">
                               <stop offset="0%" stopColor="#f0b90b" stopOpacity={0.45} />
@@ -695,6 +787,51 @@ export default function RentalCockpit() {
                           </defs>
                           <XAxis dataKey="timestamp" hide />
                           <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax * 1.15, toNum(rental.hashrate) * 1.05)]} />
+                          {/* Historical rig-offline periods — red */}
+                          {offlineRanges.map((r, i) => (
+                            <ReferenceArea
+                              key={`off-${i}`}
+                              x1={r.start}
+                              x2={r.end}
+                              fill="#ef4444"
+                              fillOpacity={0.14}
+                              stroke="none"
+                              ifOverflow="extendDomain"
+                            />
+                          ))}
+                          {/* Historical pool-disconnect periods — purple */}
+                          {poolDisconnectRanges.map((r, i) => (
+                            <ReferenceArea
+                              key={`pool-${i}`}
+                              x1={r.start}
+                              x2={r.end}
+                              fill="#a855f7"
+                              fillOpacity={0.18}
+                              stroke="none"
+                              ifOverflow="extendDomain"
+                            />
+                          ))}
+                          {/* Current live state: extends from last sample → now */}
+                          {showMinerOfflineArea && lastFilteredSample && (
+                            <ReferenceArea
+                              x1={lastFilteredSample.timestamp}
+                              x2={nowStr}
+                              fill="#ef4444"
+                              fillOpacity={0.18}
+                              stroke="none"
+                              ifOverflow="extendDomain"
+                            />
+                          )}
+                          {showPoolOfflineArea && lastFilteredSample && (
+                            <ReferenceArea
+                              x1={lastFilteredSample.timestamp}
+                              x2={nowStr}
+                              fill="#a855f7"
+                              fillOpacity={0.18}
+                              stroke="none"
+                              ifOverflow="extendDomain"
+                            />
+                          )}
                           <Tooltip
                             cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '3 3' }}
                             contentStyle={{
@@ -730,7 +867,9 @@ export default function RentalCockpit() {
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
-                  ) : (
+                    </div>
+                    );
+                  })() : (
                     <div className="flex items-center justify-center gap-2 h-16 bg-background/30 rounded-md border border-dashed border-border/30 text-muted-foreground">
                       <BarChart2 className="w-4 h-4" />
                       <span className="text-xs font-mono">Hashrate chart will appear once mining begins</span>

@@ -503,6 +503,7 @@ export const GetRigStatsResponse = zod.object({
       timestamp: zod.coerce.date(),
       hashrate: zod.number(),
       hasRental: zod.boolean(),
+      poolConnected: zod.boolean(),
     }),
   ),
 });
@@ -1059,6 +1060,7 @@ export const GetRentalStatsResponse = zod.object({
     zod.object({
       timestamp: zod.coerce.date(),
       hashrate: zod.number(),
+      poolConnected: zod.boolean(),
     }),
   ),
   message: zod
@@ -1640,6 +1642,7 @@ export const GetMyRigStatsResponse = zod.object({
       timestamp: zod.coerce.date(),
       hashrate: zod.number(),
       hasRental: zod.boolean(),
+      poolConnected: zod.boolean(),
     }),
   ),
 });
