@@ -683,10 +683,14 @@ export default function RentalCockpit() {
                     </div>
                   </div>
 
-                  {stats && stats.samples.length > 1 ? (
+                  {stats && stats.samples.length > 1 ? (() => {
+                    const rentalChartData = !live?.minerConnected && stats.samples.length > 0
+                      ? [...stats.samples, { timestamp: new Date().toISOString(), hashrate: 0 }]
+                      : stats.samples;
+                    return (
                     <div className="h-32 bg-background/30 rounded-md border border-border/30 px-2 py-2">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={stats.samples} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                        <AreaChart data={rentalChartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                           <defs>
                             <linearGradient id="hashrateFill" x1="0" y1="0" x2="0" y2="1">
                               <stop offset="0%" stopColor="#f0b90b" stopOpacity={0.45} />
@@ -730,7 +734,8 @@ export default function RentalCockpit() {
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
-                  ) : (
+                    );
+                  })() : (
                     <div className="flex items-center justify-center gap-2 h-16 bg-background/30 rounded-md border border-dashed border-border/30 text-muted-foreground">
                       <BarChart2 className="w-4 h-4" />
                       <span className="text-xs font-mono">Hashrate chart will appear once mining begins</span>

@@ -217,10 +217,14 @@ export default function RigDetail() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {rigStats.samples.length > 1 ? (
+                {rigStats.samples.length > 1 ? (() => {
+                  const rigChartData = !ownerIsOnline && rigStats.samples.length > 0
+                    ? [...rigStats.samples, { timestamp: new Date().toISOString(), hashrate: 0, hasRental: false }]
+                    : rigStats.samples;
+                  return (
                   <div className="h-48 bg-background/30 rounded-md border border-border/30 px-2 py-2">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={rigStats.samples} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                      <AreaChart data={rigChartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                         <defs>
                           <linearGradient id="rigHashrateFill" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#22c55e" stopOpacity={0.45} />
@@ -282,7 +286,8 @@ export default function RigDetail() {
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
-                ) : (
+                  );
+                })() : (
                   <div className="h-48 flex items-center justify-center text-xs font-mono text-muted-foreground">
                     NO_DATA_YET — samples appear after the rig produces shares
                   </div>

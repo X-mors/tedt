@@ -1,0 +1,291 @@
+Welcome to Ubuntu 24.04.4 LTS (GNU/Linux 6.8.0-110-generic x86_64)
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+ System information as of Sun May 10 08:21:51 CEST 2026
+  System load:           0.79
+  Usage of /:            11.8% of 144.26GB
+  Memory usage:          32%
+  Swap usage:            0%
+  Processes:             203
+  Users logged in:       0
+  IPv4 address for eth0: 75.119.159.169
+  IPv6 address for eth0: 2a02:c207:2320:2752::1
+ * Strictly confined Kubernetes makes edge and IoT secure. Learn how MicroK8s
+   just raised the bar for easy, resilient and secure K8s cluster deployment.
+   https://ubuntu.com/engage/secure-kubernetes-at-the-edge
+Expanded Security Maintenance for Applications is not enabled.
+31 updates can be applied immediately.
+To see these additional updates run: apt list --upgradable
+1 additional security update can be applied with ESM Apps.
+Learn more about enabling ESM Apps service at https://ubuntu.com/esm
+*** System restart required ***
+  _____
+ / ___/___  _  _ _____ _   ___  ___
+| |   / _ \| \| |_   _/ \ | _ )/ _ \
+| |__| (_) | .` | | |/ _ \| _ \ (_) |
+ \____\___/|_|\_| |_/_/ \_|___/\___/
+Welcome!
+This server is hosted by Contabo. If you have any questions or need help,
+please raise a support ticket from your customer control panel.
+Last login: Sat May  9 19:47:07 2026 from 196.128.152.120
+root@vmi3202752:~# awk -v d1="$(date --date='1 day ago' '+%d/%b/%Y:%H:%M:%S')" '
+{
+    gsub(/\[/,"",$4);
+    if ($4 > d1)
+        print $1
+}' /var/log/nginx/access.log \
+| sort | uniq -c \
+| while read count ip; do
+    country=$(geoiplookup "$ip" | cut -d: -f2)
+    echo "$country|$count"
+done \
+| sort \
+| awk -F'|' '{c[$1]+=$2} END {for(i in c) print c[i], i}' \
+| sort -nr
+129  US, United States
+112  NL, Netherlands
+83  RU, Russian Federation
+73  DE, Germany
+71  SG, Singapore
+59  CA, Canada
+24  IP Address not found
+10  GB, United Kingdom
+10  ES, Spain
+8  CN, China
+6  SE, Sweden
+6  PL, Poland
+6  NG, Nigeria
+5  IN, India
+5  BE, Belgium
+4  KR, Korea, Republic of
+4  AF, Afghanistan
+3  BY, Belarus
+2  BG, Bulgaria
+2  AU, Australia
+1  TH, Thailand
+1  NO, Norway
+1  MC, Monaco
+1  JP, Japan
+1  FI, Finland
+1  BR, Brazil
+root@vmi3202752:~# awk -v d1="$(date --date='1 day ago' '+%d/%b/%Y:%H:%M:%S')" '
+{
+    gsub(/\[/,"",$4);
+    if ($4 > d1)
+        print $1
+}' /var/log/nginx/access.log \
+| sort | uniq -c | sort -nr | head -30 \
+| while read count ip; do
+    country=$(geoiplookup "$ip" | cut -d: -f2 | xargs)
+    org=$(whois "$ip" 2>/dev/null | egrep -i 'orgname|org-name|netname|descr|own
+er' | head -1)
+    if echo "$org" | egrep -iq 'ovh|hetzner|digitalocean|amazon|aws|google|micro
+soft|azure|contabo|vultr|linode|oracle|m247'; then
+        type="BOT / SERVER"
+    else
+        type="Possibly Real Visitor"
+    fi
+    echo "[$count requests] $ip | $country | $type"
+done
+[66 requests] 146.190.89.199 | SG, Singapore | Possibly Real Visitor
+[61 requests] 213.209.159.175 | DE, Germany | Possibly Real Visitor
+[61 requests] 192.253.248.169 | NL, Netherlands | Possibly Real Visitor
+[52 requests] 165.22.224.68 | CA, Canada | Possibly Real Visitor
+[46 requests] 92.119.230.211 | RU, Russian Federation | Possibly Real Visitor
+[46 requests] 168.144.105.169 | US, United States | Possibly Real Visitor
+[23 requests] 45.94.31.119 | NL, Netherlands | Possibly Real Visitor
+[23 requests] 45.94.31.112 | NL, Netherlands | Possibly Real Visitor
+[18 requests] 34.185.187.74 | US, United States | Possibly Real Visitor
+[12 requests] 172.71.184.87 | RU, Russian Federation | Possibly Real Visitor
+[10 requests] 172.71.184.86 | RU, Russian Federation | Possibly Real Visitor
+[9 requests] 104.23.221.174 | IP Address not found | Possibly Real Visitor
+[6 requests] 78.153.140.148 | GB, United Kingdom | Possibly Real Visitor
+[6 requests] 66.132.172.177 | CA, Canada | Possibly Real Visitor
+[6 requests] 51.68.184.196 | PL, Poland | Possibly Real Visitor
+[6 requests] 165.154.10.187 | NG, Nigeria | Possibly Real Visitor
+[6 requests] 152.32.178.47 | RU, Russian Federation | Possibly Real Visitor
+[5 requests] 64.62.197.2 | US, United States | Possibly Real Visitor
+[5 requests] 46.151.178.13 | ES, Spain | Possibly Real Visitor
+[5 requests] 104.23.221.175 | IP Address not found | Possibly Real Visitor
+[4 requests] 172.68.10.35 | US, United States | Possibly Real Visitor
+[4 requests] 172.68.10.34 | US, United States | Possibly Real Visitor
+[4 requests] 162.158.182.84 | SE, Sweden | Possibly Real Visitor
+[4 requests] 121.127.34.34 | AF, Afghanistan | Possibly Real Visitor
+[3 requests] 93.189.229.93 | BY, Belarus | Possibly Real Visitor
+[3 requests] 74.225.205.129 | IN, India | Possibly Real Visitor
+[3 requests] 47.84.108.150 | US, United States | Possibly Real Visitor
+[3 requests] 34.22.146.62 | BE, Belgium | Possibly Real Visitor
+[3 requests] 165.227.130.62 | DE, Germany | Possibly Real Visitor
+[3 requests] 123.160.223.75 | CN, China | Possibly Real Visitor
+root@vmi3202752:~# awk -v d1="$(date --date='1 day ago' '+%d/%b/%Y:%H:%M:%S')" '
+{
+    gsub(/\[/,"",$4);
+    if ($4 > d1)
+        print $7
+}' /var/log/nginx/access.log \
+| sort | uniq -c | sort -nr | head -50
+    112 /
+     74 /wp-admin/install.php?step=1
+     23 400
+     13 /.env
+      8 //xmlrpc.php?rsd
+      8 //wp1/wp-includes/wlwmanifest.xml
+      8 //wp/wp-includes/wlwmanifest.xml
+      8 //wordpress/wp-includes/wlwmanifest.xml
+      8 //web/wp-includes/wlwmanifest.xml
+      8 //test/wp-includes/wlwmanifest.xml
+      8 //site/wp-includes/wlwmanifest.xml
+      8 //shop/wp-includes/wlwmanifest.xml
+      8 //cms/wp-includes/wlwmanifest.xml
+      8 //blog/wp-includes/wlwmanifest.xml
+      8 //2019/wp-includes/wlwmanifest.xml
+      7 //wp2/wp-includes/wlwmanifest.xml
+      7 //wp-includes/wlwmanifest.xml
+      7 //website/wp-includes/wlwmanifest.xml
+      7 //sito/wp-includes/wlwmanifest.xml
+      7 //news/wp-includes/wlwmanifest.xml
+      6 /favicon.ico
+      5 /test/.env
+      5 /staging/.env
+      5 /favicon.svg
+      5 /api/.env
+      4 /wp-login.php
+      4 /laravel/.env
+      4 /config/.env
+      4 /assets/index-D_guH-CI.js
+      4 /app/.env
+      4 /admin/.env
+      4 //media/wp-includes/wlwmanifest.xml
+root@vmi3202752:~# cat /etc/nginx/sites-available/livehashrate.com
+# Redirect www to non-wwws/wlwmanifest.xml
+server {/.git/config
+    listen 443 ssl;
+    server_name www.livehashrate.com;
+    ssl_certificate /etc/letsencrypt/live/livehashrate.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/livehashrate.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf;82\xD9o\xC8\xA2\xD7\x93\x98\
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    return 301 https://livehashrate.com$request_uri;
+      2 /www/.env
+}     2 /wp-includes/css/buttons.css
+      2 /test.php
+# Main sitest
+server {/solr/admin/info/system
+    listen 443 ssl;/cores?action=STATUS&wt=json
+    server_name livehashrate.com;
+    ssl_certificate /etc/letsencrypt/live/livehashrate.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/livehashrate.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf;.env
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    root /var/www/livehashrate.com/artifacts/rigmarket/dist/public;
+    index index.html;
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-Frame-Options "SAMEORIGIN" always;
+add_header X-XSS-Protection "1; mode=block" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    location /api/ {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location /stratum {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+# HTTP redirect to HTTPS
+server {
+    listen 80;
+    server_name livehashrate.com www.livehashrate.com;
+    return 301 https://livehashrate.com$request_uri;
+}
+server {
+    if ($host = livehashrate.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+root@vmi3202752:~# nginx -t && systemctl reload nginx
+curl -I https://livehashrate.com/.env
+2026/05/10 08:35:05 [emerg] 852467#852467: unexpected "}" in /etc/nginx/sites-enabled/livehashrate.com:83
+nginx: configuration file /etc/nginx/nginx.conf test failed
+HTTP/1.1 200 OK
+Server: nginx/1.24.0 (Ubuntu)
+Date: Sun, 10 May 2026 06:35:05 GMT
+Content-Type: text/html
+Content-Length: 729
+Last-Modified: Fri, 08 May 2026 16:45:36 GMT
+Connection: keep-alive
+ETag: "69fe1330-2d9"
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-XSS-Protection: 1; mode=block
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+Accept-Ranges: bytes
+root@vmi3202752:~# nginx -t && systemctl reload nginx
+curl -I https://livehashrate.com/.env
+2026/05/10 08:35:11 [emerg] 852491#852491: unexpected "}" in /etc/nginx/sites-enabled/livehashrate.com:83
+nginx: configuration file /etc/nginx/nginx.conf test failed
+HTTP/1.1 200 OK
+Server: nginx/1.24.0 (Ubuntu)
+Date: Sun, 10 May 2026 06:35:11 GMT
+Content-Type: text/html
+Content-Length: 729
+Last-Modified: Fri, 08 May 2026 16:45:36 GMT
+Connection: keep-alive
+ETag: "69fe1330-2d9"
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-XSS-Protection: 1; mode=block
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+Accept-Ranges: bytes
+root@vmi3202752:~# sed -n '75,90p' /etc/nginx/sites-available/livehashrate.com
+    listen 80;
+    server_name www.livehashrate.com;
+    return 404; # managed by Certbot
+sed -i 's|    location /stratum {|    location ~ /\\. {\n        deny all;\n        return 404;\n    }\n\n    location /stratum {|
+' /etc/nginx/sites-available/livehashrate.com
+}
+root@vmi3202752:~# sed -i '/sed -i/d' /etc/nginx/sites-available/livehashrate.com
+nginx -t
+2026/05/10 08:37:03 [warn] 852610#852610: conflicting server name "livehashrate.com" on 0.0.0.0:80, ignored
+2026/05/10 08:37:03 [warn] 852610#852610: conflicting server name "www.livehashrate.com" on 0.0.0.0:80, ignored
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+root@vmi3202752:~# sed -i 's|    location / {|    location ~ /\. {\n        deny all;\n        return 404;\n    }\n\n    location
+/ {|' /etc/nginx/sites-available/livehashrate.com && nginx -t && systemctl reload nginx
+2026/05/10 08:38:12 [warn] 852704#852704: conflicting server name "livehashrate.com" on 0.0.0.0:80, ignored
+2026/05/10 08:38:12 [warn] 852704#852704: conflicting server name "www.livehashrate.com" on 0.0.0.0:80, ignored
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+root@vmi3202752:~# curl -I https://livehashrate.com/.env
+HTTP/1.1 404 Not Found
+Server: nginx/1.24.0 (Ubuntu)
+Date: Sun, 10 May 2026 06:38:21 GMT
+Content-Type: text/html
+Content-Length: 162
+Connection: keep-alive
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+X-XSS-Protection: 1; mode=block
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+root@vmi3202752:~# cat /var/www/livehashrate.com/.env
+NODE_ENV=production
+PORT=3000
+STRATUM_LEGACY_PORT=3334
+STRATUM_PORT=3333
+DATABASE_URL=postgresql://xmors:871220@localhost:5432/xmors
+CLERK_SECRET_KEY=sk_test_qXebMNAN6QbQSqY3urrco4Xg1VMY0GeUyIoEtgal0c
+NOWPAYMENTS_API_KEY=...
+NOWPAYMENTS_IPN_SECRET=...
+root@vmi3202752:~#
