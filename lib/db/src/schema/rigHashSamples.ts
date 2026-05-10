@@ -5,7 +5,6 @@ import {
   numeric,
   timestamp,
   index,
-  boolean,
 } from "drizzle-orm/pg-core";
 import { rigsTable } from "./rigs";
 import { rentalsTable } from "./rentals";
@@ -37,7 +36,6 @@ export const rigHashSamplesTable = pgTable(
       precision: 18,
       scale: 3,
     }),
-    poolConnected: boolean("pool_connected").notNull().default(true),
   },
   (t) => ({
     rigSampledAtIdx: index("rig_hash_samples_rig_sampled_idx").on(
