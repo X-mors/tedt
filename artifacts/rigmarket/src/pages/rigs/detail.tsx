@@ -155,7 +155,7 @@ export default function RigDetail() {
             </CardContent>
           </Card>
 
-          {rigLive && (
+          {rigLive && rigLive.workerCount > 0 && (
             <Card className="bg-card/50 border-border/50">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-mono uppercase tracking-widest text-muted-foreground">Live Telemetry</CardTitle>
