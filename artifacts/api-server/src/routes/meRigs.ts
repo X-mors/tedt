@@ -548,34 +548,40 @@ router.get("/me/rigs/:id/stats", async (req, res) => {
 
   const algMultiplier = unitMultiplier(rig.algorithmUnit);
 
-  // Bucket-average to keep chart payload bounded. Each output sample carries
-  // hasRental=true if ANY raw sample in the bucket was inside a rental — this
-  // keeps the yellow shading visually contiguous across rental boundaries.
-  const MAX_CHART_POINTS = 720;
-  let samples: { timestamp: string; hashrate: number; hasRental: boolean }[];
-  if (dbSamples.length <= MAX_CHART_POINTS) {
-    samples = dbSamples.map((s) => ({
-      timestamp: s.sampledAt.toISOString(),
-      hashrate: toNum(s.effectiveHashrateH ?? "0") / algMultiplier,
-      hasRental: s.rentalId != null,
-    }));
+  // Hybrid bucketing: last 24 h at full 1-min resolution so the chart
+  // gains a new point every minute. Data older than 24 h is bucket-averaged
+  // (max 720 buckets) to keep the payload bounded for long-running rigs.
+  // hasRental is preserved: any bucket with a rental sample shows yellow.
+  const RECENT_CUTOFF = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const MAX_OLD_BUCKETS = 720;
+  const recentRaw = dbSamples.filter((s) => s.sampledAt >= RECENT_CUTOFF);
+  const oldRaw    = dbSamples.filter((s) => s.sampledAt <  RECENT_CUTOFF);
+
+  const toPoint = (s: typeof dbSamples[0]) => ({
+    timestamp: s.sampledAt.toISOString(),
+    hashrate: toNum(s.effectiveHashrateH ?? "0") / algMultiplier,
+    hasRental: s.rentalId != null,
+  });
+
+  let oldSamples: { timestamp: string; hashrate: number; hasRental: boolean }[];
+  if (oldRaw.length <= MAX_OLD_BUCKETS) {
+    oldSamples = oldRaw.map(toPoint);
   } else {
-    const bucketSize = Math.ceil(dbSamples.length / MAX_CHART_POINTS);
-    samples = [];
-    for (let i = 0; i < dbSamples.length; i += bucketSize) {
-      const bucket = dbSamples.slice(i, i + bucketSize);
+    const bucketSize = Math.ceil(oldRaw.length / MAX_OLD_BUCKETS);
+    oldSamples = [];
+    for (let i = 0; i < oldRaw.length; i += bucketSize) {
+      const bucket = oldRaw.slice(i, i + bucketSize);
       const hasOffline = bucket.some((x) => toNum(x.effectiveHashrateH ?? "0") === 0);
-      const sum = bucket.reduce(
-        (s, x) => s + toNum(x.effectiveHashrateH ?? "0"),
-        0,
-      );
-      samples.push({
+      const sum = bucket.reduce((s, x) => s + toNum(x.effectiveHashrateH ?? "0"), 0);
+      oldSamples.push({
         timestamp: bucket[Math.floor(bucket.length / 2)]!.sampledAt.toISOString(),
         hashrate: hasOffline ? 0 : sum / bucket.length / algMultiplier,
         hasRental: bucket.some((x) => x.rentalId != null),
       });
     }
   }
+
+  const samples = [...oldSamples, ...recentRaw.map(toPoint)];
 
   const data = GetMyRigStatsResponse.parse({
     rigId: id,
