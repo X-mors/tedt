@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Activity, Server, CheckCircle2, Wifi, WifiOff, BarChart2, ShieldAlert, Clock } from "lucide-react";
-import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 const toNum = (v: string | number | null | undefined): number => {
   if (v == null) return 0;
@@ -697,8 +697,12 @@ export default function RentalCockpit() {
                     const filtered = rentalRange !== null
                       ? stats.samples.filter(s => new Date(s.timestamp).getTime() > now - rentalRange)
                       : stats.samples;
+                    const nowStr = new Date().toISOString();
+                    const lastFilteredSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
+                    const showMinerOfflineArea = !live?.minerConnected && !!lastFilteredSample;
+                    const showPoolOfflineArea = !!(live?.minerConnected && (!live?.upstreamConnected || live?.poolAuthFailed) && lastFilteredSample);
                     const rentalChartData = !live?.minerConnected && filtered.length > 0
-                      ? [...filtered, { timestamp: new Date().toISOString(), hashrate: 0 }]
+                      ? [...filtered, { timestamp: nowStr, hashrate: 0 }]
                       : filtered;
                     return (
                     <div className="space-y-1">
@@ -728,6 +732,26 @@ export default function RentalCockpit() {
                           </defs>
                           <XAxis dataKey="timestamp" hide />
                           <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax * 1.15, toNum(rental.hashrate) * 1.05)]} />
+                          {showMinerOfflineArea && lastFilteredSample && (
+                            <ReferenceArea
+                              x1={lastFilteredSample.timestamp}
+                              x2={nowStr}
+                              fill="#ef4444"
+                              fillOpacity={0.18}
+                              stroke="none"
+                              ifOverflow="extendDomain"
+                            />
+                          )}
+                          {showPoolOfflineArea && lastFilteredSample && (
+                            <ReferenceArea
+                              x1={lastFilteredSample.timestamp}
+                              x2={nowStr}
+                              fill="#a855f7"
+                              fillOpacity={0.18}
+                              stroke="none"
+                              ifOverflow="extendDomain"
+                            />
+                          )}
                           <Tooltip
                             cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '3 3' }}
                             contentStyle={{

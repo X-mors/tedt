@@ -237,6 +237,9 @@ export default function RigDetail() {
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-sm bg-yellow-500" /> Rental period
                   </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-sm bg-red-500" /> Offline
+                  </span>
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -245,8 +248,10 @@ export default function RigDetail() {
                   const filtered = rigRange !== null
                     ? rigStats.samples.filter(s => new Date(s.timestamp).getTime() > now - rigRange)
                     : rigStats.samples;
+                  const nowStr = new Date().toISOString();
+                  const lastSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
                   const rigChartData = !ownerIsOnline && filtered.length > 0
-                    ? [...filtered, { timestamp: new Date().toISOString(), hashrate: 0, hasRental: false }]
+                    ? [...filtered, { timestamp: nowStr, hashrate: 0, hasRental: false }]
                     : filtered;
                   return (
                   <div className="h-48 bg-background/30 rounded-md border border-border/30 px-2 py-2">
@@ -274,6 +279,16 @@ export default function RigDetail() {
                             ifOverflow="extendDomain"
                           />
                         ))}
+                        {!ownerIsOnline && lastSample && (
+                          <ReferenceArea
+                            x1={lastSample.timestamp}
+                            x2={nowStr}
+                            fill="#ef4444"
+                            fillOpacity={0.18}
+                            stroke="none"
+                            ifOverflow="extendDomain"
+                          />
+                        )}
                         <Tooltip
                           cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '3 3' }}
                           contentStyle={{
