@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useParams, Link } from "wouter";
 import { useGetRig, useGetMyRig, getGetMyRigQueryKey, useListRigReviews, useGetMe, useGetRigStats, getGetRigStatsQueryKey, useGetRigLive } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -19,19 +18,9 @@ import {
   YAxis,
 } from "recharts";
 
-const RIG_RANGE_OPTIONS = [
-  { label: '1H',  ms: 3_600_000 },
-  { label: '6H',  ms: 6 * 3_600_000 },
-  { label: '12H', ms: 12 * 3_600_000 },
-  { label: '1D',  ms: 86_400_000 },
-  { label: '1W',  ms: 7 * 86_400_000 },
-  { label: 'MAX', ms: null },
-] as const;
-
 export default function RigDetail() {
   const { id } = useParams<{ id: string }>();
   const rigId = parseInt(id || "0");
-  const [rigRange, setRigRange] = useState<number | null>(null);
   
   const { data: rig, isLoading } = useGetRig(rigId);
   const { data: reviews } = useListRigReviews(rigId);
@@ -52,8 +41,27 @@ export default function RigDetail() {
     query: { refetchInterval: 5_000, enabled: !!rigId, queryKey: [`/api/rigs/${rigId}/live`] },
   });
 
-  // rentalRanges is rebuilt inside the filtered IIFE below so it always
-  // matches the selected time window (1H, 6H, … MAX).
+  // Group consecutive samples sharing the same rental state into contiguous
+  // [start, end] timestamp ranges so we can shade rental periods yellow with
+  // a single ReferenceArea per range instead of one per sample.
+  const rentalRanges: { start: string; end: string }[] = [];
+  if (rigStats?.samples) {
+    let runStart: string | null = null;
+    let runEnd: string | null = null;
+    for (const s of rigStats.samples) {
+      if (s.hasRental) {
+        if (runStart === null) runStart = s.timestamp;
+        runEnd = s.timestamp;
+      } else if (runStart !== null && runEnd !== null) {
+        rentalRanges.push({ start: runStart, end: runEnd });
+        runStart = null;
+        runEnd = null;
+      }
+    }
+    if (runStart !== null && runEnd !== null) {
+      rentalRanges.push({ start: runStart, end: runEnd });
+    }
+  }
 
   if (isLoading) {
     return <div className="p-8 text-center font-mono text-muted-foreground">LOADING_RIG_DATA...</div>;
@@ -155,7 +163,7 @@ export default function RigDetail() {
             </CardContent>
           </Card>
 
-          {rigLive && rigLive.workerCount > 0 && (
+          {rigLive && (
             <Card className="bg-card/50 border-border/50">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-mono uppercase tracking-widest text-muted-foreground">Live Telemetry</CardTitle>
@@ -195,21 +203,9 @@ export default function RigDetail() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center justify-between">
                   <span>Hashrate History</span>
-                  <div className="flex items-center gap-1">
-                    {RIG_RANGE_OPTIONS.map(opt => (
-                      <button
-                        key={opt.label}
-                        onClick={() => setRigRange(opt.ms ?? null)}
-                        className={`px-1.5 py-0.5 text-[10px] font-mono rounded transition-colors ${
-                          rigRange === (opt.ms ?? null)
-                            ? 'bg-primary text-primary-foreground'
-                            : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
+                  <span className="text-[10px] font-mono uppercase text-muted-foreground">
+                    Last {rigStats.retentionDays}d
+                  </span>
                 </CardTitle>
                 <CardDescription className="text-xs flex items-center gap-3 pt-1">
                   <span className="flex items-center gap-1.5">
@@ -218,100 +214,13 @@ export default function RigDetail() {
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-sm bg-yellow-500" /> Rental period
                   </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-sm bg-red-500" /> Offline
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-sm bg-purple-500" /> Pool issue
-                  </span>
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {rigStats.samples.length > 1 ? (() => {
-                  const now = Date.now();
-                  const filtered = rigRange !== null
-                    ? rigStats.samples.filter(s => new Date(s.timestamp).getTime() > now - rigRange)
-                    : rigStats.samples;
-                  const nowStr = new Date().toISOString();
-                  const lastSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
-
-                  // Rental ranges — built from filtered so they match the selected
-                  // time window and never extend the chart's X domain unexpectedly.
-                  const rentalRanges: { start: string; end: string }[] = [];
-                  {
-                    let runStart: string | null = null;
-                    let runEnd: string | null = null;
-                    for (const s of filtered) {
-                      if (s.hasRental) {
-                        if (runStart === null) runStart = s.timestamp;
-                        runEnd = s.timestamp;
-                      } else if (runStart !== null && runEnd !== null) {
-                        rentalRanges.push({ start: runStart, end: runEnd });
-                        runStart = null; runEnd = null;
-                      }
-                    }
-                    if (runStart !== null && runEnd !== null) {
-                      rentalRanges.push({ start: runStart, end: runEnd });
-                    }
-                  }
-
-                  // Build coloring ranges from per-sample state.
-                  // offlineRanges (red): hashrate=0 AND poolConnected=true  → rig problem
-                  // poolDisconnectRanges (purple): poolConnected=false       → pool problem
-                  // gapRanges (red): gaps > 90 s (backward-compat for pre-fix data)
-                  const offlineRanges: { start: string; end: string }[] = [];
-                  const poolDisconnectRanges: { start: string; end: string }[] = [];
-                  const gapRanges: { start: string; end: string }[] = [];
-                  const GAP_THRESHOLD_MS = 90_000;
-                  let offStart: string | null = null;
-                  let pdStart: string | null = null;
-                  for (let gi = 0; gi < filtered.length; gi++) {
-                    const s = filtered[gi]!;
-                    const isRigDown = s.hashrate === 0 && s.poolConnected;
-                    const isPoolDown = !s.poolConnected;
-                    // pool disconnect (purple)
-                    if (isPoolDown) {
-                      if (!pdStart) pdStart = s.timestamp;
-                      if (offStart) { offlineRanges.push({ start: offStart, end: s.timestamp }); offStart = null; }
-                    } else if (pdStart) {
-                      poolDisconnectRanges.push({ start: pdStart, end: s.timestamp });
-                      pdStart = null;
-                    }
-                    // rig offline (red)
-                    if (isRigDown) {
-                      if (!offStart) offStart = s.timestamp;
-                    } else if (offStart) {
-                      offlineRanges.push({ start: offStart, end: s.timestamp });
-                      offStart = null;
-                    }
-                    // gap detection (backward compat — old data before zero-sample fix)
-                    if (gi < filtered.length - 1) {
-                      const t1 = new Date(s.timestamp).getTime();
-                      const t2 = new Date(filtered[gi + 1]!.timestamp).getTime();
-                      if (t2 - t1 > GAP_THRESHOLD_MS) {
-                        gapRanges.push({ start: s.timestamp, end: filtered[gi + 1]!.timestamp });
-                      }
-                    }
-                  }
-
-                  // Live state: pool disconnect (purple) — covers both renter pool
-                  // and owner fallback pool; no longer requires an active rental.
-                  const isPoolDisconnected = ownerIsOnline &&
-                    rigLive != null &&
-                    rigLive.workerCount > 0 &&
-                    (!rigLive.upstreamConnected || rigLive.poolAuthFailed);
-
-                  // Chart data: historical samples as-is (gaps are colored by
-                  // ReferenceAreas so no zero-injection needed). If the rig is
-                  // currently offline, append a zero point at "now" so the green
-                  // area visually drops to zero instead of hanging mid-air.
-                  const rigChartData = !ownerIsOnline && filtered.length > 0
-                    ? [...filtered, { timestamp: nowStr, hashrate: 0, hasRental: false, poolConnected: true }]
-                    : filtered;
-                  return (
+                {rigStats.samples.length > 1 ? (
                   <div className="h-48 bg-background/30 rounded-md border border-border/30 px-2 py-2">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={rigChartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                      <AreaChart data={rigStats.samples} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                         <defs>
                           <linearGradient id="rigHashrateFill" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#22c55e" stopOpacity={0.45} />
@@ -323,10 +232,9 @@ export default function RigDetail() {
                           hide
                           domain={[0, (dataMax: number) => Math.max(dataMax * 1.15, rigStats.advertisedHashrate * 1.05)]}
                         />
-                        {/* Historical rental periods — yellow */}
                         {rentalRanges.map((r, i) => (
                           <ReferenceArea
-                            key={`rent-${i}`}
+                            key={i}
                             x1={r.start}
                             x2={r.end}
                             fill="#f0b90b"
@@ -335,62 +243,6 @@ export default function RigDetail() {
                             ifOverflow="extendDomain"
                           />
                         ))}
-                        {/* Historical offline (red): sample-based (new) + gap-based (old data) */}
-                        {offlineRanges.map((r, i) => (
-                          <ReferenceArea
-                            key={`off-${i}`}
-                            x1={r.start}
-                            x2={r.end}
-                            fill="#ef4444"
-                            fillOpacity={0.18}
-                            stroke="none"
-                            ifOverflow="extendDomain"
-                          />
-                        ))}
-                        {gapRanges.map((r, i) => (
-                          <ReferenceArea
-                            key={`gap-${i}`}
-                            x1={r.start}
-                            x2={r.end}
-                            fill="#ef4444"
-                            fillOpacity={0.14}
-                            stroke="none"
-                            ifOverflow="extendDomain"
-                          />
-                        ))}
-                        {/* Historical pool-disconnect periods — purple */}
-                        {poolDisconnectRanges.map((r, i) => (
-                          <ReferenceArea
-                            key={`pd-${i}`}
-                            x1={r.start}
-                            x2={r.end}
-                            fill="#a855f7"
-                            fillOpacity={0.18}
-                            stroke="none"
-                            ifOverflow="extendDomain"
-                          />
-                        ))}
-                        {/* Current live state: offline or pool issue → extends to now */}
-                        {!ownerIsOnline && lastSample && (
-                          <ReferenceArea
-                            x1={lastSample.timestamp}
-                            x2={nowStr}
-                            fill="#ef4444"
-                            fillOpacity={0.18}
-                            stroke="none"
-                            ifOverflow="extendDomain"
-                          />
-                        )}
-                        {isPoolDisconnected && lastSample && (
-                          <ReferenceArea
-                            x1={lastSample.timestamp}
-                            x2={nowStr}
-                            fill="#a855f7"
-                            fillOpacity={0.22}
-                            stroke="none"
-                            ifOverflow="extendDomain"
-                          />
-                        )}
                         <Tooltip
                           cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '3 3' }}
                           contentStyle={{
@@ -430,8 +282,7 @@ export default function RigDetail() {
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
-                  );
-                })() : (
+                ) : (
                   <div className="h-48 flex items-center justify-center text-xs font-mono text-muted-foreground">
                     NO_DATA_YET — samples appear after the rig produces shares
                   </div>

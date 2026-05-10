@@ -122,8 +122,6 @@ export interface RigLive {
   currentHashrate: number;
   currentDifficulty: number;
   workerCount: number;
-  upstreamConnected: boolean;
-  poolAuthFailed: boolean;
 }
 
 export interface RigSummary {
@@ -469,7 +467,6 @@ export type OwnerRigStatsSamplesItem = {
   timestamp: string;
   hashrate: number;
   hasRental: boolean;
-  poolConnected: boolean;
 };
 
 export interface OwnerRigStats {
@@ -564,7 +561,6 @@ export interface RentalDetail {
 export interface HashSamplePoint {
   timestamp: string;
   hashrate: number;
-  poolConnected: boolean;
 }
 
 export interface ProxyConnectedRig {

@@ -614,7 +614,6 @@ router.get("/rentals/:id/stats", async (req, res) => {
     .select({
       sampledAt: rentalHashSamplesTable.sampledAt,
       effectiveHashrateH: rentalHashSamplesTable.effectiveHashrateH,
-      poolConnected: rentalHashSamplesTable.poolConnected,
     })
     .from(rentalHashSamplesTable)
     .where(eq(rentalHashSamplesTable.rentalId, id))
@@ -653,12 +652,11 @@ router.get("/rentals/:id/stats", async (req, res) => {
   // along the X-axis but every point still represents real measured data.
   const MAX_CHART_POINTS = 720;
   const chronological = dbSamples.slice().reverse();
-  let samples: { timestamp: string; hashrate: number; poolConnected: boolean }[];
+  let samples: { timestamp: string; hashrate: number }[];
   if (chronological.length <= MAX_CHART_POINTS) {
     samples = chronological.map((s) => ({
       timestamp: s.sampledAt.toISOString(),
       hashrate: toNum(s.effectiveHashrateH ?? "0") / algMultiplier,
-      poolConnected: s.poolConnected,
     }));
   } else {
     const bucketSize = Math.ceil(chronological.length / MAX_CHART_POINTS);
@@ -672,7 +670,6 @@ router.get("/rentals/:id/stats", async (req, res) => {
       samples.push({
         timestamp: bucket[Math.floor(bucket.length / 2)]!.sampledAt.toISOString(),
         hashrate: sum / bucket.length / algMultiplier,
-        poolConnected: bucket.every((x) => x.poolConnected),
       });
     }
   }
