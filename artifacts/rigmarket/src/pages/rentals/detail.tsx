@@ -727,7 +727,13 @@ export default function RentalCockpit() {
                         offStart = null;
                       }
                     }
-                    // Don't close an ongoing run here — the live area extends it to now.
+                    // If offStart is still open but the rig is back online
+                    // (live updated before stats refetched), close it now so
+                    // the red stays visible until the next stats refresh (≤60s).
+                    if (offStart !== null && !showMinerOfflineArea) {
+                      offlineRanges.push({ start: offStart, end: nowStr });
+                      offStart = null;
+                    }
 
                     // Current-state live areas (from last sample → now).
                     // Use hashrateZeroNow (immediate signal) instead of !minerConnected

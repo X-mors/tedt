@@ -297,31 +297,34 @@ export class StratumServer {
       }
     }
 
-    // Zero-sample sweep for idle rigs that are marked online in the DB but
-    // had no in-memory activity this cycle (disconnected without going through
-    // the normal TCP close path, or stayed offline across a server restart).
-    // This fills history gaps so the owner chart shows red for idle outages.
+    // Zero-sample sweep for rigs that were recently active but produced no
+    // output this cycle (disconnected mid-cycle or lost all sessions).
+    //
+    // We DON'T use isOnline=true because that flag flips to false the moment
+    // the TCP socket closes — before the next flush — so the rig would never
+    // appear in the query.  Instead we look for rigs that have a sample in
+    // the last 3 minutes (i.e. were alive during the previous flush cycle).
+    // If they didn't produce anything THIS cycle and have no live sessions,
+    // we write a zero sample so the owner chart shows red continuously.
     try {
-      const onlineRigs = await db
-        .select({ id: rigsTable.id })
-        .from(rigsTable)
-        .where(eq(rigsTable.isOnline, true));
-      for (const { id: rigId } of onlineRigs) {
+      const recentlyActive = await db
+        .selectDistinct({ rigId: rigHashSamplesTable.rigId })
+        .from(rigHashSamplesTable)
+        .where(gte(rigHashSamplesTable.sampledAt, new Date(Date.now() - 3 * 60_000)));
+      const fallbackIds = new Set(proxyState.getFallbackRigIds());
+      for (const { rigId } of recentlyActive) {
         if (rigSampledThisCycle.has(rigId)) continue;
-        // Rig is marked online in DB but produced nothing — check if it
-        // actually has a live session; if not, write a zero sample.
         const hasSessions = proxyState.getRigSessions(rigId).length > 0;
-        const hasFallback = proxyState.getFallbackRigIds().includes(rigId);
-        if (!hasSessions && !hasFallback) {
-          await db.insert(rigHashSamplesTable).values({
-            rigId,
-            rentalId: null,
-            windowSeconds: 60,
-            sharesAccepted: 0,
-            sharesRejected: 0,
-            effectiveHashrateH: "0",
-          });
-        }
+        if (hasSessions || fallbackIds.has(rigId)) continue;
+        await db.insert(rigHashSamplesTable).values({
+          rigId,
+          rentalId: null,
+          windowSeconds: 60,
+          sharesAccepted: 0,
+          sharesRejected: 0,
+          effectiveHashrateH: "0",
+        });
+        rigSampledThisCycle.add(rigId);
       }
     } catch (err) {
       logger.error({ err }, "stratum:server idle zero-sample sweep error");

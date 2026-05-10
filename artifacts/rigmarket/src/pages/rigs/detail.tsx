@@ -277,6 +277,14 @@ export default function RigDetail() {
                       }
                     }
                   }
+                  // If offStart is still open at the end of the list but the
+                  // rig is now back online (rigLive updated before rigStats),
+                  // close the range to nowStr so the history stays visible
+                  // during the gap before the next rigStats refresh (≤60s).
+                  if (offStart !== null && !isRigCurrentlyOffline) {
+                    offlineRanges.push({ start: offStart, end: nowStr });
+                    offStart = null;
+                  }
 
                   // rigLive refreshes every 5s — use it for the live offline
                   // signal so we catch disconnects without a page reload.
