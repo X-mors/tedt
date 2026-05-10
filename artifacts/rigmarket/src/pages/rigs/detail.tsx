@@ -52,27 +52,8 @@ export default function RigDetail() {
     query: { refetchInterval: 5_000, enabled: !!rigId, queryKey: [`/api/rigs/${rigId}/live`] },
   });
 
-  // Group consecutive samples sharing the same rental state into contiguous
-  // [start, end] timestamp ranges so we can shade rental periods yellow with
-  // a single ReferenceArea per range instead of one per sample.
-  const rentalRanges: { start: string; end: string }[] = [];
-  if (rigStats?.samples) {
-    let runStart: string | null = null;
-    let runEnd: string | null = null;
-    for (const s of rigStats.samples) {
-      if (s.hasRental) {
-        if (runStart === null) runStart = s.timestamp;
-        runEnd = s.timestamp;
-      } else if (runStart !== null && runEnd !== null) {
-        rentalRanges.push({ start: runStart, end: runEnd });
-        runStart = null;
-        runEnd = null;
-      }
-    }
-    if (runStart !== null && runEnd !== null) {
-      rentalRanges.push({ start: runStart, end: runEnd });
-    }
-  }
+  // rentalRanges is rebuilt inside the filtered IIFE below so it always
+  // matches the selected time window (1H, 6H, … MAX).
 
   if (isLoading) {
     return <div className="p-8 text-center font-mono text-muted-foreground">LOADING_RIG_DATA...</div>;
@@ -253,6 +234,26 @@ export default function RigDetail() {
                     : rigStats.samples;
                   const nowStr = new Date().toISOString();
                   const lastSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
+
+                  // Rental ranges — built from filtered so they match the selected
+                  // time window and never extend the chart's X domain unexpectedly.
+                  const rentalRanges: { start: string; end: string }[] = [];
+                  {
+                    let runStart: string | null = null;
+                    let runEnd: string | null = null;
+                    for (const s of filtered) {
+                      if (s.hasRental) {
+                        if (runStart === null) runStart = s.timestamp;
+                        runEnd = s.timestamp;
+                      } else if (runStart !== null && runEnd !== null) {
+                        rentalRanges.push({ start: runStart, end: runEnd });
+                        runStart = null; runEnd = null;
+                      }
+                    }
+                    if (runStart !== null && runEnd !== null) {
+                      rentalRanges.push({ start: runStart, end: runEnd });
+                    }
+                  }
 
                   // Build coloring ranges from per-sample state.
                   // offlineRanges (red): hashrate=0 AND poolConnected=true  → rig problem
