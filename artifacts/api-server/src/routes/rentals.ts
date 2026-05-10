@@ -796,7 +796,11 @@ router.get("/rentals/:id/live", async (req, res) => {
       ? Math.min(1.05, cumulativeAvgH / advertisedH)
       : 0;
 
-  const workers = proxyState.getRentalWorkerStats(id);
+  // Only show per-worker stats when the rig is actively mining. If hashrate
+  // is zero the session may still hold a TCP connection but no shares are
+  // flowing — returning stale difficulty / share counts from that frozen
+  // session is misleading, so we clear the list.
+  const workers = displayHashrateH > 0 ? proxyState.getRentalWorkerStats(id) : [];
 
   res.json({
     rentalId: id,
@@ -808,7 +812,7 @@ router.get("/rentals/:id/live", async (req, res) => {
     currentHashrate: displayHashrateH / algMultiplier,
     sharesAccepted: totalSharesAccepted,
     sharesRejected: totalSharesRejected,
-    currentDifficulty: live.currentDifficulty,
+    currentDifficulty: displayHashrateH > 0 ? live.currentDifficulty : 0,
     lastShareAt: effectiveLastShareAt?.toISOString() ?? null,
     deliveryRatio,
     secondsRemaining:

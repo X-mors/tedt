@@ -354,9 +354,11 @@ router.get("/rigs/:id/live", async (req, res) => {
   } else {
     currentHashrateH = proxyState.getFallbackHashrateH(id);
   }
-  const currentDifficulty = entry?.currentDifficulty ?? 1;
   const algMultiplier = unitMultiplier(rig.algorithmUnit);
-  const workerCount = proxyState.getRigSessions(id).length;
+  // Zero out stale per-session data when no shares are flowing — the TCP
+  // socket may still be open but difficulty/workerCount would be frozen.
+  const currentDifficulty = currentHashrateH > 0 ? (entry?.currentDifficulty ?? 1) : 0;
+  const workerCount = currentHashrateH > 0 ? proxyState.getRigSessions(id).length : 0;
 
   res.json({
     rigId: id,
