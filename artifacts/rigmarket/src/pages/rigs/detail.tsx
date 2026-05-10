@@ -253,6 +253,20 @@ export default function RigDetail() {
                     : rigStats.samples;
                   const nowStr = new Date().toISOString();
                   const lastSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
+
+                  // Historical gap ranges: consecutive samples more than ~90 s apart
+                  // mean the rig was offline during that interval (zero-activity
+                  // samples are NOT stored in rig_hash_samples, so gaps = offline).
+                  const gapRanges: { start: string; end: string }[] = [];
+                  const GAP_THRESHOLD_MS = 90_000;
+                  for (let gi = 0; gi < filtered.length - 1; gi++) {
+                    const t1 = new Date(filtered[gi].timestamp).getTime();
+                    const t2 = new Date(filtered[gi + 1].timestamp).getTime();
+                    if (t2 - t1 > GAP_THRESHOLD_MS) {
+                      gapRanges.push({ start: filtered[gi].timestamp, end: filtered[gi + 1].timestamp });
+                    }
+                  }
+
                   const isPoolDisconnected = ownerIsOnline &&
                     rigLive != null &&
                     rigLive.workerCount > 0 &&
@@ -276,9 +290,10 @@ export default function RigDetail() {
                           hide
                           domain={[0, (dataMax: number) => Math.max(dataMax * 1.15, rigStats.advertisedHashrate * 1.05)]}
                         />
+                        {/* Historical rental periods — yellow */}
                         {rentalRanges.map((r, i) => (
                           <ReferenceArea
-                            key={i}
+                            key={`rent-${i}`}
                             x1={r.start}
                             x2={r.end}
                             fill="#f0b90b"
@@ -287,6 +302,19 @@ export default function RigDetail() {
                             ifOverflow="extendDomain"
                           />
                         ))}
+                        {/* Historical offline gaps — red (persists after reconnection) */}
+                        {gapRanges.map((r, i) => (
+                          <ReferenceArea
+                            key={`gap-${i}`}
+                            x1={r.start}
+                            x2={r.end}
+                            fill="#ef4444"
+                            fillOpacity={0.14}
+                            stroke="none"
+                            ifOverflow="extendDomain"
+                          />
+                        ))}
+                        {/* Current live state: offline or pool issue → extends to now */}
                         {!ownerIsOnline && lastSample && (
                           <ReferenceArea
                             x1={lastSample.timestamp}

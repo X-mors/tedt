@@ -564,7 +564,20 @@ export default function RentalCockpit() {
                 }
                 // Either fully connected, OR temporarily disconnected but
                 // has past shares — render the live stats panel either way.
-                const showOffline = !live.minerConnected;
+                //
+                // Grace-period fix: the backend keeps minerConnected=true for
+                // 15 min after the last share so the UI doesn't flap on
+                // normal ASIC reconnect cycles. We detect a real disconnect by
+                // watching currentHashrateH drop to 0 — that signal is
+                // immediate and never smoothed by the grace period.
+                const hasDelivered = (live.sharesAccepted ?? 0) > 0;
+                const hashrateZeroNow = (live.currentHashrateH ?? 0) === 0;
+                // Red banner: confirmed offline (post-grace) OR hashrate dropped
+                // with prior delivery history (catches grace-period case).
+                const showOffline =
+                  !live.minerConnected ||
+                  (hasDelivered && hashrateZeroNow && (live.upstreamConnected ?? true));
+                // Purple banner: miner socket is up but pool uplink is down.
                 const showEstablishing =
                   live.minerConnected && !live.upstreamConnected;
                 const avgHashrateDisplay = stats
@@ -702,9 +715,35 @@ export default function RentalCockpit() {
                       : stats.samples;
                     const nowStr = new Date().toISOString();
                     const lastFilteredSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
-                    const showMinerOfflineArea = !live?.minerConnected && !!lastFilteredSample;
-                    const showPoolOfflineArea = !!(live?.minerConnected && (!live?.upstreamConnected || live?.poolAuthFailed) && lastFilteredSample);
-                    const rentalChartData = !live?.minerConnected && filtered.length > 0
+
+                    // Historical offline ranges: consecutive samples with hashrate=0
+                    // (zero-activity minutes are stored in DB so the timeline is continuous).
+                    // These color the chart permanently — visible even after reconnection.
+                    const offlineRanges: { start: string; end: string }[] = [];
+                    let offStart: string | null = null;
+                    for (const s of filtered) {
+                      if (s.hashrate === 0) {
+                        if (!offStart) offStart = s.timestamp;
+                      } else if (offStart) {
+                        offlineRanges.push({ start: offStart, end: s.timestamp });
+                        offStart = null;
+                      }
+                    }
+                    // Don't close an ongoing offline run here — the live area extends it to now.
+
+                    // Current-state live areas (from last sample → now).
+                    // Use hashrateZeroNow (immediate signal) instead of !minerConnected
+                    // so the area appears during the 15-min grace period too.
+                    const showMinerOfflineArea =
+                      (!live?.minerConnected || (hasDelivered && hashrateZeroNow && (live?.upstreamConnected ?? true))) &&
+                      !!lastFilteredSample;
+                    const showPoolOfflineArea =
+                      !!(live?.minerConnected && !live?.upstreamConnected && lastFilteredSample);
+
+                    // Append a zero data-point so the line drops to 0 visually
+                    // whenever hashrate is currently zero (not just when confirmed offline).
+                    const isCurrentlyZero = hasDelivered && hashrateZeroNow;
+                    const rentalChartData = isCurrentlyZero && filtered.length > 0
                       ? [...filtered, { timestamp: nowStr, hashrate: 0 }]
                       : filtered;
                     return (
@@ -735,6 +774,19 @@ export default function RentalCockpit() {
                           </defs>
                           <XAxis dataKey="timestamp" hide />
                           <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax * 1.15, toNum(rental.hashrate) * 1.05)]} />
+                          {/* Historical offline periods (hashrate=0 in DB) — persist after reconnection */}
+                          {offlineRanges.map((r, i) => (
+                            <ReferenceArea
+                              key={`off-${i}`}
+                              x1={r.start}
+                              x2={r.end}
+                              fill="#ef4444"
+                              fillOpacity={0.14}
+                              stroke="none"
+                              ifOverflow="extendDomain"
+                            />
+                          ))}
+                          {/* Current live state: extends from last sample → now */}
                           {showMinerOfflineArea && lastFilteredSample && (
                             <ReferenceArea
                               x1={lastFilteredSample.timestamp}
