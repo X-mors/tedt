@@ -716,26 +716,11 @@ export default function RentalCockpit() {
                     const nowStr = new Date().toISOString();
                     const lastFilteredSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
 
-                    // Historical offline/pool-disconnect ranges from per-sample state.
-                    // offlineRanges (red): hashrate=0 with pool connected → rig was offline.
-                    // poolDisconnectRanges (purple): poolConnected=false → pool was down.
+                    // Historical offline ranges: hashrate=0 → rig was offline (red).
                     const offlineRanges: { start: string; end: string }[] = [];
-                    const poolDisconnectRanges: { start: string; end: string }[] = [];
                     let offStart: string | null = null;
-                    let poolStart: string | null = null;
                     for (const s of filtered) {
-                      const isPoolDown = !s.poolConnected;
-                      const isRigDown = s.hashrate === 0 && s.poolConnected;
-                      // pool disconnect
-                      if (isPoolDown) {
-                        if (!poolStart) poolStart = s.timestamp;
-                        if (offStart) { offlineRanges.push({ start: offStart, end: s.timestamp }); offStart = null; }
-                      } else if (poolStart) {
-                        poolDisconnectRanges.push({ start: poolStart, end: s.timestamp });
-                        poolStart = null;
-                      }
-                      // rig offline
-                      if (isRigDown) {
+                      if (s.hashrate === 0) {
                         if (!offStart) offStart = s.timestamp;
                       } else if (offStart) {
                         offlineRanges.push({ start: offStart, end: s.timestamp });
@@ -795,18 +780,6 @@ export default function RentalCockpit() {
                               x2={r.end}
                               fill="#ef4444"
                               fillOpacity={0.14}
-                              stroke="none"
-                              ifOverflow="extendDomain"
-                            />
-                          ))}
-                          {/* Historical pool-disconnect periods — purple */}
-                          {poolDisconnectRanges.map((r, i) => (
-                            <ReferenceArea
-                              key={`pool-${i}`}
-                              x1={r.start}
-                              x2={r.end}
-                              fill="#a855f7"
-                              fillOpacity={0.18}
                               stroke="none"
                               ifOverflow="extendDomain"
                             />

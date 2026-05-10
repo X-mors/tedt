@@ -221,9 +221,6 @@ export default function RigDetail() {
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-sm bg-red-500" /> Offline
                   </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-sm bg-purple-500" /> Pool issue
-                  </span>
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -256,28 +253,15 @@ export default function RigDetail() {
                   }
 
                   // Build coloring ranges from per-sample state.
-                  // offlineRanges (red): hashrate=0 AND poolConnected=true  → rig problem
-                  // poolDisconnectRanges (purple): poolConnected=false       → pool problem
-                  // gapRanges (red): gaps > 90 s (backward-compat for pre-fix data)
+                  // offlineRanges (red): hashrate=0 → rig was offline
+                  // gapRanges (red): gaps > 90s → backward-compat for pre-fix data
                   const offlineRanges: { start: string; end: string }[] = [];
-                  const poolDisconnectRanges: { start: string; end: string }[] = [];
                   const gapRanges: { start: string; end: string }[] = [];
                   const GAP_THRESHOLD_MS = 90_000;
                   let offStart: string | null = null;
-                  let pdStart: string | null = null;
                   for (let gi = 0; gi < filtered.length; gi++) {
                     const s = filtered[gi]!;
-                    const isRigDown = s.hashrate === 0 && s.poolConnected;
-                    const isPoolDown = !s.poolConnected;
-                    // pool disconnect (purple)
-                    if (isPoolDown) {
-                      if (!pdStart) pdStart = s.timestamp;
-                      if (offStart) { offlineRanges.push({ start: offStart, end: s.timestamp }); offStart = null; }
-                    } else if (pdStart) {
-                      poolDisconnectRanges.push({ start: pdStart, end: s.timestamp });
-                      pdStart = null;
-                    }
-                    // rig offline (red)
+                    const isRigDown = s.hashrate === 0;
                     if (isRigDown) {
                       if (!offStart) offStart = s.timestamp;
                     } else if (offStart) {
@@ -294,19 +278,10 @@ export default function RigDetail() {
                     }
                   }
 
-                  // Live state: pool disconnect (purple) — covers both renter pool
-                  // and owner fallback pool; no longer requires an active rental.
-                  const isPoolDisconnected = ownerIsOnline &&
-                    rigLive != null &&
-                    rigLive.workerCount > 0 &&
-                    (!rigLive.upstreamConnected || rigLive.poolAuthFailed);
-
-                  // Chart data: historical samples as-is (gaps are colored by
-                  // ReferenceAreas so no zero-injection needed). If the rig is
-                  // currently offline, append a zero point at "now" so the green
-                  // area visually drops to zero instead of hanging mid-air.
+                  // Chart data: if the rig is currently offline, append a zero
+                  // point at "now" so the area visually drops to zero.
                   const rigChartData = !ownerIsOnline && filtered.length > 0
-                    ? [...filtered, { timestamp: nowStr, hashrate: 0, hasRental: false, poolConnected: true }]
+                    ? [...filtered, { timestamp: nowStr, hashrate: 0, hasRental: false }]
                     : filtered;
                   return (
                   <div className="h-48 bg-background/30 rounded-md border border-border/30 px-2 py-2">
@@ -358,35 +333,13 @@ export default function RigDetail() {
                             ifOverflow="extendDomain"
                           />
                         ))}
-                        {/* Historical pool-disconnect periods — purple */}
-                        {poolDisconnectRanges.map((r, i) => (
-                          <ReferenceArea
-                            key={`pd-${i}`}
-                            x1={r.start}
-                            x2={r.end}
-                            fill="#a855f7"
-                            fillOpacity={0.18}
-                            stroke="none"
-                            ifOverflow="extendDomain"
-                          />
-                        ))}
-                        {/* Current live state: offline or pool issue → extends to now */}
+                        {/* Current live state: offline → extends to now */}
                         {!ownerIsOnline && lastSample && (
                           <ReferenceArea
                             x1={lastSample.timestamp}
                             x2={nowStr}
                             fill="#ef4444"
                             fillOpacity={0.18}
-                            stroke="none"
-                            ifOverflow="extendDomain"
-                          />
-                        )}
-                        {isPoolDisconnected && lastSample && (
-                          <ReferenceArea
-                            x1={lastSample.timestamp}
-                            x2={nowStr}
-                            fill="#a855f7"
-                            fillOpacity={0.22}
                             stroke="none"
                             ifOverflow="extendDomain"
                           />

@@ -100,6 +100,10 @@ export class StratumServer {
     // this flush cycle so the rental loop and the fallback loop don't
     // double-insert if a rig somehow appears in both maps.
     const rigSampledThisCycle = new Set<number>();
+    // Track which rentals received a sample this cycle (real or zero).
+    // Used below to write a zero sample for any active rental whose rig
+    // never had an in-memory window (offline before/after a server restart).
+    const rentalSampledThisCycle = new Set<number>();
     // Track which rentals had _checkLowDelivery actually invoked so the
     // post-loop sweep can skip them. NOTE: we add only on real calls below,
     // NOT for every window — windows whose snapshot is null produce no
@@ -133,11 +137,23 @@ export class StratumServer {
           difficultySum: String(snapshot.difficultySum),
           effectiveHashrateH: String(effectiveHashrateH),
         });
+        rentalSampledThisCycle.add(snapshot.rentalId);
 
-        // Zero-activity cycle (rig offline / no shares this minute): the
-        // sample above keeps the chart timeline continuous with a flat zero
-        // line, but skip all metric updates — they require real data.
-        if (isZeroActivity) continue;
+        // Zero-activity cycle (rig offline / no shares this minute): write a
+        // zero rig sample too so the owner chart also shows the red offline
+        // area in history. Then skip metric updates — they require real data.
+        if (isZeroActivity) {
+          await db.insert(rigHashSamplesTable).values({
+            rigId: snapshot.rigId,
+            rentalId: snapshot.rentalId,
+            windowSeconds: Math.round(elapsedSec),
+            sharesAccepted: 0,
+            sharesRejected: 0,
+            effectiveHashrateH: "0",
+          });
+          rigSampledThisCycle.add(snapshot.rigId);
+          continue;
+        }
 
         // Mirror into the per-rig stream so the owner gets a continuous
         // history regardless of rental state. rentalId is set so the owner
@@ -199,6 +215,35 @@ export class StratumServer {
         .from(rentalsTable)
         .where(eq(rentalsTable.status, "active"));
       for (const r of activeRentals) {
+        // Write a zero hash sample for rentals that had no in-memory share
+        // window this cycle (rig offline before/after a server restart, or
+        // rental started but miner never connected). Without this the renter
+        // and owner charts have gaps and offline red areas are missing.
+        if (!rentalSampledThisCycle.has(r.id)) {
+          const [rentalRig] = await db
+            .select({ rigId: rentalsTable.rigId })
+            .from(rentalsTable)
+            .where(eq(rentalsTable.id, r.id));
+          await db.insert(rentalHashSamplesTable).values({
+            rentalId: r.id,
+            windowSeconds: 60,
+            sharesAccepted: 0,
+            sharesRejected: 0,
+            difficultySum: "0",
+            effectiveHashrateH: "0",
+          });
+          if (rentalRig && !rigSampledThisCycle.has(rentalRig.rigId)) {
+            await db.insert(rigHashSamplesTable).values({
+              rigId: rentalRig.rigId,
+              rentalId: r.id,
+              windowSeconds: 60,
+              sharesAccepted: 0,
+              sharesRejected: 0,
+              effectiveHashrateH: "0",
+            });
+            rigSampledThisCycle.add(rentalRig.rigId);
+          }
+        }
         if (lowDeliveryCheckedThisCycle.has(r.id)) continue;
         await this._checkLowDelivery(r.id);
         // Also keep deliveredHashrateAvg current for offline rentals so the
