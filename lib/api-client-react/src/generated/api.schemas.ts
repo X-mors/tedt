@@ -122,6 +122,8 @@ export interface RigLive {
   currentHashrate: number;
   currentDifficulty: number;
   workerCount: number;
+  upstreamConnected: boolean;
+  poolAuthFailed: boolean;
 }
 
 export interface RigSummary {

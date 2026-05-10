@@ -240,6 +240,9 @@ export default function RigDetail() {
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-sm bg-red-500" /> Offline
                   </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-sm bg-purple-500" /> Pool issue
+                  </span>
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -250,6 +253,11 @@ export default function RigDetail() {
                     : rigStats.samples;
                   const nowStr = new Date().toISOString();
                   const lastSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
+                  const isPoolDisconnected = ownerIsOnline &&
+                    rigLive != null &&
+                    rigLive.workerCount > 0 &&
+                    (!rigLive.upstreamConnected || rigLive.poolAuthFailed) &&
+                    rentalRanges.length > 0;
                   const rigChartData = !ownerIsOnline && filtered.length > 0
                     ? [...filtered, { timestamp: nowStr, hashrate: 0, hasRental: false }]
                     : filtered;
@@ -285,6 +293,16 @@ export default function RigDetail() {
                             x2={nowStr}
                             fill="#ef4444"
                             fillOpacity={0.18}
+                            stroke="none"
+                            ifOverflow="extendDomain"
+                          />
+                        )}
+                        {isPoolDisconnected && lastSample && (
+                          <ReferenceArea
+                            x1={lastSample.timestamp}
+                            x2={nowStr}
+                            fill="#a855f7"
+                            fillOpacity={0.22}
                             stroke="none"
                             ifOverflow="extendDomain"
                           />

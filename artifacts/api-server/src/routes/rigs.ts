@@ -349,10 +349,16 @@ router.get("/rigs/:id/live", async (req, res) => {
   const entry = proxyState.getRigEntry(id);
   const rentalId = entry?.rentalId ?? null;
   let currentHashrateH = 0;
+  let upstreamConnected = false;
+  let poolAuthFailed = false;
   if (rentalId != null) {
-    currentHashrateH = proxyState.getLiveStats(rentalId).effectiveHashrateH;
+    const liveStats = proxyState.getLiveStats(rentalId);
+    currentHashrateH = liveStats.effectiveHashrateH;
+    upstreamConnected = liveStats.upstreamConnected;
+    poolAuthFailed = liveStats.poolAuthFailed;
   } else {
     currentHashrateH = proxyState.getFallbackHashrateH(id);
+    upstreamConnected = entry?.upstreamConnected ?? false;
   }
   const currentDifficulty = entry?.currentDifficulty ?? 1;
   const algMultiplier = unitMultiplier(rig.algorithmUnit);
@@ -366,6 +372,8 @@ router.get("/rigs/:id/live", async (req, res) => {
     currentHashrate: currentHashrateH / algMultiplier,
     currentDifficulty,
     workerCount,
+    upstreamConnected,
+    poolAuthFailed,
   });
 });
 
