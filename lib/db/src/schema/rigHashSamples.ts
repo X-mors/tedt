@@ -5,6 +5,7 @@ import {
   numeric,
   timestamp,
   index,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { rigsTable } from "./rigs";
 import { rentalsTable } from "./rentals";
@@ -15,6 +16,10 @@ import { rentalsTable } from "./rentals";
  * the rig was serving a rental (rentalId set) or mining to its fallback
  * pool (rentalId null). Owners read this table to display a continuous
  * 14-day hashrate history regardless of rental activity.
+ *
+ * poolConnected=false marks windows where the pool uplink was down
+ * (miner connected to proxy but proxy couldn't reach the pool), so the
+ * UI can shade those periods purple instead of red.
  */
 export const rigHashSamplesTable = pgTable(
   "rig_hash_samples",
@@ -36,6 +41,7 @@ export const rigHashSamplesTable = pgTable(
       precision: 18,
       scale: 3,
     }),
+    poolConnected: boolean("pool_connected").notNull().default(true),
   },
   (t) => ({
     rigSampledAtIdx: index("rig_hash_samples_rig_sampled_idx").on(

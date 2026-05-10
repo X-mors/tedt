@@ -716,20 +716,33 @@ export default function RentalCockpit() {
                     const nowStr = new Date().toISOString();
                     const lastFilteredSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
 
-                    // Historical offline ranges: consecutive samples with hashrate=0
-                    // (zero-activity minutes are stored in DB so the timeline is continuous).
-                    // These color the chart permanently — visible even after reconnection.
+                    // Historical offline/pool-disconnect ranges from per-sample state.
+                    // offlineRanges (red): hashrate=0 with pool connected → rig was offline.
+                    // poolDisconnectRanges (purple): poolConnected=false → pool was down.
                     const offlineRanges: { start: string; end: string }[] = [];
+                    const poolDisconnectRanges: { start: string; end: string }[] = [];
                     let offStart: string | null = null;
+                    let poolStart: string | null = null;
                     for (const s of filtered) {
-                      if (s.hashrate === 0) {
+                      const isPoolDown = !s.poolConnected;
+                      const isRigDown = s.hashrate === 0 && s.poolConnected;
+                      // pool disconnect
+                      if (isPoolDown) {
+                        if (!poolStart) poolStart = s.timestamp;
+                        if (offStart) { offlineRanges.push({ start: offStart, end: s.timestamp }); offStart = null; }
+                      } else if (poolStart) {
+                        poolDisconnectRanges.push({ start: poolStart, end: s.timestamp });
+                        poolStart = null;
+                      }
+                      // rig offline
+                      if (isRigDown) {
                         if (!offStart) offStart = s.timestamp;
                       } else if (offStart) {
                         offlineRanges.push({ start: offStart, end: s.timestamp });
                         offStart = null;
                       }
                     }
-                    // Don't close an ongoing offline run here — the live area extends it to now.
+                    // Don't close an ongoing run here — the live area extends it to now.
 
                     // Current-state live areas (from last sample → now).
                     // Use hashrateZeroNow (immediate signal) instead of !minerConnected
@@ -774,7 +787,7 @@ export default function RentalCockpit() {
                           </defs>
                           <XAxis dataKey="timestamp" hide />
                           <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax * 1.15, toNum(rental.hashrate) * 1.05)]} />
-                          {/* Historical offline periods (hashrate=0 in DB) — persist after reconnection */}
+                          {/* Historical rig-offline periods — red */}
                           {offlineRanges.map((r, i) => (
                             <ReferenceArea
                               key={`off-${i}`}
@@ -782,6 +795,18 @@ export default function RentalCockpit() {
                               x2={r.end}
                               fill="#ef4444"
                               fillOpacity={0.14}
+                              stroke="none"
+                              ifOverflow="extendDomain"
+                            />
+                          ))}
+                          {/* Historical pool-disconnect periods — purple */}
+                          {poolDisconnectRanges.map((r, i) => (
+                            <ReferenceArea
+                              key={`pool-${i}`}
+                              x1={r.start}
+                              x2={r.end}
+                              fill="#a855f7"
+                              fillOpacity={0.18}
                               stroke="none"
                               ifOverflow="extendDomain"
                             />

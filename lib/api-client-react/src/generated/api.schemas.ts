@@ -469,6 +469,7 @@ export type OwnerRigStatsSamplesItem = {
   timestamp: string;
   hashrate: number;
   hasRental: boolean;
+  poolConnected: boolean;
 };
 
 export interface OwnerRigStats {
@@ -563,6 +564,7 @@ export interface RentalDetail {
 export interface HashSamplePoint {
   timestamp: string;
   hashrate: number;
+  poolConnected: boolean;
 }
 
 export interface ProxyConnectedRig {

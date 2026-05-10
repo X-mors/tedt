@@ -536,6 +536,7 @@ router.get("/me/rigs/:id/stats", async (req, res) => {
       sampledAt: rigHashSamplesTable.sampledAt,
       effectiveHashrateH: rigHashSamplesTable.effectiveHashrateH,
       rentalId: rigHashSamplesTable.rentalId,
+      poolConnected: rigHashSamplesTable.poolConnected,
     })
     .from(rigHashSamplesTable)
     .where(
@@ -551,13 +552,15 @@ router.get("/me/rigs/:id/stats", async (req, res) => {
   // Bucket-average to keep chart payload bounded. Each output sample carries
   // hasRental=true if ANY raw sample in the bucket was inside a rental — this
   // keeps the yellow shading visually contiguous across rental boundaries.
+  // poolConnected=false if ANY sample in the bucket had pool disconnect.
   const MAX_CHART_POINTS = 720;
-  let samples: { timestamp: string; hashrate: number; hasRental: boolean }[];
+  let samples: { timestamp: string; hashrate: number; hasRental: boolean; poolConnected: boolean }[];
   if (dbSamples.length <= MAX_CHART_POINTS) {
     samples = dbSamples.map((s) => ({
       timestamp: s.sampledAt.toISOString(),
       hashrate: toNum(s.effectiveHashrateH ?? "0") / algMultiplier,
       hasRental: s.rentalId != null,
+      poolConnected: s.poolConnected,
     }));
   } else {
     const bucketSize = Math.ceil(dbSamples.length / MAX_CHART_POINTS);
@@ -572,6 +575,7 @@ router.get("/me/rigs/:id/stats", async (req, res) => {
         timestamp: bucket[Math.floor(bucket.length / 2)]!.sampledAt.toISOString(),
         hashrate: sum / bucket.length / algMultiplier,
         hasRental: bucket.some((x) => x.rentalId != null),
+        poolConnected: bucket.every((x) => x.poolConnected),
       });
     }
   }

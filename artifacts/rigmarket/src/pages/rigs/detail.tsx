@@ -254,16 +254,30 @@ export default function RigDetail() {
                   const nowStr = new Date().toISOString();
                   const lastSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
 
-                  // Historical gap ranges: consecutive samples more than ~90 s apart
-                  // mean the rig was offline during that interval (zero-activity
-                  // samples are NOT stored in rig_hash_samples, so gaps = offline).
+                  // Historical gap ranges: gaps > 90 s between consecutive samples
+                  // mean the rig was offline (no shares, no pool-disconnect sample written).
+                  // Historical pool-disconnect ranges: consecutive samples with poolConnected=false
+                  // written by the flush loop when miner was up but pool was down.
                   const gapRanges: { start: string; end: string }[] = [];
+                  const poolDisconnectRanges: { start: string; end: string }[] = [];
                   const GAP_THRESHOLD_MS = 90_000;
-                  for (let gi = 0; gi < filtered.length - 1; gi++) {
-                    const t1 = new Date(filtered[gi].timestamp).getTime();
-                    const t2 = new Date(filtered[gi + 1].timestamp).getTime();
-                    if (t2 - t1 > GAP_THRESHOLD_MS) {
-                      gapRanges.push({ start: filtered[gi].timestamp, end: filtered[gi + 1].timestamp });
+                  let pdStart: string | null = null;
+                  for (let gi = 0; gi < filtered.length; gi++) {
+                    const s = filtered[gi];
+                    // pool disconnect ranges
+                    if (!s.poolConnected) {
+                      if (!pdStart) pdStart = s.timestamp;
+                    } else if (pdStart) {
+                      poolDisconnectRanges.push({ start: pdStart, end: s.timestamp });
+                      pdStart = null;
+                    }
+                    // gap (rig offline) ranges
+                    if (gi < filtered.length - 1) {
+                      const t1 = new Date(s.timestamp).getTime();
+                      const t2 = new Date(filtered[gi + 1]!.timestamp).getTime();
+                      if (t2 - t1 > GAP_THRESHOLD_MS) {
+                        gapRanges.push({ start: s.timestamp, end: filtered[gi + 1]!.timestamp });
+                      }
                     }
                   }
 
@@ -310,6 +324,18 @@ export default function RigDetail() {
                             x2={r.end}
                             fill="#ef4444"
                             fillOpacity={0.14}
+                            stroke="none"
+                            ifOverflow="extendDomain"
+                          />
+                        ))}
+                        {/* Historical pool-disconnect periods — purple */}
+                        {poolDisconnectRanges.map((r, i) => (
+                          <ReferenceArea
+                            key={`pd-${i}`}
+                            x1={r.start}
+                            x2={r.end}
+                            fill="#a855f7"
+                            fillOpacity={0.18}
                             stroke="none"
                             ifOverflow="extendDomain"
                           />

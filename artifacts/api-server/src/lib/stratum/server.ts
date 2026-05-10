@@ -125,6 +125,17 @@ export class StratumServer {
         (snapshot.difficultySum * 4294967296) / elapsedSec;
 
       try {
+        // Pool connectivity: if shares arrived this window the pool was
+        // reachable; otherwise check the live state at flush time so the
+        // DB sample can distinguish pool-down from rig-offline.
+        const liveStats = proxyState.getLiveStats(snapshot.rentalId);
+        const poolConnectedThisWindow =
+          !isZeroActivity || liveStats.upstreamConnected;
+        const poolDisconnectWithMiner =
+          isZeroActivity &&
+          liveStats.minerConnected &&
+          !liveStats.upstreamConnected;
+
         await db.insert(rentalHashSamplesTable).values({
           rentalId: snapshot.rentalId,
           windowSeconds: Math.round(elapsedSec),
@@ -132,12 +143,29 @@ export class StratumServer {
           sharesRejected: snapshot.sharesRejected,
           difficultySum: String(snapshot.difficultySum),
           effectiveHashrateH: String(effectiveHashrateH),
+          poolConnected: poolConnectedThisWindow,
         });
 
         // Zero-activity cycle (rig offline / no shares this minute): the
-        // sample above keeps the chart timeline continuous with a flat zero
-        // line, but skip all metric updates — they require real data.
-        if (isZeroActivity) continue;
+        // sample above keeps the rental chart timeline continuous with a
+        // flat zero line. If the miner is connected but pool is down, also
+        // write a rig sample so the owner/public chart shows a purple
+        // pool-disconnect gap instead of a red offline gap.
+        if (isZeroActivity) {
+          if (poolDisconnectWithMiner) {
+            await db.insert(rigHashSamplesTable).values({
+              rigId: snapshot.rigId,
+              rentalId: snapshot.rentalId,
+              windowSeconds: Math.round(elapsedSec),
+              sharesAccepted: 0,
+              sharesRejected: 0,
+              effectiveHashrateH: "0",
+              poolConnected: false,
+            });
+            rigSampledThisCycle.add(snapshot.rigId);
+          }
+          continue;
+        }
 
         // Mirror into the per-rig stream so the owner gets a continuous
         // history regardless of rental state. rentalId is set so the owner
@@ -149,6 +177,7 @@ export class StratumServer {
           sharesAccepted: snapshot.sharesAccepted,
           sharesRejected: snapshot.sharesRejected,
           effectiveHashrateH: String(effectiveHashrateH),
+          poolConnected: true,
         });
         rigSampledThisCycle.add(snapshot.rigId);
 
