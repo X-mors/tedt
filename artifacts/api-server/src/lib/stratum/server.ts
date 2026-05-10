@@ -297,6 +297,36 @@ export class StratumServer {
       }
     }
 
+    // Zero-sample sweep for idle rigs that are marked online in the DB but
+    // had no in-memory activity this cycle (disconnected without going through
+    // the normal TCP close path, or stayed offline across a server restart).
+    // This fills history gaps so the owner chart shows red for idle outages.
+    try {
+      const onlineRigs = await db
+        .select({ id: rigsTable.id })
+        .from(rigsTable)
+        .where(eq(rigsTable.isOnline, true));
+      for (const { id: rigId } of onlineRigs) {
+        if (rigSampledThisCycle.has(rigId)) continue;
+        // Rig is marked online in DB but produced nothing — check if it
+        // actually has a live session; if not, write a zero sample.
+        const hasSessions = proxyState.getRigSessions(rigId).length > 0;
+        const hasFallback = proxyState.getFallbackRigIds().includes(rigId);
+        if (!hasSessions && !hasFallback) {
+          await db.insert(rigHashSamplesTable).values({
+            rigId,
+            rentalId: null,
+            windowSeconds: 60,
+            sharesAccepted: 0,
+            sharesRejected: 0,
+            effectiveHashrateH: "0",
+          });
+        }
+      }
+    } catch (err) {
+      logger.error({ err }, "stratum:server idle zero-sample sweep error");
+    }
+
     // Retention: prune per-rig samples older than the retention window.
     // Cheap to run hourly — uses the (rig_id, sampled_at) index.
     if (Date.now() - this.lastRigSamplePruneMs >= RIG_SAMPLE_PRUNE_INTERVAL_MS) {

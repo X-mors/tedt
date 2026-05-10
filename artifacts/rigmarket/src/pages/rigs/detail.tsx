@@ -278,9 +278,14 @@ export default function RigDetail() {
                     }
                   }
 
+                  // rigLive refreshes every 5s — use it for the live offline
+                  // signal so we catch disconnects without a page reload.
+                  // ownerIsOnline (from the page-load snapshot) is too stale.
+                  const isRigCurrentlyOffline = rigLive != null && !rigLive.isOnline;
+
                   // Chart data: if the rig is currently offline, append a zero
                   // point at "now" so the area visually drops to zero.
-                  const rigChartData = !ownerIsOnline && filtered.length > 0
+                  const rigChartData = isRigCurrentlyOffline && filtered.length > 0
                     ? [...filtered, { timestamp: nowStr, hashrate: 0, hasRental: false }]
                     : filtered;
                   return (
@@ -334,7 +339,7 @@ export default function RigDetail() {
                           />
                         ))}
                         {/* Current live state: offline → extends to now */}
-                        {!ownerIsOnline && lastSample && (
+                        {isRigCurrentlyOffline && lastSample && (
                           <ReferenceArea
                             x1={lastSample.timestamp}
                             x2={nowStr}
