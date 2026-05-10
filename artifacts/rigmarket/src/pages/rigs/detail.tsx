@@ -45,7 +45,7 @@ export default function RigDetail() {
   // not). Refresh every 60s so a new flush becomes visible without a hard
   // reload.
   const { data: rigStats } = useGetRigStats(rigId, {
-    query: { refetchInterval: 60_000, queryKey: getGetRigStatsQueryKey(rigId) },
+    query: { refetchInterval: 30_000, refetchIntervalInBackground: true, queryKey: getGetRigStatsQueryKey(rigId) },
   });
   // Live telemetry: current hashrate + share difficulty. Public, no auth needed.
   const { data: rigLive } = useGetRigLive(rigId, {

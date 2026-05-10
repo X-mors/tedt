@@ -564,13 +564,14 @@ router.get("/me/rigs/:id/stats", async (req, res) => {
     samples = [];
     for (let i = 0; i < dbSamples.length; i += bucketSize) {
       const bucket = dbSamples.slice(i, i + bucketSize);
+      const hasOffline = bucket.some((x) => toNum(x.effectiveHashrateH ?? "0") === 0);
       const sum = bucket.reduce(
         (s, x) => s + toNum(x.effectiveHashrateH ?? "0"),
         0,
       );
       samples.push({
         timestamp: bucket[Math.floor(bucket.length / 2)]!.sampledAt.toISOString(),
-        hashrate: sum / bucket.length / algMultiplier,
+        hashrate: hasOffline ? 0 : sum / bucket.length / algMultiplier,
         hasRental: bucket.some((x) => x.rentalId != null),
       });
     }
