@@ -300,25 +300,13 @@ export default function RigDetail() {
                     rigLive.workerCount > 0 &&
                     (!rigLive.upstreamConnected || rigLive.poolAuthFailed);
 
-                  // Build continuous chart data. For old-data gaps (no zero samples
-                  // yet written), inject zero points at gap boundaries so the line
-                  // drops to 0 and stays flat instead of drawing a diagonal skip.
-                  const rigChartData: typeof filtered = [];
-                  for (let ci = 0; ci < filtered.length; ci++) {
-                    const s = filtered[ci]!;
-                    rigChartData.push(s);
-                    if (ci < filtered.length - 1) {
-                      const t1 = new Date(s.timestamp).getTime();
-                      const t2 = new Date(filtered[ci + 1]!.timestamp).getTime();
-                      if (t2 - t1 > GAP_THRESHOLD_MS) {
-                        rigChartData.push({ timestamp: new Date(t1 + 500).toISOString(), hashrate: 0, hasRental: s.hasRental, poolConnected: s.poolConnected });
-                        rigChartData.push({ timestamp: new Date(t2 - 500).toISOString(), hashrate: 0, hasRental: filtered[ci + 1]!.hasRental, poolConnected: filtered[ci + 1]!.poolConnected });
-                      }
-                    }
-                  }
-                  if (!ownerIsOnline && filtered.length > 0) {
-                    rigChartData.push({ timestamp: nowStr, hashrate: 0, hasRental: false, poolConnected: true });
-                  }
+                  // Chart data: historical samples as-is (gaps are colored by
+                  // ReferenceAreas so no zero-injection needed). If the rig is
+                  // currently offline, append a zero point at "now" so the green
+                  // area visually drops to zero instead of hanging mid-air.
+                  const rigChartData = !ownerIsOnline && filtered.length > 0
+                    ? [...filtered, { timestamp: nowStr, hashrate: 0, hasRental: false, poolConnected: true }]
+                    : filtered;
                   return (
                   <div className="h-48 bg-background/30 rounded-md border border-border/30 px-2 py-2">
                     <ResponsiveContainer width="100%" height="100%">
