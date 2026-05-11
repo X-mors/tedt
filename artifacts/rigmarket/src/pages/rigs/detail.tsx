@@ -298,13 +298,16 @@ export default function RigDetail() {
                     }
                   }
 
-                  // Live gap: if the rig is offline but last sample was non-zero
-                  // (rig went offline between samples), add one range from offlineSince → now.
-                  // This covers the gap the sample-derived ranges miss.
+                  // Live gap: only needed when rig is offline but NO zero samples exist yet
+                  // (rig went offline between sample ticks — synthetic zero at nowMs is a
+                  // single invisible point). When zero samples DO exist, the synthetic zero
+                  // at nowMs already extends the last range to nowMs with a single ReferenceArea,
+                  // so we must NOT add a second overlapping area (causes double opacity / darker shade).
+                  const hasZeroSamplesInFiltered = filtered.some(s => s.hashrate === 0);
                   const offlineSinceMs = isRigCurrentlyOffline
                     ? (rigLive?.offlineSince ? new Date(rigLive.offlineSince).getTime() : lastSample?.ts ?? null)
                     : null;
-                  if (offlineSinceMs !== null) {
+                  if (offlineSinceMs !== null && !hasZeroSamplesInFiltered) {
                     offlineRanges.push({ start: offlineSinceMs, end: nowMs });
                   }
 

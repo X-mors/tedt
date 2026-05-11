@@ -761,8 +761,11 @@ export default function RentalCockpit() {
                         offlineRanges.push({ start: runStart, end: runEnd });
                       }
                     }
-                    // Live gap: miner offline but last sample was non-zero — cover gap to now.
-                    if (showMinerOfflineArea && lastFilteredSample) {
+                    // Live gap: only when miner is offline but NO zero samples exist yet.
+                    // If zero samples exist, synthetic zero at nowMs already extends the range —
+                    // adding another ReferenceArea would overlap and darken the color.
+                    const hasZeroSamplesInFiltered = filtered.some(s => s.hashrate === 0);
+                    if (showMinerOfflineArea && lastFilteredSample && !hasZeroSamplesInFiltered) {
                       offlineRanges.push({ start: lastFilteredSample.ts, end: nowMs });
                     }
                     return (
