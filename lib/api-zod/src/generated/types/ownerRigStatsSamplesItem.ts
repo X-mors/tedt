@@ -10,4 +10,5 @@ export type OwnerRigStatsSamplesItem = {
   timestamp: Date;
   hashrate: number;
   hasRental: boolean;
+  isPoolOffline: boolean;
 };

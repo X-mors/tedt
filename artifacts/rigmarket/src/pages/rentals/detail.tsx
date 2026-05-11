@@ -740,30 +740,37 @@ export default function RentalCockpit() {
                         }]
                       : filtered;
 
-                    // Build offline ranges from zero-hashrate sequences — same mechanism as
-                    // rental (yellow) ranges. No separate DB table needed.
+                    // Build offline ranges (red) and pool-offline ranges (purple) from samples.
                     const offlineRanges: { start: number; end: number }[] = [];
+                    const poolOfflineRanges: { start: number; end: number }[] = [];
                     {
-                      let runStart: number | null = null;
-                      let runEnd: number | null = null;
+                      let offRunStart: number | null = null;
+                      let offRunEnd: number | null = null;
+                      let poolRunStart: number | null = null;
+                      let poolRunEnd: number | null = null;
                       for (const s of rentalChartData) {
-                        if (s.hashrate === 0) {
-                          if (runStart === null) runStart = s.ts;
-                          runEnd = s.ts;
+                        const isPoolOff = (s as { isPoolOffline?: boolean }).isPoolOffline === true;
+                        if (isPoolOff) {
+                          if (poolRunStart === null) poolRunStart = s.ts;
+                          poolRunEnd = s.ts;
+                          if (offRunStart !== null && offRunEnd !== null) offlineRanges.push({ start: offRunStart, end: offRunEnd });
+                          offRunStart = null; offRunEnd = null;
+                        } else if (s.hashrate === 0) {
+                          if (offRunStart === null) offRunStart = s.ts;
+                          offRunEnd = s.ts;
+                          if (poolRunStart !== null && poolRunEnd !== null) poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
+                          poolRunStart = null; poolRunEnd = null;
                         } else {
-                          if (runStart !== null && runEnd !== null) {
-                            offlineRanges.push({ start: runStart, end: runEnd });
-                          }
-                          runStart = null; runEnd = null;
+                          if (offRunStart !== null && offRunEnd !== null) offlineRanges.push({ start: offRunStart, end: offRunEnd });
+                          if (poolRunStart !== null && poolRunEnd !== null) poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
+                          offRunStart = null; offRunEnd = null;
+                          poolRunStart = null; poolRunEnd = null;
                         }
                       }
-                      if (runStart !== null && runEnd !== null) {
-                        offlineRanges.push({ start: runStart, end: runEnd });
-                      }
+                      if (offRunStart !== null && offRunEnd !== null) offlineRanges.push({ start: offRunStart, end: offRunEnd });
+                      if (poolRunStart !== null && poolRunEnd !== null) poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
                     }
                     // Live gap: only when miner is offline but NO zero samples exist yet.
-                    // If zero samples exist, synthetic zero at nowMs already extends the range —
-                    // adding another ReferenceArea would overlap and darken the color.
                     const hasZeroSamplesInFiltered = filtered.some(s => s.hashrate === 0);
                     if (showMinerOfflineArea && lastFilteredSample && !hasZeroSamplesInFiltered) {
                       offlineRanges.push({ start: lastFilteredSample.ts, end: nowMs });
@@ -796,7 +803,7 @@ export default function RentalCockpit() {
                           </defs>
                           <XAxis dataKey="ts" type="number" scale="time" domain={['dataMin', 'dataMax']} hide />
                           <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax * 1.15, toNum(rental.hashrate) * 1.05)]} />
-                          {/* Offline periods (red) — from zero-hashrate samples + live gap */}
+                          {/* Offline periods (red) — rig disconnected */}
                           {offlineRanges.map((r, i) => (
                             <ReferenceArea
                               key={`off-${i}`}
@@ -808,13 +815,25 @@ export default function RentalCockpit() {
                               ifOverflow="extendDomain"
                             />
                           ))}
-                          {/* Pool offline — miner connected but upstream down */}
+                          {/* Pool offline periods (purple) — rig connected but pool unreachable */}
+                          {poolOfflineRanges.map((r, i) => (
+                            <ReferenceArea
+                              key={`pool-${i}`}
+                              x1={r.start}
+                              x2={r.end}
+                              fill="#a855f7"
+                              fillOpacity={0.22}
+                              stroke="none"
+                              ifOverflow="extendDomain"
+                            />
+                          ))}
+                          {/* Live pool offline gap — miner connected but upstream down right now */}
                           {showPoolOfflineArea && lastFilteredSample && (
                             <ReferenceArea
                               x1={lastFilteredSample.ts}
                               x2={nowMs}
                               fill="#a855f7"
-                              fillOpacity={0.18}
+                              fillOpacity={0.22}
                               stroke="none"
                               ifOverflow="extendDomain"
                             />
@@ -931,25 +950,35 @@ export default function RentalCockpit() {
                   {stats && stats.samples.length > 1 ? (() => {
                     const nowMs2 = Date.now();
                     const histSamples = stats.samples.map(s => ({ ...s, ts: new Date(s.timestamp).getTime() }));
-                    // Build offline ranges from zero-hashrate samples — same mechanism
+                    // Build offline (red) and pool-offline (purple) ranges
                     const histOfflineRanges: { start: number; end: number }[] = [];
+                    const histPoolOfflineRanges: { start: number; end: number }[] = [];
                     {
-                      let runStart: number | null = null;
-                      let runEnd: number | null = null;
+                      let offRunStart: number | null = null;
+                      let offRunEnd: number | null = null;
+                      let poolRunStart: number | null = null;
+                      let poolRunEnd: number | null = null;
                       for (const s of histSamples) {
-                        if (s.hashrate === 0) {
-                          if (runStart === null) runStart = s.ts;
-                          runEnd = s.ts;
+                        const isPoolOff = (s as { isPoolOffline?: boolean }).isPoolOffline === true;
+                        if (isPoolOff) {
+                          if (poolRunStart === null) poolRunStart = s.ts;
+                          poolRunEnd = s.ts;
+                          if (offRunStart !== null && offRunEnd !== null) histOfflineRanges.push({ start: offRunStart, end: offRunEnd });
+                          offRunStart = null; offRunEnd = null;
+                        } else if (s.hashrate === 0) {
+                          if (offRunStart === null) offRunStart = s.ts;
+                          offRunEnd = s.ts;
+                          if (poolRunStart !== null && poolRunEnd !== null) histPoolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
+                          poolRunStart = null; poolRunEnd = null;
                         } else {
-                          if (runStart !== null && runEnd !== null) {
-                            histOfflineRanges.push({ start: runStart, end: runEnd });
-                          }
-                          runStart = null; runEnd = null;
+                          if (offRunStart !== null && offRunEnd !== null) histOfflineRanges.push({ start: offRunStart, end: offRunEnd });
+                          if (poolRunStart !== null && poolRunEnd !== null) histPoolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
+                          offRunStart = null; offRunEnd = null;
+                          poolRunStart = null; poolRunEnd = null;
                         }
                       }
-                      if (runStart !== null && runEnd !== null) {
-                        histOfflineRanges.push({ start: runStart, end: runEnd });
-                      }
+                      if (offRunStart !== null && offRunEnd !== null) histOfflineRanges.push({ start: offRunStart, end: offRunEnd });
+                      if (poolRunStart !== null && poolRunEnd !== null) histPoolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
                     }
                     return (
                     <div className="h-32 bg-background/30 rounded-md border border-border/30 px-2 py-2">
@@ -963,7 +992,7 @@ export default function RentalCockpit() {
                           </defs>
                           <XAxis dataKey="ts" type="number" scale="time" domain={['dataMin', 'dataMax']} hide />
                           <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax * 1.15, toNum(rental.hashrate) * 1.05)]} />
-                          {/* Historical offline periods (red) — exact from DB */}
+                          {/* Historical offline periods (red) — rig disconnected */}
                           {histOfflineRanges.map((r, i) => (
                             <ReferenceArea
                               key={`hist-off-${i}`}
@@ -971,6 +1000,18 @@ export default function RentalCockpit() {
                               x2={r.end}
                               fill="#ef4444"
                               fillOpacity={0.14}
+                              stroke="none"
+                              ifOverflow="extendDomain"
+                            />
+                          ))}
+                          {/* Historical pool offline periods (purple) — rig connected but pool unreachable */}
+                          {histPoolOfflineRanges.map((r, i) => (
+                            <ReferenceArea
+                              key={`hist-pool-${i}`}
+                              x1={r.start}
+                              x2={r.end}
+                              fill="#a855f7"
+                              fillOpacity={0.18}
                               stroke="none"
                               ifOverflow="extendDomain"
                             />

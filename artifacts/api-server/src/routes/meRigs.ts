@@ -537,6 +537,7 @@ router.get("/me/rigs/:id/stats", async (req, res) => {
       sampledAt: rigHashSamplesTable.sampledAt,
       effectiveHashrateH: rigHashSamplesTable.effectiveHashrateH,
       rentalId: rigHashSamplesTable.rentalId,
+      poolOffline: rigHashSamplesTable.poolOffline,
     })
     .from(rigHashSamplesTable)
     .where(
@@ -562,9 +563,10 @@ router.get("/me/rigs/:id/stats", async (req, res) => {
     timestamp: s.sampledAt.toISOString(),
     hashrate: toNum(s.effectiveHashrateH ?? "0") / algMultiplier,
     hasRental: s.rentalId != null,
+    isPoolOffline: s.poolOffline ?? false,
   });
 
-  let oldSamples: { timestamp: string; hashrate: number; hasRental: boolean }[];
+  let oldSamples: { timestamp: string; hashrate: number; hasRental: boolean; isPoolOffline: boolean }[];
   if (oldRaw.length <= MAX_OLD_BUCKETS) {
     oldSamples = oldRaw.map(toPoint);
   } else {
@@ -578,6 +580,7 @@ router.get("/me/rigs/:id/stats", async (req, res) => {
         timestamp: bucket[Math.floor(bucket.length / 2)]!.sampledAt.toISOString(),
         hashrate: hasOffline ? 0 : sum / bucket.length / algMultiplier,
         hasRental: bucket.some((x) => x.rentalId != null),
+        isPoolOffline: bucket.some((x) => x.poolOffline),
       });
     }
   }

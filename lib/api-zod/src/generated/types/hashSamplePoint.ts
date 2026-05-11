@@ -9,4 +9,5 @@
 export interface HashSamplePoint {
   timestamp: Date;
   hashrate: number;
+  isPoolOffline: boolean;
 }

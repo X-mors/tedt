@@ -4,6 +4,7 @@ import {
   integer,
   numeric,
   timestamp,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { rentalsTable } from "./rentals";
 
@@ -25,6 +26,7 @@ export const rentalHashSamplesTable = pgTable("rental_hash_samples", {
     precision: 18,
     scale: 3,
   }),
+  poolOffline: boolean("pool_offline").notNull().default(false),
 });
 
 export type RentalHashSample = typeof rentalHashSamplesTable.$inferSelect;

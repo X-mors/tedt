@@ -616,6 +616,7 @@ router.get("/rentals/:id/stats", async (req, res) => {
     .select({
       sampledAt: rentalHashSamplesTable.sampledAt,
       effectiveHashrateH: rentalHashSamplesTable.effectiveHashrateH,
+      poolOffline: rentalHashSamplesTable.poolOffline,
     })
     .from(rentalHashSamplesTable)
     .where(eq(rentalHashSamplesTable.rentalId, id))
@@ -661,9 +662,10 @@ router.get("/rentals/:id/stats", async (req, res) => {
   const toPoint = (s: typeof chronological[0]) => ({
     timestamp: s.sampledAt.toISOString(),
     hashrate: toNum(s.effectiveHashrateH ?? "0") / algMultiplier,
+    isPoolOffline: s.poolOffline ?? false,
   });
 
-  let oldSamples: { timestamp: string; hashrate: number }[];
+  let oldSamples: { timestamp: string; hashrate: number; isPoolOffline: boolean }[];
   if (oldRaw.length <= MAX_OLD_BUCKETS) {
     oldSamples = oldRaw.map(toPoint);
   } else {
@@ -676,6 +678,7 @@ router.get("/rentals/:id/stats", async (req, res) => {
       oldSamples.push({
         timestamp: bucket[Math.floor(bucket.length / 2)]!.sampledAt.toISOString(),
         hashrate: hasOffline ? 0 : sum / bucket.length / algMultiplier,
+        isPoolOffline: bucket.some((x) => x.poolOffline),
       });
     }
   }

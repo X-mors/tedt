@@ -221,6 +221,9 @@ export default function RigDetail() {
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-sm bg-red-500" /> Offline
                   </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-sm bg-purple-500" /> Pool offline
+                  </span>
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -275,27 +278,45 @@ export default function RigDetail() {
                       }]
                     : filtered;
 
-                  // Build offline ranges from zero-hashrate sequences in the chart data —
-                  // identical mechanism to rentalRanges (which use hasRental).
-                  // hashrate === 0 is already set by the server for offline samples.
+                  // Build offline ranges (red) and pool-offline ranges (purple) from samples.
+                  // poolOffline=true → rig connected but upstream pool unreachable → purple.
+                  // hashrate===0 && !poolOffline → rig disconnected → red.
                   const offlineRanges: { start: number; end: number }[] = [];
+                  const poolOfflineRanges: { start: number; end: number }[] = [];
                   {
-                    let runStart: number | null = null;
-                    let runEnd: number | null = null;
+                    let offRunStart: number | null = null;
+                    let offRunEnd: number | null = null;
+                    let poolRunStart: number | null = null;
+                    let poolRunEnd: number | null = null;
                     for (const s of rigChartData) {
-                      if (s.hashrate === 0) {
-                        if (runStart === null) runStart = s.ts;
-                        runEnd = s.ts;
-                      } else {
-                        if (runStart !== null && runEnd !== null) {
-                          offlineRanges.push({ start: runStart, end: runEnd });
+                      const isPoolOff = (s as { isPoolOffline?: boolean }).isPoolOffline === true;
+                      if (isPoolOff) {
+                        // Pool offline — purple
+                        if (poolRunStart === null) poolRunStart = s.ts;
+                        poolRunEnd = s.ts;
+                        // end any red run
+                        if (offRunStart !== null && offRunEnd !== null) {
+                          offlineRanges.push({ start: offRunStart, end: offRunEnd });
                         }
-                        runStart = null; runEnd = null;
+                        offRunStart = null; offRunEnd = null;
+                      } else if (s.hashrate === 0) {
+                        // Rig offline — red
+                        if (offRunStart === null) offRunStart = s.ts;
+                        offRunEnd = s.ts;
+                        // end any purple run
+                        if (poolRunStart !== null && poolRunEnd !== null) {
+                          poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
+                        }
+                        poolRunStart = null; poolRunEnd = null;
+                      } else {
+                        if (offRunStart !== null && offRunEnd !== null) offlineRanges.push({ start: offRunStart, end: offRunEnd });
+                        if (poolRunStart !== null && poolRunEnd !== null) poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
+                        offRunStart = null; offRunEnd = null;
+                        poolRunStart = null; poolRunEnd = null;
                       }
                     }
-                    if (runStart !== null && runEnd !== null) {
-                      offlineRanges.push({ start: runStart, end: runEnd });
-                    }
+                    if (offRunStart !== null && offRunEnd !== null) offlineRanges.push({ start: offRunStart, end: offRunEnd });
+                    if (poolRunStart !== null && poolRunEnd !== null) poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
                   }
 
                   // Live gap: only needed when rig is offline but NO zero samples exist yet
@@ -338,7 +359,7 @@ export default function RigDetail() {
                             ifOverflow="extendDomain"
                           />
                         ))}
-                        {/* Offline periods (red) — from zero-hashrate samples + live gap */}
+                        {/* Offline periods (red) — rig disconnected */}
                         {offlineRanges.map((r, i) => (
                           <ReferenceArea
                             key={`off-${i}`}
@@ -346,6 +367,18 @@ export default function RigDetail() {
                             x2={r.end}
                             fill="#ef4444"
                             fillOpacity={0.18}
+                            stroke="none"
+                            ifOverflow="extendDomain"
+                          />
+                        ))}
+                        {/* Pool offline periods (purple) — rig connected but pool unreachable */}
+                        {poolOfflineRanges.map((r, i) => (
+                          <ReferenceArea
+                            key={`pool-${i}`}
+                            x1={r.start}
+                            x2={r.end}
+                            fill="#a855f7"
+                            fillOpacity={0.22}
                             stroke="none"
                             ifOverflow="extendDomain"
                           />

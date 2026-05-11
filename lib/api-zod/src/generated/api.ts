@@ -503,6 +503,7 @@ export const GetRigStatsResponse = zod.object({
       timestamp: zod.coerce.date(),
       hashrate: zod.number(),
       hasRental: zod.boolean(),
+      isPoolOffline: zod.boolean().default(false),
     }),
   ),
   offlinePeriods: zod.array(
@@ -1065,6 +1066,7 @@ export const GetRentalStatsResponse = zod.object({
     zod.object({
       timestamp: zod.coerce.date(),
       hashrate: zod.number(),
+      isPoolOffline: zod.boolean().default(false),
     }),
   ),
   message: zod
@@ -1652,6 +1654,7 @@ export const GetMyRigStatsResponse = zod.object({
       timestamp: zod.coerce.date(),
       hashrate: zod.number(),
       hasRental: zod.boolean(),
+      isPoolOffline: zod.boolean().default(false),
     }),
   ),
   offlinePeriods: zod.array(

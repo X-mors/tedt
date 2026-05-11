@@ -129,6 +129,10 @@ export class StratumServer {
         (snapshot.difficultySum * 4294967296) / elapsedSec;
 
       try {
+        // Pool-offline detection: miner connected but upstream pool unreachable.
+        const liveStats = proxyState.getLiveStats(snapshot.rentalId);
+        const isPoolOffline = isZeroActivity && liveStats.minerConnected && !liveStats.upstreamConnected;
+
         await db.insert(rentalHashSamplesTable).values({
           rentalId: snapshot.rentalId,
           windowSeconds: Math.round(elapsedSec),
@@ -136,6 +140,7 @@ export class StratumServer {
           sharesRejected: snapshot.sharesRejected,
           difficultySum: String(snapshot.difficultySum),
           effectiveHashrateH: String(effectiveHashrateH),
+          poolOffline: isPoolOffline,
         });
         rentalSampledThisCycle.add(snapshot.rentalId);
 
@@ -150,6 +155,7 @@ export class StratumServer {
             sharesAccepted: 0,
             sharesRejected: 0,
             effectiveHashrateH: "0",
+            poolOffline: isPoolOffline,
           });
           rigSampledThisCycle.add(snapshot.rigId);
           continue;
@@ -165,6 +171,7 @@ export class StratumServer {
           sharesAccepted: snapshot.sharesAccepted,
           sharesRejected: snapshot.sharesRejected,
           effectiveHashrateH: String(effectiveHashrateH),
+          poolOffline: false,
         });
         rigSampledThisCycle.add(snapshot.rigId);
 
@@ -224,6 +231,9 @@ export class StratumServer {
             .select({ rigId: rentalsTable.rigId })
             .from(rentalsTable)
             .where(eq(rentalsTable.id, r.id));
+          // Pool-offline detection for sweep: miner connected but pool unreachable.
+          const sweepLive = proxyState.getLiveStats(r.id);
+          const sweepPoolOffline = sweepLive.minerConnected && !sweepLive.upstreamConnected;
           await db.insert(rentalHashSamplesTable).values({
             rentalId: r.id,
             windowSeconds: 60,
@@ -231,6 +241,7 @@ export class StratumServer {
             sharesRejected: 0,
             difficultySum: "0",
             effectiveHashrateH: "0",
+            poolOffline: sweepPoolOffline,
           });
           if (rentalRig && !rigSampledThisCycle.has(rentalRig.rigId)) {
             await db.insert(rigHashSamplesTable).values({
@@ -240,6 +251,7 @@ export class StratumServer {
               sharesAccepted: 0,
               sharesRejected: 0,
               effectiveHashrateH: "0",
+              poolOffline: sweepPoolOffline,
             });
             rigSampledThisCycle.add(rentalRig.rigId);
           }
@@ -281,6 +293,8 @@ export class StratumServer {
       const effectiveHashrateH =
         (snap.difficultySum * 4294967296) / elapsedSec;
       try {
+        const fallbackStatus = proxyState.getFallbackPoolStatus(rigId);
+        const fallbackPoolOffline = fallbackStatus != null && !fallbackStatus.connected;
         await db.insert(rigHashSamplesTable).values({
           rigId,
           rentalId: null,
@@ -288,6 +302,7 @@ export class StratumServer {
           sharesAccepted: snap.sharesAccepted,
           sharesRejected: snap.sharesRejected,
           effectiveHashrateH: String(effectiveHashrateH),
+          poolOffline: fallbackPoolOffline,
         });
       } catch (err) {
         logger.error(
@@ -316,6 +331,8 @@ export class StratumServer {
         if (rigSampledThisCycle.has(rigId)) continue;
         const hasSessions = proxyState.getRigSessions(rigId).length > 0;
         if (hasSessions || fallbackIds.has(rigId)) continue;
+        const idleStatus = proxyState.getFallbackPoolStatus(rigId);
+        const idlePoolOffline = idleStatus != null && !idleStatus.connected;
         await db.insert(rigHashSamplesTable).values({
           rigId,
           rentalId: null,
@@ -323,6 +340,7 @@ export class StratumServer {
           sharesAccepted: 0,
           sharesRejected: 0,
           effectiveHashrateH: "0",
+          poolOffline: idlePoolOffline,
         });
         rigSampledThisCycle.add(rigId);
       }
