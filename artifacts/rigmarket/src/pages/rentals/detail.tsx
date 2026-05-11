@@ -572,14 +572,18 @@ export default function RentalCockpit() {
                 // immediate and never smoothed by the grace period.
                 const hasDelivered = (live.sharesAccepted ?? 0) > 0;
                 const hashrateZeroNow = (live.currentHashrateH ?? 0) === 0;
-                // Red banner: confirmed offline (post-grace) OR hashrate dropped
-                // with prior delivery history (catches grace-period case).
+                // Purple banner: pool is unreachable — takes priority over red.
+                // upstreamConnected now carries the last-known pool state even
+                // after the miner TCP session closes (proxy persists it), so
+                // this correctly fires when the miner disconnected BECAUSE the
+                // pool was down.
+                const showEstablishing = !live.upstreamConnected;
+                // Red banner: rig offline for a non-pool reason (only when pool
+                // is confirmed up or state is unknown).
                 const showOffline =
-                  !live.minerConnected ||
-                  (hasDelivered && hashrateZeroNow && (live.upstreamConnected ?? true));
-                // Purple banner: miner socket is up but pool uplink is down.
-                const showEstablishing =
-                  live.minerConnected && !live.upstreamConnected;
+                  !showEstablishing &&
+                  (!live.minerConnected ||
+                    (hasDelivered && hashrateZeroNow));
                 const avgHashrateDisplay = stats
                   ? formatHashrate(stats.averageHashrate, rental.algorithmUnit)
                   : rental.deliveredHashrateAvg != null

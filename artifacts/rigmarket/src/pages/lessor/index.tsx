@@ -192,24 +192,37 @@ export default function LessorDashboard() {
                               </Badge>
                             )}
                             <Badge variant="outline" className={`font-mono text-[10px] uppercase w-fit
-                              ${!rig.isOnline
+                              ${!rig.isOnline && rig.poolOffline
+                                ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
+                                : !rig.isOnline
                                 ? "bg-destructive/20 text-destructive border-destructive/30"
                                 : rig.status === "rented"
                                 ? "bg-secondary/50 text-secondary-foreground border-secondary"
                                 : "bg-primary/20 text-primary border-primary/30"}`}>
-                              {!rig.isOnline ? "OFFLINE" : rig.status === "rented" ? "RENTED" : "AVAILABLE"}
+                              {!rig.isOnline && rig.poolOffline
+                                ? "POOL OFFLINE"
+                                : !rig.isOnline
+                                ? "OFFLINE"
+                                : rig.status === "rented"
+                                ? "RENTED"
+                                : "AVAILABLE"}
                             </Badge>
-                            {rig.isOnline && rig.status !== "rented" && rig.hasFallbackPool && (
+                            {rig.isOnline && rig.poolOffline === true && (
+                              <Badge variant="outline" className="font-mono text-[10px] uppercase w-fit bg-purple-500/20 text-purple-400 border-purple-500/30">
+                                POOL OFFLINE
+                              </Badge>
+                            )}
+                            {rig.isOnline && rig.status !== "rented" && rig.hasFallbackPool && rig.poolOffline !== true && (
                               <Badge variant="outline" className="font-mono text-[10px] uppercase w-fit bg-yellow-500/10 text-yellow-500 border-yellow-500/30">
                                 MINING FALLBACK
                               </Badge>
                             )}
-                            {rig.isOnline && rig.status !== "rented" && !rig.hasFallbackPool && (
+                            {rig.isOnline && rig.status !== "rented" && !rig.hasFallbackPool && rig.poolOffline !== true && (
                               <Badge variant="outline" className="font-mono text-[10px] uppercase w-fit bg-green-500/10 text-green-500 border-green-500/30">
                                 ONLINE · IDLE
                               </Badge>
                             )}
-                            {rig.isOnline && rig.status === "rented" && (
+                            {rig.isOnline && rig.status === "rented" && rig.poolOffline !== true && (
                               <Badge variant="outline" className="font-mono text-[10px] uppercase w-fit bg-green-500/10 text-green-500 border-green-500/30">
                                 CONNECTED
                               </Badge>

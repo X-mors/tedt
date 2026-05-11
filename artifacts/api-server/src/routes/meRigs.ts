@@ -249,7 +249,37 @@ async function selectMyRigDetail(ownerId: number, rigId: number) {
 }
 
 router.get("/me/rigs", async (req, res) => {
-  const data = ListMyRigsResponse.parse(await selectMyRigs(req.currentUser!.id));
+  const rigs = await selectMyRigs(req.currentUser!.id);
+
+  // Enrich each rig with live pool-offline state so the owner dashboard can
+  // distinguish a pool outage from a rig disconnect.
+  const enriched = rigs.map((rig) => {
+    const entry = proxyState.getRigEntry(rig.id);
+    let poolOffline: boolean | null = null;
+
+    if (entry?.rentalId != null) {
+      // Rental mode: check renter's pool via getLiveStats (uses lastKnownPoolState).
+      const ls = proxyState.getLiveStats(entry.rentalId);
+      poolOffline = !ls.upstreamConnected;
+    } else if (entry != null) {
+      // Fallback mode: check owner's configured pool.
+      const fs = proxyState.getFallbackPoolStatus(rig.id);
+      if (fs != null) poolOffline = !fs.connected;
+    } else {
+      // Rig not currently connected — check last-known rental pool state via
+      // the grace-period snapshot (keeps rentalId alive for 10 min).
+      const graced = proxyState.getRigEntryWithGrace(rig.id);
+      if (graced?.entry?.rentalId != null) {
+        const lastState = proxyState.getLastKnownPoolState(graced.entry.rentalId);
+        if (lastState === false) poolOffline = true;
+        else if (lastState === true) poolOffline = false;
+      }
+    }
+
+    return { ...rig, poolOffline };
+  });
+
+  const data = ListMyRigsResponse.parse(enriched);
   res.json(data);
 });
 

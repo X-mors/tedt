@@ -580,6 +580,12 @@ export const ListMyRigsResponseItem = zod.object({
       "Worker name component in the `username.rigname` format. Null for rigs created before this feature or not yet connected via new-style auth.",
     ),
   createdAt: zod.coerce.date(),
+  poolOffline: zod
+    .boolean()
+    .nullable()
+    .describe(
+      "True when the upstream pool is currently unreachable. During a rental this reflects the renter's pool; outside rentals it reflects the owner's fallback pool. Null when state is unknown (rig never connected this session).",
+    ),
 });
 export const ListMyRigsResponse = zod.array(ListMyRigsResponseItem);
 
