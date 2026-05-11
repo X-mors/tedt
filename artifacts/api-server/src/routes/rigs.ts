@@ -413,21 +413,28 @@ router.get("/rigs/:id/live", async (req, res) => {
   }
 
   // Pool-offline state: expose for live chart overlay on rig detail page.
-  // For rental mode: check upstream state from rental live stats.
-  // For fallback mode: check getFallbackPoolStatus.
+  // Semantics: pool-offline = rig IS connected to proxy but its upstream pool
+  // is unreachable. If the rig is not connected (entry == null) it is simply
+  // "rig offline" — we MUST NOT query fallback pool status in that case,
+  // because during an active rental the fallback connection is always absent
+  // (proxy routes to the renter's pool), which would wrongly flip the flag.
   let upstreamConnected = true;
   let poolAuthFailed = false;
-  if (rentalId != null) {
-    const liveStats = proxyState.getLiveStats(rentalId);
-    if (liveStats.minerConnected) {
-      upstreamConnected = liveStats.upstreamConnected;
-      poolAuthFailed = liveStats.poolAuthFailed;
-    }
-  } else {
-    const fallbackStatus = proxyState.getFallbackPoolStatus(id);
-    if (fallbackStatus != null) {
-      upstreamConnected = fallbackStatus.connected;
-      poolAuthFailed = fallbackStatus.authFailed;
+  if (entry != null) {
+    if (rentalId != null) {
+      // Rental mode: check renter's pool connection.
+      const liveStats = proxyState.getLiveStats(rentalId);
+      if (liveStats.minerConnected) {
+        upstreamConnected = liveStats.upstreamConnected;
+        poolAuthFailed = liveStats.poolAuthFailed;
+      }
+    } else {
+      // Fallback mode: check owner's configured pool connection.
+      const fallbackStatus = proxyState.getFallbackPoolStatus(id);
+      if (fallbackStatus != null) {
+        upstreamConnected = fallbackStatus.connected;
+        poolAuthFailed = fallbackStatus.authFailed;
+      }
     }
   }
 
