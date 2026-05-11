@@ -710,41 +710,37 @@ export default function RentalCockpit() {
                       { label: 'MAX', ms: null },
                     ] as const;
                     const now = Date.now();
-                    const filtered = rentalRange !== null
+                    const nowMs = now;
+                    // Use numeric ms timestamps throughout — categorical string XAxis
+                    // requires exact data-point matches for ReferenceArea positioning.
+                    const filteredRaw = rentalRange !== null
                       ? stats.samples.filter(s => new Date(s.timestamp).getTime() > now - rentalRange)
                       : stats.samples;
-                    const nowStr = new Date().toISOString();
+                    const filtered = filteredRaw.map(s => ({ ...s, ts: new Date(s.timestamp).getTime() }));
                     const lastFilteredSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
 
                     // Current-state live areas (from last sample → now).
-                    // Use hashrateZeroNow (immediate signal) instead of !minerConnected
-                    // so the area appears during the 15-min grace period too.
                     const showMinerOfflineArea =
                       (!live?.minerConnected || (hasDelivered && hashrateZeroNow && (live?.upstreamConnected ?? true))) &&
                       !!lastFilteredSample;
 
-                    // Historical offline periods from DB — exact disconnect/reconnect timestamps.
-                    // Clamp start to the selected window so X domain isn't stretched by
-                    // periods that began before the visible range.
+                    // Historical offline periods — numeric ms, clamped to window.
                     const windowStart = rentalRange ? now - rentalRange : 0;
-                    const windowStartStr = new Date(windowStart).toISOString();
                     const offlineRanges = (stats.offlinePeriods ?? [])
                       .filter(p => {
                         const endMs = p.end ? new Date(p.end).getTime() : Infinity;
                         return endMs > windowStart;
                       })
                       .map(p => ({
-                        start: new Date(p.start).getTime() > windowStart ? p.start : windowStartStr,
-                        end: p.end ?? nowStr,
+                        start: Math.max(new Date(p.start).getTime(), windowStart),
+                        end: p.end ? new Date(p.end).getTime() : nowMs,
                       }));
                     const showPoolOfflineArea =
                       !!(live?.minerConnected && !live?.upstreamConnected && lastFilteredSample);
 
-                    // Append a zero data-point so the line drops to 0 visually
-                    // whenever hashrate is currently zero (not just when confirmed offline).
                     const isCurrentlyZero = hasDelivered && hashrateZeroNow;
                     const rentalChartData = isCurrentlyZero && filtered.length > 0
-                      ? [...filtered, { timestamp: nowStr, hashrate: 0 }]
+                      ? [...filtered, { ts: nowMs, hashrate: 0, timestamp: new Date(nowMs).toISOString() }]
                       : filtered;
                     return (
                     <div className="space-y-1">
@@ -772,7 +768,7 @@ export default function RentalCockpit() {
                               <stop offset="100%" stopColor="#f0b90b" stopOpacity={0.02} />
                             </linearGradient>
                           </defs>
-                          <XAxis dataKey="timestamp" hide />
+                          <XAxis dataKey="ts" type="number" scale="time" domain={['dataMin', 'dataMax']} hide />
                           <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax * 1.15, toNum(rental.hashrate) * 1.05)]} />
                           {/* Historical rig-offline periods — red */}
                           {offlineRanges.map((r, i) => (
@@ -789,8 +785,8 @@ export default function RentalCockpit() {
                           {/* Current live state: extends from last sample → now */}
                           {showMinerOfflineArea && lastFilteredSample && (
                             <ReferenceArea
-                              x1={lastFilteredSample.timestamp}
-                              x2={nowStr}
+                              x1={lastFilteredSample.ts}
+                              x2={nowMs}
                               fill="#ef4444"
                               fillOpacity={0.18}
                               stroke="none"
@@ -799,8 +795,8 @@ export default function RentalCockpit() {
                           )}
                           {showPoolOfflineArea && lastFilteredSample && (
                             <ReferenceArea
-                              x1={lastFilteredSample.timestamp}
-                              x2={nowStr}
+                              x1={lastFilteredSample.ts}
+                              x2={nowMs}
                               fill="#a855f7"
                               fillOpacity={0.18}
                               stroke="none"
@@ -819,7 +815,7 @@ export default function RentalCockpit() {
                             }}
                             labelStyle={{ color: 'hsl(var(--muted-foreground))', fontSize: 10 }}
                             formatter={(v: number) => [formatHashrate(v, rental.algorithmUnit), 'Hashrate']}
-                            labelFormatter={(t: string) => new Date(t).toLocaleTimeString()}
+                            labelFormatter={(t: number) => new Date(t).toLocaleTimeString()}
                           />
                           <ReferenceLine
                             y={toNum(rental.hashrate)}
@@ -917,21 +913,23 @@ export default function RentalCockpit() {
                   </div>
 
                   {stats && stats.samples.length > 1 ? (() => {
+                    const nowMs2 = Date.now();
+                    const histSamples = stats.samples.map(s => ({ ...s, ts: new Date(s.timestamp).getTime() }));
                     const histOfflineRanges = (stats.offlinePeriods ?? []).map(p => ({
-                      start: p.start,
-                      end: p.end ?? new Date().toISOString(),
+                      start: new Date(p.start).getTime(),
+                      end: p.end ? new Date(p.end).getTime() : nowMs2,
                     }));
                     return (
                     <div className="h-32 bg-background/30 rounded-md border border-border/30 px-2 py-2">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={stats.samples} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                        <AreaChart data={histSamples} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                           <defs>
                             <linearGradient id="hashrateFillHistory" x1="0" y1="0" x2="0" y2="1">
                               <stop offset="0%" stopColor="#f0b90b" stopOpacity={0.4} />
                               <stop offset="100%" stopColor="#f0b90b" stopOpacity={0.02} />
                             </linearGradient>
                           </defs>
-                          <XAxis dataKey="timestamp" hide />
+                          <XAxis dataKey="ts" type="number" scale="time" domain={['dataMin', 'dataMax']} hide />
                           <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax * 1.15, toNum(rental.hashrate) * 1.05)]} />
                           {/* Historical offline periods (red) — exact from DB */}
                           {histOfflineRanges.map((r, i) => (
@@ -957,7 +955,7 @@ export default function RentalCockpit() {
                             }}
                             labelStyle={{ color: 'hsl(var(--muted-foreground))', fontSize: 10 }}
                             formatter={(v: number) => [formatHashrate(v, rental.algorithmUnit), 'Hashrate']}
-                            labelFormatter={(t: string) => new Date(t).toLocaleString()}
+                            labelFormatter={(t: number) => new Date(t).toLocaleString()}
                           />
                           <ReferenceLine
                             y={toNum(rental.hashrate)}

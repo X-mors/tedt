@@ -226,22 +226,28 @@ export default function RigDetail() {
               <CardContent>
                 {rigStats.samples.length > 1 ? (() => {
                   const now = Date.now();
-                  const filtered = rigRange !== null
+                  // Use numeric ms timestamps throughout so ReferenceArea x1/x2
+                  // work on a continuous numeric scale — categorical string scales
+                  // require exact data-point matches which breaks offline overlays.
+                  const filteredRaw = rigRange !== null
                     ? rigStats.samples.filter(s => new Date(s.timestamp).getTime() > now - rigRange)
                     : rigStats.samples;
-                  const nowStr = new Date().toISOString();
+                  const filtered = filteredRaw.map(s => ({
+                    ...s,
+                    ts: new Date(s.timestamp).getTime(),
+                  }));
+                  const nowMs = now;
                   const lastSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
 
-                  // Rental ranges — built from filtered so they match the selected
-                  // time window and never extend the chart's X domain unexpectedly.
-                  const rentalRanges: { start: string; end: string }[] = [];
+                  // Rental ranges — numeric ms.
+                  const rentalRanges: { start: number; end: number }[] = [];
                   {
-                    let runStart: string | null = null;
-                    let runEnd: string | null = null;
+                    let runStart: number | null = null;
+                    let runEnd: number | null = null;
                     for (const s of filtered) {
                       if (s.hasRental) {
-                        if (runStart === null) runStart = s.timestamp;
-                        runEnd = s.timestamp;
+                        if (runStart === null) runStart = s.ts;
+                        runEnd = s.ts;
                       } else if (runStart !== null && runEnd !== null) {
                         rentalRanges.push({ start: runStart, end: runEnd });
                         runStart = null; runEnd = null;
@@ -252,30 +258,32 @@ export default function RigDetail() {
                     }
                   }
 
-                  // rigLive refreshes every 5s — use it for the live offline
-                  // signal so we catch disconnects without a page reload.
+                  // rigLive refreshes every 5s — use it for the live offline signal.
                   const isRigCurrentlyOffline = rigLive != null && !rigLive.isOnline;
 
-                  // Offline periods from DB — exact disconnect/reconnect timestamps.
-                  // Clamp start to the selected window so X domain isn't stretched by
-                  // periods that began before the visible range.
+                  // Offline periods — clamp start to window; use numeric ms.
                   const windowStart = rigRange ? now - rigRange : 0;
-                  const windowStartStr = new Date(windowStart).toISOString();
                   const offlineRanges = (rigStats.offlinePeriods ?? [])
                     .filter(p => {
                       const endMs = p.end ? new Date(p.end).getTime() : Infinity;
                       return endMs > windowStart;
                     })
                     .map(p => ({
-                      start: new Date(p.start).getTime() > windowStart ? p.start : windowStartStr,
-                      end: p.end ?? nowStr,
+                      start: Math.max(new Date(p.start).getTime(), windowStart),
+                      end: p.end ? new Date(p.end).getTime() : nowMs,
                     }));
 
-                  // Chart data: if the rig is currently offline, append a zero
-                  // point at "now" so the area visually drops to zero.
+                  // Chart data: append a synthetic zero point at now when offline
+                  // so the area drops to zero visually.
                   const rigChartData = isRigCurrentlyOffline && filtered.length > 0
-                    ? [...filtered, { timestamp: nowStr, hashrate: 0, hasRental: false }]
+                    ? [...filtered, { ts: nowMs, hashrate: 0, hasRental: false, timestamp: new Date(nowMs).toISOString() }]
                     : filtered;
+
+                  // Live offline start — prefer exact DB timestamp, fall back to last sample.
+                  const offlineSinceMs = rigLive?.offlineSince
+                    ? new Date(rigLive.offlineSince).getTime()
+                    : (lastSample?.ts ?? null);
+
                   return (
                   <div className="h-48 bg-background/30 rounded-md border border-border/30 px-2 py-2">
                     <ResponsiveContainer width="100%" height="100%">
@@ -286,7 +294,7 @@ export default function RigDetail() {
                             <stop offset="100%" stopColor="#22c55e" stopOpacity={0.02} />
                           </linearGradient>
                         </defs>
-                        <XAxis dataKey="timestamp" hide />
+                        <XAxis dataKey="ts" type="number" scale="time" domain={['dataMin', 'dataMax']} hide />
                         <YAxis
                           hide
                           domain={[0, (dataMax: number) => Math.max(dataMax * 1.15, rigStats.advertisedHashrate * 1.05)]}
@@ -315,11 +323,11 @@ export default function RigDetail() {
                             ifOverflow="extendDomain"
                           />
                         ))}
-                        {/* Current live offline overlay: use exact offlineSince from rigLive */}
-                        {isRigCurrentlyOffline && (rigLive?.offlineSince ?? lastSample?.timestamp) && (
+                        {/* Current live offline overlay — covers from offlineSince to now */}
+                        {isRigCurrentlyOffline && offlineSinceMs !== null && (
                           <ReferenceArea
-                            x1={rigLive?.offlineSince ?? lastSample!.timestamp}
-                            x2={nowStr}
+                            x1={Math.max(offlineSinceMs, windowStart)}
+                            x2={nowMs}
                             fill="#ef4444"
                             fillOpacity={0.18}
                             stroke="none"
@@ -342,7 +350,7 @@ export default function RigDetail() {
                               (item?.payload?.hasRental ? ' · rental' : ' · idle'),
                             'Hashrate',
                           ]}
-                          labelFormatter={(t: string) => new Date(t).toLocaleString()}
+                          labelFormatter={(t: number) => new Date(t).toLocaleString()}
                         />
                         <ReferenceLine
                           y={rigStats.advertisedHashrate}
