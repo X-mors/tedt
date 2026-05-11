@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import {
   db,
   rigsTable,
@@ -9,6 +9,7 @@ import {
   walletTransactionsTable,
   reviewsTable,
   rentalHashSamplesTable,
+  rigOfflinePeriodsTable,
 } from "@workspace/db";
 import { proxyState } from "../lib/stratum/state";
 import { flushAndRemoveRentalWindow } from "../lib/stratum/persistence";
@@ -568,6 +569,7 @@ router.get("/rentals/:id/stats", async (req, res) => {
   const [rental] = await db
     .select({
       id: rentalsTable.id,
+      rigId: rentalsTable.rigId,
       renterId: rentalsTable.renterId,
       ownerId: rentalsTable.ownerId,
       status: rentalsTable.status,
@@ -713,6 +715,47 @@ router.get("/rentals/:id/stats", async (req, res) => {
     message = "No hashrate data recorded for this rental.";
   }
 
+  // Offline periods for the rig that overlap with this rental's time window.
+  // Overlap condition: period.startedAt < rentalEnd AND (period.endedAt IS NULL OR period.endedAt > rentalStart)
+  // This catches periods that started before rental start but ran into it, and
+  // avoids returning periods that ended before the rental began.
+  const rentalStart = rental.startedAt ?? new Date(0);
+  // For active rentals endsAt is the future scheduled end; for finished rentals
+  // it is the actual close time. Either way it is the correct upper bound.
+  const rentalEnd = rental.endsAt;
+
+  const offlinePeriodsRaw = await db
+    .select({
+      startedAt: rigOfflinePeriodsTable.startedAt,
+      endedAt: rigOfflinePeriodsTable.endedAt,
+    })
+    .from(rigOfflinePeriodsTable)
+    .where(
+      and(
+        eq(rigOfflinePeriodsTable.rigId, rental.rigId),
+        // Period must start before the rental window ends
+        lt(rigOfflinePeriodsTable.startedAt, rentalEnd),
+        // Period must end after the rental window starts (or still be open)
+        or(
+          isNull(rigOfflinePeriodsTable.endedAt),
+          gte(rigOfflinePeriodsTable.endedAt, rentalStart),
+        ),
+      ),
+    )
+    .orderBy(asc(rigOfflinePeriodsTable.startedAt));
+
+  const nowMs = Date.now();
+  const offlinePeriods = offlinePeriodsRaw.map((p) => {
+    // Clamp to rental window so chart overlays don't extend outside the rental.
+    const clampedStart = p.startedAt < rentalStart ? rentalStart : p.startedAt;
+    const periodEndMs = p.endedAt ? p.endedAt.getTime() : nowMs;
+    const clampedEndMs = Math.min(periodEndMs, rentalEnd.getTime());
+    return {
+      start: clampedStart.toISOString(),
+      end: new Date(clampedEndMs).toISOString(),
+    };
+  });
+
   const data = GetRentalStatsResponse.parse({
     rentalId: rental.id,
     currentHashrate: displayHashrateH / algMultiplier,
@@ -729,6 +772,7 @@ router.get("/rentals/:id/stats", async (req, res) => {
     minerConnected: minerConnectedDisplay,
     upstreamConnected: upstreamConnectedDisplay,
     poolAuthFailed: live.poolAuthFailed,
+    offlinePeriods,
   });
   res.setHeader("Cache-Control", "no-store");
   res.json(data);

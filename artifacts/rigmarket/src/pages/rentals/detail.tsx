@@ -723,24 +723,20 @@ export default function RentalCockpit() {
                       (!live?.minerConnected || (hasDelivered && hashrateZeroNow && (live?.upstreamConnected ?? true))) &&
                       !!lastFilteredSample;
 
-                    // Historical offline ranges: hashrate=0 → rig was offline (red).
-                    const offlineRanges: { start: string; end: string }[] = [];
-                    let offStart: string | null = null;
-                    for (const s of filtered) {
-                      if (s.hashrate === 0) {
-                        if (!offStart) offStart = s.timestamp;
-                      } else if (offStart) {
-                        offlineRanges.push({ start: offStart, end: s.timestamp });
-                        offStart = null;
-                      }
-                    }
-                    // If offStart is still open but the rig is back online
-                    // (live updated before stats refetched), close it now so
-                    // the red stays visible until the next stats refresh (≤90s).
-                    if (offStart !== null && !showMinerOfflineArea) {
-                      offlineRanges.push({ start: offStart, end: nowStr });
-                      offStart = null;
-                    }
+                    // Historical offline periods from DB — exact disconnect/reconnect timestamps.
+                    // Clamp start to the selected window so X domain isn't stretched by
+                    // periods that began before the visible range.
+                    const windowStart = rentalRange ? now - rentalRange : 0;
+                    const windowStartStr = new Date(windowStart).toISOString();
+                    const offlineRanges = (stats.offlinePeriods ?? [])
+                      .filter(p => {
+                        const endMs = p.end ? new Date(p.end).getTime() : Infinity;
+                        return endMs > windowStart;
+                      })
+                      .map(p => ({
+                        start: new Date(p.start).getTime() > windowStart ? p.start : windowStartStr,
+                        end: p.end ?? nowStr,
+                      }));
                     const showPoolOfflineArea =
                       !!(live?.minerConnected && !live?.upstreamConnected && lastFilteredSample);
 
@@ -920,7 +916,12 @@ export default function RentalCockpit() {
                     </div>
                   </div>
 
-                  {stats && stats.samples.length > 1 ? (
+                  {stats && stats.samples.length > 1 ? (() => {
+                    const histOfflineRanges = (stats.offlinePeriods ?? []).map(p => ({
+                      start: p.start,
+                      end: p.end ?? new Date().toISOString(),
+                    }));
+                    return (
                     <div className="h-32 bg-background/30 rounded-md border border-border/30 px-2 py-2">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={stats.samples} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
@@ -932,6 +933,18 @@ export default function RentalCockpit() {
                           </defs>
                           <XAxis dataKey="timestamp" hide />
                           <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax * 1.15, toNum(rental.hashrate) * 1.05)]} />
+                          {/* Historical offline periods (red) — exact from DB */}
+                          {histOfflineRanges.map((r, i) => (
+                            <ReferenceArea
+                              key={`hist-off-${i}`}
+                              x1={r.start}
+                              x2={r.end}
+                              fill="#ef4444"
+                              fillOpacity={0.14}
+                              stroke="none"
+                              ifOverflow="extendDomain"
+                            />
+                          ))}
                           <Tooltip
                             cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '3 3' }}
                             contentStyle={{
@@ -967,7 +980,8 @@ export default function RentalCockpit() {
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
-                  ) : (
+                    );
+                  })() : (
                     <div className="flex items-center justify-center gap-2 h-16 bg-background/30 rounded-md border border-dashed border-border/30 text-muted-foreground">
                       <BarChart2 className="w-4 h-4" />
                       <span className="text-xs font-mono">No hashrate data recorded</span>

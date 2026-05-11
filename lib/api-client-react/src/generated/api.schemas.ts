@@ -627,6 +627,8 @@ export interface RentalStats {
   upstreamConnected: boolean;
   /** True when the pool rejected the worker credentials (wrong worker name or password) */
   poolAuthFailed: boolean;
+  /** Exact rig offline periods that overlapped with this rental */
+  offlinePeriods: { start: string; end: string | null }[];
 }
 
 /**

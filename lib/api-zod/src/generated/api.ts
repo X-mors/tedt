@@ -1086,6 +1086,12 @@ export const GetRentalStatsResponse = zod.object({
     .describe(
       "True when the pool rejected the worker credentials (wrong worker name or password)",
     ),
+  offlinePeriods: zod.array(
+    zod.object({
+      start: zod.string(),
+      end: zod.string().nullable(),
+    }),
+  ).default([]),
 });
 
 /**
