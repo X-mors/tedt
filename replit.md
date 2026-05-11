@@ -333,8 +333,15 @@ NODE_ENV=production pnpm --filter @workspace/rigmarket run build
 pm2 restart tedt-api
 ```
 
+If the session added DB columns, also run:
+
+```bash
+sudo -u postgres psql -d xmors -c "-- your ALTER TABLE here"
+```
+
 Notes:
 - VPS path: `/var/www/livehashrate.com`, PM2 process name: `tedt-api`.
+- Production PostgreSQL database name: **xmors** (user: xmors).
 - The rigmarket build is included by default because skipping it has caused
   user-visible regressions (saved-pool dropdowns missing, stats UI mismatch
   with API). If a session truly only touches `artifacts/api-server` you may
