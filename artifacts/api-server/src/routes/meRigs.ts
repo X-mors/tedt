@@ -274,10 +274,11 @@ router.get("/me/rigs", async (req, res) => {
         if (lastState === false) poolOffline = true;
         else if (lastState === true) poolOffline = false;
       } else {
-        // Was in fallback mode: fallbackPoolStatus closes at the same time as the
-        // miner TCP session (both share the same upstream socket path), so we
-        // cannot distinguish pool failure from a normal rig disconnect. Leave
-        // poolOffline=null — the badge will show plain "OFFLINE" which is safe.
+        // Fallback/idle mode: use the persisted fallbackLastPoolState which is
+        // written before the TCP session closes (unlike getFallbackPoolStatus
+        // which returns null once the miner disconnects).
+        const lastFallback = proxyState.getLastKnownFallbackPoolState(rig.id);
+        if (lastFallback !== null) poolOffline = !lastFallback.connected;
       }
     }
 

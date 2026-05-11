@@ -95,6 +95,15 @@ class ProxyState {
     { connected: boolean; updatedAt: number }
   >();
   /**
+   * Per-rig last-known fallback pool state (idle mode, no active rental),
+   * persisted across miner disconnects so the UI can distinguish "pool killed
+   * the miner" from "rig powered off".  Keyed by rigId.  TTL = 10 min.
+   */
+  private fallbackLastPoolState = new Map<
+    number,
+    { connected: boolean; authFailed: boolean; updatedAt: number }
+  >();
+  /**
    * Per-rig extranonce format hint keyed by rigId.
    * Stores the pool's exact extranonce1 VALUE and extranonce2_size so the next
    * subscribe reply can use them verbatim — making set_extranonce unnecessary.
@@ -149,6 +158,11 @@ class ProxyState {
         this._pruneSamples(w.recentSamples, nowMs);
       }
     }
+    for (const [rigId, s] of this.fallbackLastPoolState) {
+      if (nowMs - s.updatedAt >= RIG_SNAPSHOT_TTL_MS) {
+        this.fallbackLastPoolState.delete(rigId);
+      }
+    }
   }
 
   /**
@@ -165,6 +179,7 @@ class ProxyState {
     }
     this.lastSeenRigEntries.delete(rigId);
     this.fallbackWindows.delete(rigId);
+    this.fallbackLastPoolState.delete(rigId);
     const pf = this.parkedFallbacks.get(rigId);
     if (pf) { clearTimeout(pf.timer); pf.upstream.destroy(); this.parkedFallbacks.delete(rigId); }
   }
@@ -399,6 +414,14 @@ class ProxyState {
         connected: conn.entry.upstreamConnected,
         updatedAt: Date.now(),
       });
+    } else {
+      // Fallback mode: persist the last pool state so the UI can distinguish
+      // "pool killed the miner" from a normal rig power-off.
+      this.fallbackLastPoolState.set(rigId, {
+        connected: conn.entry.upstreamConnected,
+        authFailed: conn.entry.upstreamAuthFailed,
+        updatedAt: Date.now(),
+      });
     }
     // Snapshot so the owner UI keeps showing share counts and lastShareAt
     // during the reconnect grace window.
@@ -521,15 +544,38 @@ class ProxyState {
     if (conn) {
       conn.entry.upstreamConnected = connected;
       if (connected) conn.entry.upstreamAuthFailed = false;
-      // Persist so the flush loop can detect pool-offline even if the miner
-      // disconnects before the next 60-s sample tick.
+      // Persist so the UI can detect pool-offline even if the miner
+      // disconnects before the next query.
       if (conn.entry.rentalId != null) {
         this.rentalLastPoolState.set(conn.entry.rentalId, {
           connected,
           updatedAt: Date.now(),
         });
+      } else {
+        // Fallback mode: update the per-rig persistent state too.
+        this.fallbackLastPoolState.set(conn.entry.rigId, {
+          connected,
+          authFailed: conn.entry.upstreamAuthFailed,
+          updatedAt: Date.now(),
+        });
       }
     }
+  }
+
+  /**
+   * Return the last-known fallback pool state for a rig (idle mode, no rental).
+   * Returns null if no state has been recorded yet or the TTL has expired.
+   */
+  getLastKnownFallbackPoolState(
+    rigId: number,
+  ): { connected: boolean; authFailed: boolean } | null {
+    const s = this.fallbackLastPoolState.get(rigId);
+    if (!s) return null;
+    if (Date.now() - s.updatedAt >= RIG_SNAPSHOT_TTL_MS) {
+      this.fallbackLastPoolState.delete(rigId);
+      return null;
+    }
+    return { connected: s.connected, authFailed: s.authFailed };
   }
 
   setUpstreamAuthFailed(sessionId: string, failed: boolean): void {
