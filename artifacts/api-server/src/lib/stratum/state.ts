@@ -86,6 +86,15 @@ class ProxyState {
    *  so the owner UI does not flap to OFFLINE / 0 shares on transient drops. */
   private lastSeenRigEntries = new Map<number, RigSnapshot>();
   /**
+   * Per-rental last-known upstream pool state, persisted across miner
+   * disconnects so the flush loop can still detect pool-offline even when
+   * the miner TCP session has already closed.  TTL = 10 min.
+   */
+  private rentalLastPoolState = new Map<
+    number,
+    { connected: boolean; updatedAt: number }
+  >();
+  /**
    * Per-rig extranonce format hint keyed by rigId.
    * Stores the pool's exact extranonce1 VALUE and extranonce2_size so the next
    * subscribe reply can use them verbatim — making set_extranonce unnecessary.
@@ -383,6 +392,14 @@ class ProxyState {
     const conn = this.rigConnections.get(sessionId);
     if (!conn) return;
     const rigId = conn.entry.rigId;
+    // Persist the upstream pool state at the moment of disconnect so the next
+    // flush cycle can detect pool-offline even though the TCP session is gone.
+    if (conn.entry.rentalId != null) {
+      this.rentalLastPoolState.set(conn.entry.rentalId, {
+        connected: conn.entry.upstreamConnected,
+        updatedAt: Date.now(),
+      });
+    }
     // Snapshot so the owner UI keeps showing share counts and lastShareAt
     // during the reconnect grace window.
     this.lastSeenRigEntries.set(rigId, {
@@ -504,6 +521,14 @@ class ProxyState {
     if (conn) {
       conn.entry.upstreamConnected = connected;
       if (connected) conn.entry.upstreamAuthFailed = false;
+      // Persist so the flush loop can detect pool-offline even if the miner
+      // disconnects before the next 60-s sample tick.
+      if (conn.entry.rentalId != null) {
+        this.rentalLastPoolState.set(conn.entry.rentalId, {
+          connected,
+          updatedAt: Date.now(),
+        });
+      }
     }
   }
 
@@ -702,6 +727,17 @@ class ProxyState {
   // Live read-side helpers
   // ──────────────────────────────────────────────────────────────────────────
 
+  /**
+   * Return the last-recorded upstream pool state for a rental (persisted
+   * across miner disconnects).  Returns null when unknown or stale (> 10 min).
+   */
+  getLastKnownPoolState(rentalId: number): boolean | null {
+    const s = this.rentalLastPoolState.get(rentalId);
+    if (!s) return null;
+    if (Date.now() - s.updatedAt > 10 * 60_000) return null;
+    return s.connected;
+  }
+
   getLiveStats(rentalId: number): {
     minerConnected: boolean;
     upstreamConnected: boolean;
@@ -716,10 +752,19 @@ class ProxyState {
     const conn = Array.from(this.rigConnections.values()).find(
       (c) => c.entry.rentalId === rentalId,
     );
+    // When the miner is disconnected, fall back to the last-known pool state
+    // (saved in setUpstreamConnected / removeRig).  This lets the flush loop
+    // write pool_offline=true even if the miner dropped its TCP session because
+    // the pool was unreachable.  Default to true (pool assumed up) when unknown.
+    const lastKnown = conn == null ? this.getLastKnownPoolState(rentalId) : null;
+    const upstreamConnected =
+      conn != null
+        ? conn.entry.upstreamConnected
+        : (lastKnown ?? true);
     if (!window) {
       return {
         minerConnected: conn != null,
-        upstreamConnected: conn?.entry.upstreamConnected ?? false,
+        upstreamConnected,
         poolAuthFailed: conn?.entry.upstreamAuthFailed ?? false,
         sharesAccepted: 0,
         sharesRejected: 0,
@@ -735,7 +780,7 @@ class ProxyState {
     );
     return {
       minerConnected: conn != null,
-      upstreamConnected: conn?.entry.upstreamConnected ?? false,
+      upstreamConnected,
       poolAuthFailed: conn?.entry.upstreamAuthFailed ?? false,
       sharesAccepted: window.sharesAcceptedLifetime,
       sharesRejected: window.sharesRejectedLifetime,

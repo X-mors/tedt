@@ -282,57 +282,39 @@ export default function RigDetail() {
                       }]
                     : filtered;
 
-                  // Build offline ranges (red) and pool-offline ranges (purple) from samples.
-                  // poolOffline=true → rig connected but upstream pool unreachable → purple.
-                  // hashrate===0 && !poolOffline → rig disconnected → red.
-                  const offlineRanges: { start: number; end: number }[] = [];
+                  // Offline ranges (red): sourced directly from rig_offline_periods DB
+                  // records (precise to the second, persisted on every disconnect).
+                  // This ensures brief offline periods (<60 s, no sample written) are
+                  // still shown historically and don't vanish when the rig reconnects.
+                  const offlineRanges: { start: number; end: number }[] =
+                    rigStats.offlinePeriods.map(p => ({
+                      start: new Date(p.start).getTime(),
+                      end:   p.end ? new Date(p.end).getTime() : nowMs,
+                    }));
+
+                  // Pool-offline ranges (purple): sourced from samples with
+                  // isPoolOffline=true.  Purple takes visual priority over red.
                   const poolOfflineRanges: { start: number; end: number }[] = [];
                   {
-                    let offRunStart: number | null = null;
-                    let offRunEnd: number | null = null;
                     let poolRunStart: number | null = null;
-                    let poolRunEnd: number | null = null;
+                    let poolRunEnd:   number | null = null;
                     for (const s of rigChartData) {
-                      const isPoolOff = s.isPoolOffline === true;
-                      if (isPoolOff) {
-                        // Pool offline — purple
+                      if (s.isPoolOffline) {
                         if (poolRunStart === null) poolRunStart = s.ts;
                         poolRunEnd = s.ts;
-                        // end any red run
-                        if (offRunStart !== null && offRunEnd !== null) {
-                          offlineRanges.push({ start: offRunStart, end: offRunEnd });
-                        }
-                        offRunStart = null; offRunEnd = null;
-                      } else if (s.hashrate === 0) {
-                        // Rig offline — red
-                        if (offRunStart === null) offRunStart = s.ts;
-                        offRunEnd = s.ts;
-                        // end any purple run
-                        if (poolRunStart !== null && poolRunEnd !== null) {
-                          poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
-                        }
-                        poolRunStart = null; poolRunEnd = null;
                       } else {
-                        if (offRunStart !== null && offRunEnd !== null) offlineRanges.push({ start: offRunStart, end: offRunEnd });
-                        if (poolRunStart !== null && poolRunEnd !== null) poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
-                        offRunStart = null; offRunEnd = null;
+                        if (poolRunStart !== null && poolRunEnd !== null)
+                          poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
                         poolRunStart = null; poolRunEnd = null;
                       }
                     }
-                    if (offRunStart !== null && offRunEnd !== null) offlineRanges.push({ start: offRunStart, end: offRunEnd });
-                    if (poolRunStart !== null && poolRunEnd !== null) poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
+                    if (poolRunStart !== null && poolRunEnd !== null)
+                      poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
                   }
 
-                  // Live gap: only needed when offline state is active but NO matching samples exist yet
-                  // (gap opened between flush ticks — synthetic lone point has zero width).
-                  const hasZeroSamplesInFiltered = filtered.some(s => s.hashrate === 0 && !s.isPoolOffline);
+                  // Live pool-offline gap: if pool is currently offline but the most
+                  // recent sample hasn't captured it yet (< 60 s since it started).
                   const hasPoolOfflineSamplesInFiltered = filtered.some(s => s.isPoolOffline === true);
-                  const offlineSinceMs = isRigCurrentlyOffline
-                    ? (rigLive?.offlineSince ? new Date(rigLive.offlineSince).getTime() : lastSample?.ts ?? null)
-                    : null;
-                  if (offlineSinceMs !== null && !hasZeroSamplesInFiltered) {
-                    offlineRanges.push({ start: offlineSinceMs, end: nowMs });
-                  }
                   if (isPoolCurrentlyOffline && lastSample && !hasPoolOfflineSamplesInFiltered) {
                     poolOfflineRanges.push({ start: lastSample.ts, end: nowMs });
                   }

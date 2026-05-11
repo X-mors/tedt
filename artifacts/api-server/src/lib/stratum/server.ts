@@ -129,9 +129,12 @@ export class StratumServer {
         (snapshot.difficultySum * 4294967296) / elapsedSec;
 
       try {
-        // Pool-offline detection: miner connected but upstream pool unreachable.
+        // Pool-offline detection: upstream pool unreachable during this window.
+        // getLiveStats returns the last-known upstreamConnected even after the
+        // miner TCP session closes, so pool_offline=true is correctly written
+        // even when the miner disconnected *because* the pool was unreachable.
         const liveStats = proxyState.getLiveStats(snapshot.rentalId);
-        const isPoolOffline = isZeroActivity && liveStats.minerConnected && !liveStats.upstreamConnected;
+        const isPoolOffline = isZeroActivity && !liveStats.upstreamConnected;
 
         await db.insert(rentalHashSamplesTable).values({
           rentalId: snapshot.rentalId,
@@ -231,9 +234,11 @@ export class StratumServer {
             .select({ rigId: rentalsTable.rigId })
             .from(rentalsTable)
             .where(eq(rentalsTable.id, r.id));
-          // Pool-offline detection for sweep: miner connected but pool unreachable.
+          // Pool-offline detection for sweep: uses last-known pool state so a
+          // disconnected miner that dropped due to pool failure still gets
+          // pool_offline=true on the zero sample rather than plain rig-offline.
           const sweepLive = proxyState.getLiveStats(r.id);
-          const sweepPoolOffline = sweepLive.minerConnected && !sweepLive.upstreamConnected;
+          const sweepPoolOffline = !sweepLive.upstreamConnected;
           await db.insert(rentalHashSamplesTable).values({
             rentalId: r.id,
             windowSeconds: 60,
