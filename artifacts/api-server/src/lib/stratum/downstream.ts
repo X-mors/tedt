@@ -2,8 +2,8 @@ import * as net from "node:net";
 import { EventEmitter } from "node:events";
 import { randomBytes } from "node:crypto";
 import { randomUUID } from "node:crypto";
-import { eq, and, asc, isNull } from "drizzle-orm";
-import { db, rigsTable, rentalsTable, proxyAuthFailuresTable, usersTable, algorithmsTable, rigOfflinePeriodsTable } from "@workspace/db";
+import { eq, and, asc, isNull, desc } from "drizzle-orm";
+import { db, rigsTable, rentalsTable, proxyAuthFailuresTable, usersTable, algorithmsTable, rigOfflinePeriodsTable, rigHashSamplesTable } from "@workspace/db";
 import { logger } from "../logger";
 import { proxyState } from "./state";
 import { flushAndRemoveRentalWindow } from "./persistence";
@@ -1421,10 +1421,21 @@ export class DownstreamSession extends EventEmitter {
         .update(rigsTable)
         .set({ isOnline: false })
         .where(eq(rigsTable.id, this.rigId));
-      // Open a new offline period with the exact disconnect timestamp.
+      // Open a new offline period. Use the last sample timestamp as startedAt —
+      // that's when the rig actually stopped hashing, which is more accurate
+      // than the TCP disconnect time (which can lag by minutes).
       void db
-        .insert(rigOfflinePeriodsTable)
-        .values({ rigId: this.rigId, startedAt: new Date() });
+        .select({ sampledAt: rigHashSamplesTable.sampledAt })
+        .from(rigHashSamplesTable)
+        .where(eq(rigHashSamplesTable.rigId, this.rigId))
+        .orderBy(desc(rigHashSamplesTable.sampledAt))
+        .limit(1)
+        .then(([lastSample]) => {
+          const startedAt = lastSample?.sampledAt ?? new Date();
+          return db
+            .insert(rigOfflinePeriodsTable)
+            .values({ rigId: this.rigId, startedAt });
+        });
     }
     // Refresh the per-IP extranonce hint so the NEXT connect from this machine
     // gets the correct e1 byte-length and e2size in the subscribe reply.

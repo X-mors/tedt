@@ -2,9 +2,9 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { seedDatabase } from "./lib/seed";
 import { StratumServer } from "./lib/stratum/server";
-import { backfillApprovedRigStatus, backfillRigTokens, backfillStratumNames } from "./lib/backfill";
+import { backfillApprovedRigStatus, backfillRigTokens, backfillStratumNames, backfillOfflinePeriodsFromSamples } from "./lib/backfill";
 import { startDepositWorker } from "./lib/depositWorker";
-import { db, rigsTable, rigOfflinePeriodsTable } from "@workspace/db";
+import { db, rigsTable, rigOfflinePeriodsTable, rigHashSamplesTable } from "@workspace/db";
 import { eq, notInArray, inArray, and, or, isNull, sql } from "drizzle-orm";
 import { proxyState } from "./lib/stratum/state";
 
@@ -46,6 +46,7 @@ seedDatabase()
   .then(() => backfillRigTokens())
   .then(() => backfillStratumNames())
   .then(() => backfillApprovedRigStatus())
+  .then(() => backfillOfflinePeriodsFromSamples())
   .then(() => db.update(rigsTable).set({ isOnline: false }))
   .then(async () => {
     // Close any open offline periods that may have been left open from a
@@ -54,16 +55,26 @@ seedDatabase()
       .update(rigOfflinePeriodsTable)
       .set({ endedAt: new Date() })
       .where(isNull(rigOfflinePeriodsTable.endedAt));
-    // Open a fresh offline period for every rig, using lastSeenAt as the
-    // best approximation of when it actually disconnected.
-    const rigs = await db
-      .select({ id: rigsTable.id, lastSeenAt: rigsTable.lastSeenAt })
-      .from(rigsTable);
+    // Open a fresh offline period for every rig. Use the last hash sample
+    // timestamp as startedAt — that's when the rig actually stopped hashing,
+    // which is far more accurate than lastSeenAt (which reflects TCP connect
+    // time and is often set just seconds before a restart).
+    const lastSamplesRaw = await db
+      .select({
+        rigId: rigHashSamplesTable.rigId,
+        lastSampleAt: sql<string>`MAX(${rigHashSamplesTable.sampledAt})`,
+      })
+      .from(rigHashSamplesTable)
+      .groupBy(rigHashSamplesTable.rigId);
+    const lastSampleMap = new Map(
+      lastSamplesRaw.map((s) => [s.rigId, new Date(s.lastSampleAt)]),
+    );
+    const rigs = await db.select({ id: rigsTable.id }).from(rigsTable);
     if (rigs.length > 0) {
       await db.insert(rigOfflinePeriodsTable).values(
         rigs.map((r) => ({
           rigId: r.id,
-          startedAt: r.lastSeenAt ?? new Date(),
+          startedAt: lastSampleMap.get(r.id) ?? new Date(),
         })),
       );
     }
