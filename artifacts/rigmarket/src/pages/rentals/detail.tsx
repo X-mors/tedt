@@ -727,9 +727,17 @@ export default function RentalCockpit() {
                     const showPoolOfflineArea =
                       !!(live?.minerConnected && !live?.upstreamConnected && lastFilteredSample);
 
-                    const isCurrentlyZero = hasDelivered && hashrateZeroNow;
-                    const rentalChartData = isCurrentlyZero && filtered.length > 0
-                      ? [...filtered, { ts: nowMs, hashrate: 0, timestamp: new Date(nowMs).toISOString() }]
+                    // Always append a synthetic live point at nowMs:
+                    //   - Miner offline → hashrate 0 → red extends to now
+                    //   - Miner online  → live hashrate → chart ends green, red stops at last zero sample
+                    const liveMinerHashrate = live?.currentHashrate ?? 0;
+                    const isMinerCurrentlyOffline = showMinerOfflineArea;
+                    const rentalChartData = filtered.length > 0
+                      ? [...filtered, {
+                          ts: nowMs,
+                          hashrate: isMinerCurrentlyOffline ? 0 : liveMinerHashrate,
+                          timestamp: new Date(nowMs).toISOString(),
+                        }]
                       : filtered;
 
                     // Build offline ranges from zero-hashrate sequences — same mechanism as

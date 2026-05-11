@@ -261,10 +261,18 @@ export default function RigDetail() {
                   // rigLive refreshes every 5s — use it for the live offline signal.
                   const isRigCurrentlyOffline = rigLive != null && !rigLive.isOnline;
 
-                  // Chart data: append a synthetic zero point at now when offline
-                  // so the area visually drops to zero and the offline range extends to now.
-                  const rigChartData = isRigCurrentlyOffline && filtered.length > 0
-                    ? [...filtered, { ts: nowMs, hashrate: 0, hasRental: false, timestamp: new Date(nowMs).toISOString() }]
+                  // Always append a synthetic live point at nowMs so the chart domain
+                  // reaches the current time and reflects the rig's live state:
+                  //   - Offline  → hashrate 0 → red area extends to now
+                  //   - Online   → live hashrate → chart ends green, red stops at last zero sample
+                  const liveHashrate = rigLive?.currentHashrate ?? 0;
+                  const rigChartData = filtered.length > 0
+                    ? [...filtered, {
+                        ts: nowMs,
+                        hashrate: isRigCurrentlyOffline ? 0 : liveHashrate,
+                        hasRental: filtered[filtered.length - 1]!.hasRental,
+                        timestamp: new Date(nowMs).toISOString(),
+                      }]
                     : filtered;
 
                   // Build offline ranges from zero-hashrate sequences in the chart data —
