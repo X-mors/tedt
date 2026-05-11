@@ -257,14 +257,17 @@ export default function RigDetail() {
                   const isRigCurrentlyOffline = rigLive != null && !rigLive.isOnline;
 
                   // Offline periods from DB — exact disconnect/reconnect timestamps.
-                  // Filter to the selected time window so the chart X-axis isn't stretched.
+                  // Clamp start to the selected window so X domain isn't stretched by
+                  // periods that began before the visible range.
+                  const windowStart = rigRange ? now - rigRange : 0;
+                  const windowStartStr = new Date(windowStart).toISOString();
                   const offlineRanges = (rigStats.offlinePeriods ?? [])
                     .filter(p => {
                       const endMs = p.end ? new Date(p.end).getTime() : Infinity;
-                      return endMs > (rigRange ? now - rigRange : 0);
+                      return endMs > windowStart;
                     })
                     .map(p => ({
-                      start: p.start,
+                      start: new Date(p.start).getTime() > windowStart ? p.start : windowStartStr,
                       end: p.end ?? nowStr,
                     }));
 

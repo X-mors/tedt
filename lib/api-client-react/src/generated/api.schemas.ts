@@ -122,6 +122,8 @@ export interface RigLive {
   currentHashrate: number;
   currentDifficulty: number;
   workerCount: number;
+  /** @nullable */
+  offlineSince: string | null;
 }
 
 export interface RigSummary {
@@ -469,12 +471,19 @@ export type OwnerRigStatsSamplesItem = {
   hasRental: boolean;
 };
 
+export type OwnerRigStatsOfflinePeriodsItem = {
+  start: string;
+  /** @nullable */
+  end: string | null;
+};
+
 export interface OwnerRigStats {
   rigId: number;
   algorithmUnit: string;
   advertisedHashrate: number;
   retentionDays: number;
   samples: OwnerRigStatsSamplesItem[];
+  offlinePeriods: OwnerRigStatsOfflinePeriodsItem[];
 }
 
 export type RentalStatus = (typeof RentalStatus)[keyof typeof RentalStatus];
