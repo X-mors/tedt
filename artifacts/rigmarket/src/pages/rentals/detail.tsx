@@ -783,8 +783,17 @@ export default function RentalCockpit() {
                     }
                     return (
                     <div className="space-y-1">
-                    <div className="flex justify-end gap-1">
-                      {rentalRangeOptions.map(opt => (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-sm bg-red-500" /> Offline
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-sm bg-purple-500" /> Pool offline
+                        </span>
+                      </div>
+                      <div className="flex gap-1">
+                        {rentalRangeOptions.map(opt => (
                         <button
                           key={opt.label}
                           onClick={() => setRentalRange(opt.ms ?? null)}
@@ -797,6 +806,7 @@ export default function RentalCockpit() {
                           {opt.label}
                         </button>
                       ))}
+                      </div>
                     </div>
                     <div className="h-32 bg-background/30 rounded-md border border-border/30 px-2 py-2">
                       <ResponsiveContainer width="100%" height="100%">
