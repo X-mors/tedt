@@ -719,24 +719,25 @@ export default function RentalCockpit() {
                     const filtered = filteredRaw.map(s => ({ ...s, ts: new Date(s.timestamp).getTime() }));
                     const lastFilteredSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
 
-                    // Current-state live areas (from last sample → now).
-                    const showMinerOfflineArea =
+                    // Current-state live conditions.
+                    const isMinerCurrentlyOffline =
                       (!live?.minerConnected || (hasDelivered && hashrateZeroNow && (live?.upstreamConnected ?? true))) &&
                       !!lastFilteredSample;
-
-                    const showPoolOfflineArea =
-                      !!(live?.minerConnected && !live?.upstreamConnected && lastFilteredSample);
+                    // Pool offline = miner connected but upstream pool down.
+                    const isPoolCurrentlyOffline =
+                      !!(live?.minerConnected && !live?.upstreamConnected);
 
                     // Always append a synthetic live point at nowMs:
-                    //   - Miner offline → hashrate 0 → red extends to now
-                    //   - Miner online  → live hashrate → chart ends green, red stops at last zero sample
+                    //   - Miner offline     → hashrate 0, isPoolOffline false → red
+                    //   - Pool offline      → hashrate 0, isPoolOffline true  → purple
+                    //   - Online + hashing  → live hashrate                   → no shading
                     const liveMinerHashrate = live?.currentHashrate ?? 0;
-                    const isMinerCurrentlyOffline = showMinerOfflineArea;
                     const rentalChartData = filtered.length > 0
                       ? [...filtered, {
                           ts: nowMs,
-                          hashrate: isMinerCurrentlyOffline ? 0 : liveMinerHashrate,
+                          hashrate: (isMinerCurrentlyOffline || isPoolCurrentlyOffline) ? 0 : liveMinerHashrate,
                           timestamp: new Date(nowMs).toISOString(),
+                          isPoolOffline: isPoolCurrentlyOffline,
                         }]
                       : filtered;
 
@@ -749,7 +750,7 @@ export default function RentalCockpit() {
                       let poolRunStart: number | null = null;
                       let poolRunEnd: number | null = null;
                       for (const s of rentalChartData) {
-                        const isPoolOff = (s as { isPoolOffline?: boolean }).isPoolOffline === true;
+                        const isPoolOff = s.isPoolOffline === true;
                         if (isPoolOff) {
                           if (poolRunStart === null) poolRunStart = s.ts;
                           poolRunEnd = s.ts;
@@ -770,10 +771,15 @@ export default function RentalCockpit() {
                       if (offRunStart !== null && offRunEnd !== null) offlineRanges.push({ start: offRunStart, end: offRunEnd });
                       if (poolRunStart !== null && poolRunEnd !== null) poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
                     }
-                    // Live gap: only when miner is offline but NO zero samples exist yet.
-                    const hasZeroSamplesInFiltered = filtered.some(s => s.hashrate === 0);
-                    if (showMinerOfflineArea && lastFilteredSample && !hasZeroSamplesInFiltered) {
+                    // Live gap: only when offline state is active but NO matching samples exist yet
+                    // (gap opened between flush ticks — synthetic lone point has zero width).
+                    const hasZeroSamplesInFiltered = filtered.some(s => s.hashrate === 0 && !s.isPoolOffline);
+                    const hasPoolOfflineSamplesInFiltered = filtered.some(s => s.isPoolOffline === true);
+                    if (isMinerCurrentlyOffline && lastFilteredSample && !hasZeroSamplesInFiltered) {
                       offlineRanges.push({ start: lastFilteredSample.ts, end: nowMs });
+                    }
+                    if (isPoolCurrentlyOffline && lastFilteredSample && !hasPoolOfflineSamplesInFiltered) {
+                      poolOfflineRanges.push({ start: lastFilteredSample.ts, end: nowMs });
                     }
                     return (
                     <div className="space-y-1">
@@ -827,8 +833,8 @@ export default function RentalCockpit() {
                               ifOverflow="extendDomain"
                             />
                           ))}
-                          {/* Live pool offline gap — miner connected but upstream down right now */}
-                          {showPoolOfflineArea && lastFilteredSample && (
+                          {/* Live pool offline gap — driven by poolOfflineRanges (sample-based + live gap) */}
+                          {false && lastFilteredSample && (
                             <ReferenceArea
                               x1={lastFilteredSample.ts}
                               x2={nowMs}
@@ -959,7 +965,7 @@ export default function RentalCockpit() {
                       let poolRunStart: number | null = null;
                       let poolRunEnd: number | null = null;
                       for (const s of histSamples) {
-                        const isPoolOff = (s as { isPoolOffline?: boolean }).isPoolOffline === true;
+                        const isPoolOff = s.isPoolOffline === true;
                         if (isPoolOff) {
                           if (poolRunStart === null) poolRunStart = s.ts;
                           poolRunEnd = s.ts;

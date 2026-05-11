@@ -294,7 +294,10 @@ export class StratumServer {
         (snap.difficultySum * 4294967296) / elapsedSec;
       try {
         const fallbackStatus = proxyState.getFallbackPoolStatus(rigId);
-        const fallbackPoolOffline = fallbackStatus != null && !fallbackStatus.connected;
+        // poolOffline=true only when the sample is zero-hashrate AND pool is down.
+        // Never mark non-zero samples as pool-offline — rig was hashing fine.
+        const fallbackPoolOffline =
+          effectiveHashrateH === 0 && fallbackStatus != null && !fallbackStatus.connected;
         await db.insert(rigHashSamplesTable).values({
           rigId,
           rentalId: null,

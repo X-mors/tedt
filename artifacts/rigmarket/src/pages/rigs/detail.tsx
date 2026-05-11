@@ -323,17 +323,18 @@ export default function RigDetail() {
                     if (poolRunStart !== null && poolRunEnd !== null) poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
                   }
 
-                  // Live gap: only needed when rig is offline but NO zero samples exist yet
-                  // (rig went offline between sample ticks — synthetic zero at nowMs is a
-                  // single invisible point). When zero samples DO exist, the synthetic zero
-                  // at nowMs already extends the last range to nowMs with a single ReferenceArea,
-                  // so we must NOT add a second overlapping area (causes double opacity / darker shade).
-                  const hasZeroSamplesInFiltered = filtered.some(s => s.hashrate === 0);
+                  // Live gap: only needed when offline state is active but NO matching samples exist yet
+                  // (gap opened between flush ticks — synthetic lone point has zero width).
+                  const hasZeroSamplesInFiltered = filtered.some(s => s.hashrate === 0 && !s.isPoolOffline);
+                  const hasPoolOfflineSamplesInFiltered = filtered.some(s => s.isPoolOffline === true);
                   const offlineSinceMs = isRigCurrentlyOffline
                     ? (rigLive?.offlineSince ? new Date(rigLive.offlineSince).getTime() : lastSample?.ts ?? null)
                     : null;
                   if (offlineSinceMs !== null && !hasZeroSamplesInFiltered) {
                     offlineRanges.push({ start: offlineSinceMs, end: nowMs });
+                  }
+                  if (isPoolCurrentlyOffline && lastSample && !hasPoolOfflineSamplesInFiltered) {
+                    poolOfflineRanges.push({ start: lastSample.ts, end: nowMs });
                   }
 
                   return (
