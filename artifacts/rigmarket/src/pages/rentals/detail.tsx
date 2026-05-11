@@ -724,15 +724,18 @@ export default function RentalCockpit() {
                       (!live?.minerConnected || (hasDelivered && hashrateZeroNow && (live?.upstreamConnected ?? true))) &&
                       !!lastFilteredSample;
 
-                    // Historical offline periods — numeric ms, clamped to window.
+                    // Clamp offline ranges to actual data bounds.
                     const windowStart = rentalRange ? now - rentalRange : 0;
+                    const activeDataMin = filtered.length > 0 ? filtered[0]!.ts : windowStart;
+                    const activeDomainMin = Math.max(windowStart, activeDataMin);
+
                     const offlineRanges = (stats.offlinePeriods ?? [])
                       .filter(p => {
                         const endMs = p.end ? new Date(p.end).getTime() : Infinity;
-                        return endMs > windowStart;
+                        return endMs > activeDomainMin;
                       })
                       .map(p => ({
-                        start: Math.max(new Date(p.start).getTime(), windowStart),
+                        start: Math.max(new Date(p.start).getTime(), activeDomainMin),
                         end: p.end ? new Date(p.end).getTime() : nowMs,
                       }));
                     const showPoolOfflineArea =
@@ -785,7 +788,7 @@ export default function RentalCockpit() {
                           {/* Current live state: extends from last sample → now */}
                           {showMinerOfflineArea && lastFilteredSample && (
                             <ReferenceArea
-                              x1={lastFilteredSample.ts}
+                              x1={Math.max(lastFilteredSample.ts, activeDomainMin)}
                               x2={nowMs}
                               fill="#ef4444"
                               fillOpacity={0.18}
@@ -795,7 +798,7 @@ export default function RentalCockpit() {
                           )}
                           {showPoolOfflineArea && lastFilteredSample && (
                             <ReferenceArea
-                              x1={lastFilteredSample.ts}
+                              x1={Math.max(lastFilteredSample.ts, activeDomainMin)}
                               x2={nowMs}
                               fill="#a855f7"
                               fillOpacity={0.18}

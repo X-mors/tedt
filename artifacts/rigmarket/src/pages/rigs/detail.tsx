@@ -261,15 +261,19 @@ export default function RigDetail() {
                   // rigLive refreshes every 5s — use it for the live offline signal.
                   const isRigCurrentlyOffline = rigLive != null && !rigLive.isOnline;
 
-                  // Offline periods — clamp start to window; use numeric ms.
+                  // Clamp offline ranges to actual data bounds so the chart
+                  // domain never extends beyond the visible data range.
                   const windowStart = rigRange ? now - rigRange : 0;
+                  const dataMin = filtered.length > 0 ? filtered[0]!.ts : windowStart;
+                  const domainMin = Math.max(windowStart, dataMin);
+
                   const offlineRanges = (rigStats.offlinePeriods ?? [])
                     .filter(p => {
                       const endMs = p.end ? new Date(p.end).getTime() : Infinity;
-                      return endMs > windowStart;
+                      return endMs > domainMin;
                     })
                     .map(p => ({
-                      start: Math.max(new Date(p.start).getTime(), windowStart),
+                      start: Math.max(new Date(p.start).getTime(), domainMin),
                       end: p.end ? new Date(p.end).getTime() : nowMs,
                     }));
 
@@ -280,8 +284,9 @@ export default function RigDetail() {
                     : filtered;
 
                   // Live offline start — prefer exact DB timestamp, fall back to last sample.
+                  // Clamp to domainMin so the overlay never extends the x-axis left.
                   const offlineSinceMs = rigLive?.offlineSince
-                    ? new Date(rigLive.offlineSince).getTime()
+                    ? Math.max(new Date(rigLive.offlineSince).getTime(), domainMin)
                     : (lastSample?.ts ?? null);
 
                   return (
