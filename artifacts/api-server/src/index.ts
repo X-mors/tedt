@@ -139,26 +139,41 @@ seedDatabase()
           updated.forEach((r) => nowOnlineIds.add(r.id));
         }
 
-        // Rigs that were online but are no longer → open an offline period.
+        // Rigs that were online but are no longer → ensure an offline period
+        // is open. The disconnect handler already does this with the correct
+        // startedAt (last sample timestamp), so we only insert here as a
+        // fallback for crash/ungraceful-shutdown cases where the handler
+        // didn't fire. Never close+reopen an existing open period — that
+        // would reset startedAt to now and break the chart.
         const newlyOfflineIds = [...prevOnlineIds].filter(
           (id) => !nowOnlineIds.has(id),
         );
         if (newlyOfflineIds.length > 0) {
-          const now = new Date();
-          // Close any existing open period first (defensive).
-          for (const rigId of newlyOfflineIds) {
-            await db
-              .update(rigOfflinePeriodsTable)
-              .set({ endedAt: now })
-              .where(
-                and(
-                  eq(rigOfflinePeriodsTable.rigId, rigId),
-                  isNull(rigOfflinePeriodsTable.endedAt),
-                ),
-              );
+          // Find which of these already have an open period (handler fired).
+          const alreadyOpen = await db
+            .selectDistinct({ rigId: rigOfflinePeriodsTable.rigId })
+            .from(rigOfflinePeriodsTable)
+            .where(
+              and(
+                inArray(rigOfflinePeriodsTable.rigId, newlyOfflineIds),
+                isNull(rigOfflinePeriodsTable.endedAt),
+              ),
+            );
+          const alreadyOpenIds = new Set(alreadyOpen.map((r) => r.rigId));
+          const needPeriod = newlyOfflineIds.filter((id) => !alreadyOpenIds.has(id));
+
+          for (const rigId of needPeriod) {
+            // Use last sample timestamp as startedAt (same logic as disconnect handler).
+            const [lastSample] = await db
+              .select({ sampledAt: rigHashSamplesTable.sampledAt })
+              .from(rigHashSamplesTable)
+              .where(eq(rigHashSamplesTable.rigId, rigId))
+              .orderBy(desc(rigHashSamplesTable.sampledAt))
+              .limit(1);
+            const startedAt = lastSample?.sampledAt ?? new Date();
             await db
               .insert(rigOfflinePeriodsTable)
-              .values({ rigId, startedAt: now });
+              .values({ rigId, startedAt });
           }
         }
 
