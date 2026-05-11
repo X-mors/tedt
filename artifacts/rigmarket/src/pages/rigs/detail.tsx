@@ -262,9 +262,11 @@ export default function RigDetail() {
                   }
 
                   // rigLive refreshes every 5s — use it for the live offline signal.
-                  const isRigCurrentlyOffline = rigLive != null && !rigLive.isOnline;
-                  // Pool offline = rig connected but upstream pool is down (live state).
-                  const isPoolCurrentlyOffline = rigLive != null && rigLive.isOnline && !rigLive.upstreamConnected;
+                  // Pool offline takes priority: API now returns upstreamConnected=false
+                  // even when the miner is disconnected (if pool caused the disconnect).
+                  const isPoolCurrentlyOffline = rigLive != null && !rigLive.upstreamConnected;
+                  // Rig offline = pool is fine but miner socket dropped.
+                  const isRigCurrentlyOffline = rigLive != null && !rigLive.isOnline && rigLive.upstreamConnected;
 
                   // Always append a synthetic live point at nowMs so the chart domain
                   // reaches the current time and reflects the rig's live state:

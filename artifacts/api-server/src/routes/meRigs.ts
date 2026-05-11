@@ -266,13 +266,17 @@ router.get("/me/rigs", async (req, res) => {
       const fs = proxyState.getFallbackPoolStatus(rig.id);
       if (fs != null) poolOffline = !fs.connected;
     } else {
-      // Rig not currently connected — check last-known rental pool state via
-      // the grace-period snapshot (keeps rentalId alive for 10 min).
+      // Rig not currently connected — distinguish pool failure from rig issue.
       const graced = proxyState.getRigEntryWithGrace(rig.id);
       if (graced?.entry?.rentalId != null) {
+        // Was in rental mode: use persisted pool state (10-min TTL).
         const lastState = proxyState.getLastKnownPoolState(graced.entry.rentalId);
         if (lastState === false) poolOffline = true;
         else if (lastState === true) poolOffline = false;
+      } else {
+        // Was in fallback mode: fallbackPoolStatus persists briefly after disconnect.
+        const fs = proxyState.getFallbackPoolStatus(rig.id);
+        if (fs != null) poolOffline = !fs.connected;
       }
     }
 

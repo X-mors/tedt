@@ -413,11 +413,8 @@ router.get("/rigs/:id/live", async (req, res) => {
   }
 
   // Pool-offline state: expose for live chart overlay on rig detail page.
-  // Semantics: pool-offline = rig IS connected to proxy but its upstream pool
-  // is unreachable. If the rig is not connected (entry == null) it is simply
-  // "rig offline" — we MUST NOT query fallback pool status in that case,
-  // because during an active rental the fallback connection is always absent
-  // (proxy routes to the renter's pool), which would wrongly flip the flag.
+  // We now also check the last-known state when the miner is disconnected so
+  // that the UI can distinguish "pool killed the miner" from "rig issue".
   let upstreamConnected = true;
   let poolAuthFailed = false;
   if (entry != null) {
@@ -430,6 +427,23 @@ router.get("/rigs/:id/live", async (req, res) => {
       }
     } else {
       // Fallback mode: check owner's configured pool connection.
+      const fallbackStatus = proxyState.getFallbackPoolStatus(id);
+      if (fallbackStatus != null) {
+        upstreamConnected = fallbackStatus.connected;
+        poolAuthFailed = fallbackStatus.authFailed;
+      }
+    }
+  } else {
+    // Miner disconnected — check last-known state to distinguish pool failure
+    // from a plain rig disconnect.
+    const graced = proxyState.getRigEntryWithGrace(id);
+    if (graced?.entry?.rentalId != null) {
+      // Was in rental mode: use persisted pool state (10-min TTL).
+      const lastState = proxyState.getLastKnownPoolState(graced.entry.rentalId);
+      if (lastState !== null) upstreamConnected = lastState;
+    } else {
+      // Was in fallback mode: fallbackPoolStatus persists briefly after the
+      // miner TCP session closes. null = no fallback ever configured → keep true.
       const fallbackStatus = proxyState.getFallbackPoolStatus(id);
       if (fallbackStatus != null) {
         upstreamConnected = fallbackStatus.connected;
