@@ -833,17 +833,6 @@ export default function RentalCockpit() {
                               ifOverflow="extendDomain"
                             />
                           ))}
-                          {/* Live pool offline gap — driven by poolOfflineRanges (sample-based + live gap) */}
-                          {false && lastFilteredSample && (
-                            <ReferenceArea
-                              x1={lastFilteredSample.ts}
-                              x2={nowMs}
-                              fill="#a855f7"
-                              fillOpacity={0.22}
-                              stroke="none"
-                              ifOverflow="extendDomain"
-                            />
-                          )}
                           <Tooltip
                             cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '3 3' }}
                             contentStyle={{
