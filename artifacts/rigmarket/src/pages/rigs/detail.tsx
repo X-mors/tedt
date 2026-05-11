@@ -282,32 +282,39 @@ export default function RigDetail() {
                       }]
                     : filtered;
 
-                  // Offline ranges (red): sourced directly from rig_offline_periods DB
-                  // records (precise to the second, persisted on every disconnect).
-                  // This ensures brief offline periods (<60 s, no sample written) are
-                  // still shown historically and don't vanish when the rig reconnects.
-                  //
-                  // IMPORTANT: clamp each range to the chart's visible window.
-                  // An open period (end=null) could have started many hours / days
-                  // ago; without clamping it would paint the entire visible range red
-                  // even when the rig is currently online.
+                  // Left boundary for all ReferenceArea clamps:
+                  //   - Finite range (1H…1W): nowMs minus the range window.
+                  //   - MAX: the timestamp of the first visible sample, so that
+                  //     offline periods don't extend the x-axis domain leftward
+                  //     beyond the actual data (which caused the 1W/MAX distortion).
+                  const chartStart = filtered.length > 0 ? filtered[0].ts : nowMs;
                   const rangeStartMs = rigRange !== null ? nowMs - rigRange : null;
+                  const clampMs = rangeStartMs ?? chartStart;
+
+                  // Helper: does an offline period overlap any RENTAL sample?
+                  // Red rig-offline areas are only meaningful during active rentals;
+                  // brief miner reconnects during idle/fallback are expected and
+                  // should not paint the chart red.
+                  const hasRentalOverlap = (start: number, end: number) =>
+                    filtered.some(s => s.hasRental && s.ts >= start - 120_000 && s.ts <= end + 120_000);
+
+                  // Offline ranges (red): DB-precise records, clamped to visible
+                  // window AND filtered to rental periods only.
                   const offlineRanges: { start: number; end: number }[] =
                     rigStats.offlinePeriods
                       .map(p => ({
                         start: new Date(p.start).getTime(),
                         end:   p.end ? new Date(p.end).getTime() : nowMs,
                       }))
-                      // drop ranges that ended before the visible window begins
-                      .filter(r => rangeStartMs === null || r.end > rangeStartMs)
-                      // clamp the start so old open-ended periods don't bleed left
-                      .map(r => ({
-                        start: rangeStartMs !== null ? Math.max(r.start, rangeStartMs) : r.start,
-                        end:   r.end,
-                      }));
+                      .filter(r => r.end > clampMs)
+                      .map(r => ({ start: Math.max(r.start, clampMs), end: r.end }))
+                      // Only show red during rental periods — idle disconnects are normal.
+                      .filter(r => hasRentalOverlap(r.start, r.end));
 
                   // Pool-offline ranges (purple): sourced from samples with
-                  // isPoolOffline=true.  Purple takes visual priority over red.
+                  // isPoolOffline=true.  Shown in both rental AND idle periods
+                  // (owner needs to know their fallback pool is down).
+                  // Purple takes visual priority over red.
                   const poolOfflineRanges: { start: number; end: number }[] = [];
                   {
                     let poolRunStart: number | null = null;
