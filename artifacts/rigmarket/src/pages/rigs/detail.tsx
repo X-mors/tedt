@@ -286,11 +286,25 @@ export default function RigDetail() {
                   // records (precise to the second, persisted on every disconnect).
                   // This ensures brief offline periods (<60 s, no sample written) are
                   // still shown historically and don't vanish when the rig reconnects.
+                  //
+                  // IMPORTANT: clamp each range to the chart's visible window.
+                  // An open period (end=null) could have started many hours / days
+                  // ago; without clamping it would paint the entire visible range red
+                  // even when the rig is currently online.
+                  const rangeStartMs = rigRange !== null ? nowMs - rigRange : null;
                   const offlineRanges: { start: number; end: number }[] =
-                    rigStats.offlinePeriods.map(p => ({
-                      start: new Date(p.start).getTime(),
-                      end:   p.end ? new Date(p.end).getTime() : nowMs,
-                    }));
+                    rigStats.offlinePeriods
+                      .map(p => ({
+                        start: new Date(p.start).getTime(),
+                        end:   p.end ? new Date(p.end).getTime() : nowMs,
+                      }))
+                      // drop ranges that ended before the visible window begins
+                      .filter(r => rangeStartMs === null || r.end > rangeStartMs)
+                      // clamp the start so old open-ended periods don't bleed left
+                      .map(r => ({
+                        start: rangeStartMs !== null ? Math.max(r.start, rangeStartMs) : r.start,
+                        end:   r.end,
+                      }));
 
                   // Pool-offline ranges (purple): sourced from samples with
                   // isPoolOffline=true.  Purple takes visual priority over red.
