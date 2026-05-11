@@ -299,18 +299,20 @@ function ExtendRentalDialog({
   );
 }
 
-function StatusDot({ connected, label, sublabel, error, warn }: { connected: boolean; label: string; sublabel?: string; error?: boolean; warn?: boolean }) {
+function StatusDot({ connected, label, sublabel, error, warn, amber }: { connected: boolean; label: string; sublabel?: string; error?: boolean; warn?: boolean; amber?: boolean }) {
   return (
     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
       error
         ? 'text-red-500 border-red-500/30 bg-red-500/10'
         : warn
           ? 'text-purple-400 border-purple-500/30 bg-purple-500/10'
-          : connected
-            ? 'text-green-500 border-green-500/30 bg-green-500/10'
-            : 'text-muted-foreground border-border/40 bg-muted/20'
+          : amber
+            ? 'text-yellow-500 border-yellow-500/30 bg-yellow-500/10'
+            : connected
+              ? 'text-green-500 border-green-500/30 bg-green-500/10'
+              : 'text-muted-foreground border-border/40 bg-muted/20'
     }`}>
-      <div className={`w-2 h-2 rounded-full shrink-0 ${error ? 'bg-red-500' : warn ? 'bg-purple-400 animate-pulse' : connected ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/50'}`} />
+      <div className={`w-2 h-2 rounded-full shrink-0 ${error ? 'bg-red-500' : warn ? 'bg-purple-400 animate-pulse' : amber ? 'bg-yellow-500 animate-pulse' : connected ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/50'}`} />
       <div>
         <p className="text-xs font-mono font-semibold">{label}</p>
         {sublabel && <p className="text-[10px] opacity-70">{sublabel}</p>}
@@ -417,7 +419,10 @@ export default function RentalCockpit() {
   const elapsedPercent = live ? ((totalSeconds - live.secondsRemaining) / totalSeconds) * 100 : 0;
 
   const minerConnected = live?.minerConnected ?? false;
+  // TCP socket to upstream pool is open.
   const poolConnected = live?.upstreamConnected ?? false;
+  // Pool is ACTUALLY delivering work — TCP up AND the proxy is seeing shares.
+  const poolReceiving = poolConnected && (live?.currentHashrate ?? 0) > 0;
   const poolAuthFailed = live?.poolAuthFailed ?? false;
 
   return (
@@ -512,13 +517,15 @@ export default function RentalCockpit() {
                 sublabel={minerConnected ? "Connected to proxy" : "Waiting for miner connection"}
               />
               <StatusDot
-                connected={poolConnected}
+                connected={poolReceiving}
                 error={!poolConnected && poolAuthFailed}
-                warn={minerConnected && !poolConnected && !poolAuthFailed}
+                warn={!poolConnected && minerConnected && !poolAuthFailed}
+                amber={poolConnected && !poolReceiving && !poolAuthFailed}
                 label="YOUR POOL"
                 sublabel={
-                  poolConnected ? "Receiving hashrate"
+                  poolReceiving ? "Receiving hashrate"
                   : poolAuthFailed ? "Pool rejected credentials"
+                  : poolConnected && minerConnected ? "Connected — waiting for shares"
                   : minerConnected ? "Pool disconnected — reconnecting"
                   : "Waiting for rig first"
                 }
@@ -572,18 +579,23 @@ export default function RentalCockpit() {
                 // immediate and never smoothed by the grace period.
                 const hasDelivered = (live.sharesAccepted ?? 0) > 0;
                 const hashrateZeroNow = (live.currentHashrateH ?? 0) === 0;
-                // Purple banner: pool is unreachable — takes priority over red.
-                // upstreamConnected now carries the last-known pool state even
-                // after the miner TCP session closes (proxy persists it), so
-                // this correctly fires when the miner disconnected BECAUSE the
-                // pool was down.
+                // Purple banner: pool TCP is down — takes priority over everything.
+                // upstreamConnected carries the last-known pool state even after
+                // the miner TCP session closes (proxy persists it 10 min), so
+                // this fires when the miner disconnected BECAUSE the pool was down.
                 const showEstablishing = !live.upstreamConnected;
-                // Red banner: rig offline for a non-pool reason (only when pool
-                // is confirmed up or state is unknown).
-                const showOffline =
+                // Red banner: pool TCP is up but miner's socket dropped → rig issue.
+                const showOffline = !showEstablishing && !live.minerConnected;
+                // Amber banner: both sockets connected but no hashrate flowing →
+                // pool accepted TCP but isn't sending work (wrong credentials
+                // silently ignored, or pool backlog, or just reconnecting).
+                const showHashrateWarn =
                   !showEstablishing &&
-                  (!live.minerConnected ||
-                    (hasDelivered && hashrateZeroNow));
+                  !showOffline &&
+                  live.minerConnected &&
+                  live.upstreamConnected &&
+                  hasDelivered &&
+                  hashrateZeroNow;
                 const avgHashrateDisplay = stats
                   ? formatHashrate(stats.averageHashrate, rental.algorithmUnit)
                   : rental.deliveredHashrateAvg != null
@@ -594,6 +606,15 @@ export default function RentalCockpit() {
                   : live.deliveryRatio;
                 return (
                 <div className="space-y-6">
+                  {showEstablishing ? (
+                    <div className="flex items-center gap-3 rounded-md border border-purple-500/30 bg-purple-500/10 p-3">
+                      <Wifi className="w-5 h-5 text-purple-400 shrink-0 animate-pulse" />
+                      <div className="text-xs">
+                        <div className="font-mono font-bold text-purple-400 uppercase">Pool offline — reconnecting</div>
+                        <div className="text-muted-foreground">The destination pool is unreachable. The rig will resume hashing the moment the pool link is restored.</div>
+                      </div>
+                    </div>
+                  ) : null}
                   {showOffline ? (
                     <div className="flex items-center gap-3 rounded-md border border-red-500/30 bg-red-500/10 p-3">
                       <WifiOff className="w-5 h-5 text-red-500 shrink-0" />
@@ -603,12 +624,12 @@ export default function RentalCockpit() {
                       </div>
                     </div>
                   ) : null}
-                  {showEstablishing ? (
-                    <div className="flex items-center gap-3 rounded-md border border-purple-500/30 bg-purple-500/10 p-3">
-                      <Wifi className="w-5 h-5 text-purple-400 shrink-0 animate-pulse" />
+                  {showHashrateWarn ? (
+                    <div className="flex items-center gap-3 rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3">
+                      <Wifi className="w-5 h-5 text-yellow-500 shrink-0 animate-pulse" />
                       <div className="text-xs">
-                        <div className="font-mono font-bold text-purple-400 uppercase">Pool disconnected — reconnecting</div>
-                        <div className="text-muted-foreground">Rig is connected to proxy but pool link dropped. Will reconnect automatically.</div>
+                        <div className="font-mono font-bold text-yellow-500 uppercase">No hashrate — pool connected</div>
+                        <div className="text-muted-foreground">Rig and pool are both connected but no shares are flowing. Check your pool URL and worker credentials.</div>
                       </div>
                     </div>
                   ) : null}
@@ -723,13 +744,12 @@ export default function RentalCockpit() {
                     const filtered = filteredRaw.map(s => ({ ...s, ts: new Date(s.timestamp).getTime() }));
                     const lastFilteredSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
 
-                    // Current-state live conditions.
+                    // Current-state live conditions — must match banner logic above.
+                    // Purple: pool TCP down (regardless of miner state).
+                    const isPoolCurrentlyOffline = !live?.upstreamConnected;
+                    // Red: pool up but miner socket dropped.
                     const isMinerCurrentlyOffline =
-                      (!live?.minerConnected || (hasDelivered && hashrateZeroNow && (live?.upstreamConnected ?? true))) &&
-                      !!lastFilteredSample;
-                    // Pool offline = miner connected but upstream pool down.
-                    const isPoolCurrentlyOffline =
-                      !!(live?.minerConnected && !live?.upstreamConnected);
+                      !isPoolCurrentlyOffline && !live?.minerConnected && !!lastFilteredSample;
 
                     // Always append a synthetic live point at nowMs:
                     //   - Miner offline     → hashrate 0, isPoolOffline false → red
@@ -1107,13 +1127,17 @@ export default function RentalCockpit() {
                 </div>
                 {rental.status === 'active' && (
                   <div className={`flex items-center gap-2 mt-1 text-xs px-2 py-1.5 rounded-md border ${
-                    poolConnected
+                    poolReceiving
                       ? 'text-green-600 dark:text-green-400 bg-green-500/10 border-green-500/30'
-                      : 'text-muted-foreground bg-muted/20 border-border/40'
+                      : poolConnected
+                        ? 'text-yellow-600 dark:text-yellow-400 bg-yellow-500/10 border-yellow-500/30'
+                        : 'text-muted-foreground bg-muted/20 border-border/40'
                   }`}>
-                    {poolConnected
+                    {poolReceiving
                       ? <><Wifi className="w-3 h-3" /> Pool is receiving hashrate</>
-                      : <><WifiOff className="w-3 h-3" /> Waiting for connection</>
+                      : poolConnected
+                        ? <><Wifi className="w-3 h-3" /> Connected — no shares flowing</>
+                        : <><WifiOff className="w-3 h-3" /> Waiting for connection</>
                     }
                   </div>
                 )}
