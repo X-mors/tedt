@@ -434,21 +434,15 @@ router.get("/rigs/:id/live", async (req, res) => {
       }
     }
   } else {
-    // Miner disconnected — check last-known state to distinguish pool failure
-    // from a plain rig disconnect.
+    // Miner disconnected — only the rental case has a reliable persisted pool
+    // state (rentalLastPoolState, 10-min TTL). For fallback mode we cannot
+    // distinguish "pool caused the disconnect" from "normal rig shutdown"
+    // because both close the same TCP upstream socket simultaneously.
+    // Fallback pool status is therefore NOT read here to avoid false positives.
     const graced = proxyState.getRigEntryWithGrace(id);
     if (graced?.entry?.rentalId != null) {
-      // Was in rental mode: use persisted pool state (10-min TTL).
       const lastState = proxyState.getLastKnownPoolState(graced.entry.rentalId);
       if (lastState !== null) upstreamConnected = lastState;
-    } else {
-      // Was in fallback mode: fallbackPoolStatus persists briefly after the
-      // miner TCP session closes. null = no fallback ever configured → keep true.
-      const fallbackStatus = proxyState.getFallbackPoolStatus(id);
-      if (fallbackStatus != null) {
-        upstreamConnected = fallbackStatus.connected;
-        poolAuthFailed = fallbackStatus.authFailed;
-      }
     }
   }
 
