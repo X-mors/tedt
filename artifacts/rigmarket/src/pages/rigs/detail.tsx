@@ -261,33 +261,44 @@ export default function RigDetail() {
                   // rigLive refreshes every 5s — use it for the live offline signal.
                   const isRigCurrentlyOffline = rigLive != null && !rigLive.isOnline;
 
-                  // Clamp offline ranges to actual data bounds so the chart
-                  // domain never extends beyond the visible data range.
-                  const windowStart = rigRange ? now - rigRange : 0;
-                  const dataMin = filtered.length > 0 ? filtered[0]!.ts : windowStart;
-                  const domainMin = Math.max(windowStart, dataMin);
-
-                  const offlineRanges = (rigStats.offlinePeriods ?? [])
-                    .filter(p => {
-                      const endMs = p.end ? new Date(p.end).getTime() : Infinity;
-                      return endMs > domainMin;
-                    })
-                    .map(p => ({
-                      start: Math.max(new Date(p.start).getTime(), domainMin),
-                      end: p.end ? new Date(p.end).getTime() : nowMs,
-                    }));
-
                   // Chart data: append a synthetic zero point at now when offline
-                  // so the area drops to zero visually.
+                  // so the area visually drops to zero and the offline range extends to now.
                   const rigChartData = isRigCurrentlyOffline && filtered.length > 0
                     ? [...filtered, { ts: nowMs, hashrate: 0, hasRental: false, timestamp: new Date(nowMs).toISOString() }]
                     : filtered;
 
-                  // Live offline start — prefer exact DB timestamp, fall back to last sample.
-                  // Clamp to domainMin so the overlay never extends the x-axis left.
-                  const offlineSinceMs = rigLive?.offlineSince
-                    ? Math.max(new Date(rigLive.offlineSince).getTime(), domainMin)
-                    : (lastSample?.ts ?? null);
+                  // Build offline ranges from zero-hashrate sequences in the chart data —
+                  // identical mechanism to rentalRanges (which use hasRental).
+                  // hashrate === 0 is already set by the server for offline samples.
+                  const offlineRanges: { start: number; end: number }[] = [];
+                  {
+                    let runStart: number | null = null;
+                    let runEnd: number | null = null;
+                    for (const s of rigChartData) {
+                      if (s.hashrate === 0) {
+                        if (runStart === null) runStart = s.ts;
+                        runEnd = s.ts;
+                      } else {
+                        if (runStart !== null && runEnd !== null) {
+                          offlineRanges.push({ start: runStart, end: runEnd });
+                        }
+                        runStart = null; runEnd = null;
+                      }
+                    }
+                    if (runStart !== null && runEnd !== null) {
+                      offlineRanges.push({ start: runStart, end: runEnd });
+                    }
+                  }
+
+                  // Live gap: if the rig is offline but last sample was non-zero
+                  // (rig went offline between samples), add one range from offlineSince → now.
+                  // This covers the gap the sample-derived ranges miss.
+                  const offlineSinceMs = isRigCurrentlyOffline
+                    ? (rigLive?.offlineSince ? new Date(rigLive.offlineSince).getTime() : lastSample?.ts ?? null)
+                    : null;
+                  if (offlineSinceMs !== null) {
+                    offlineRanges.push({ start: offlineSinceMs, end: nowMs });
+                  }
 
                   return (
                   <div className="h-48 bg-background/30 rounded-md border border-border/30 px-2 py-2">
@@ -316,7 +327,7 @@ export default function RigDetail() {
                             ifOverflow="extendDomain"
                           />
                         ))}
-                        {/* Historical offline periods (red) — exact from DB */}
+                        {/* Offline periods (red) — from zero-hashrate samples + live gap */}
                         {offlineRanges.map((r, i) => (
                           <ReferenceArea
                             key={`off-${i}`}
@@ -328,17 +339,6 @@ export default function RigDetail() {
                             ifOverflow="extendDomain"
                           />
                         ))}
-                        {/* Current live offline overlay — covers from offlineSince to now */}
-                        {isRigCurrentlyOffline && offlineSinceMs !== null && (
-                          <ReferenceArea
-                            x1={Math.max(offlineSinceMs, windowStart)}
-                            x2={nowMs}
-                            fill="#ef4444"
-                            fillOpacity={0.18}
-                            stroke="none"
-                            ifOverflow="extendDomain"
-                          />
-                        )}
                         <Tooltip
                           cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeWidth: 1, strokeDasharray: '3 3' }}
                           contentStyle={{

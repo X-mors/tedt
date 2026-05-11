@@ -724,20 +724,6 @@ export default function RentalCockpit() {
                       (!live?.minerConnected || (hasDelivered && hashrateZeroNow && (live?.upstreamConnected ?? true))) &&
                       !!lastFilteredSample;
 
-                    // Clamp offline ranges to actual data bounds.
-                    const windowStart = rentalRange ? now - rentalRange : 0;
-                    const activeDataMin = filtered.length > 0 ? filtered[0]!.ts : windowStart;
-                    const activeDomainMin = Math.max(windowStart, activeDataMin);
-
-                    const offlineRanges = (stats.offlinePeriods ?? [])
-                      .filter(p => {
-                        const endMs = p.end ? new Date(p.end).getTime() : Infinity;
-                        return endMs > activeDomainMin;
-                      })
-                      .map(p => ({
-                        start: Math.max(new Date(p.start).getTime(), activeDomainMin),
-                        end: p.end ? new Date(p.end).getTime() : nowMs,
-                      }));
                     const showPoolOfflineArea =
                       !!(live?.minerConnected && !live?.upstreamConnected && lastFilteredSample);
 
@@ -745,6 +731,32 @@ export default function RentalCockpit() {
                     const rentalChartData = isCurrentlyZero && filtered.length > 0
                       ? [...filtered, { ts: nowMs, hashrate: 0, timestamp: new Date(nowMs).toISOString() }]
                       : filtered;
+
+                    // Build offline ranges from zero-hashrate sequences — same mechanism as
+                    // rental (yellow) ranges. No separate DB table needed.
+                    const offlineRanges: { start: number; end: number }[] = [];
+                    {
+                      let runStart: number | null = null;
+                      let runEnd: number | null = null;
+                      for (const s of rentalChartData) {
+                        if (s.hashrate === 0) {
+                          if (runStart === null) runStart = s.ts;
+                          runEnd = s.ts;
+                        } else {
+                          if (runStart !== null && runEnd !== null) {
+                            offlineRanges.push({ start: runStart, end: runEnd });
+                          }
+                          runStart = null; runEnd = null;
+                        }
+                      }
+                      if (runStart !== null && runEnd !== null) {
+                        offlineRanges.push({ start: runStart, end: runEnd });
+                      }
+                    }
+                    // Live gap: miner offline but last sample was non-zero — cover gap to now.
+                    if (showMinerOfflineArea && lastFilteredSample) {
+                      offlineRanges.push({ start: lastFilteredSample.ts, end: nowMs });
+                    }
                     return (
                     <div className="space-y-1">
                     <div className="flex justify-end gap-1">
@@ -773,32 +785,22 @@ export default function RentalCockpit() {
                           </defs>
                           <XAxis dataKey="ts" type="number" scale="time" domain={['dataMin', 'dataMax']} hide />
                           <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax * 1.15, toNum(rental.hashrate) * 1.05)]} />
-                          {/* Historical rig-offline periods — red */}
+                          {/* Offline periods (red) — from zero-hashrate samples + live gap */}
                           {offlineRanges.map((r, i) => (
                             <ReferenceArea
                               key={`off-${i}`}
                               x1={r.start}
                               x2={r.end}
                               fill="#ef4444"
-                              fillOpacity={0.14}
-                              stroke="none"
-                              ifOverflow="extendDomain"
-                            />
-                          ))}
-                          {/* Current live state: extends from last sample → now */}
-                          {showMinerOfflineArea && lastFilteredSample && (
-                            <ReferenceArea
-                              x1={Math.max(lastFilteredSample.ts, activeDomainMin)}
-                              x2={nowMs}
-                              fill="#ef4444"
                               fillOpacity={0.18}
                               stroke="none"
                               ifOverflow="extendDomain"
                             />
-                          )}
+                          ))}
+                          {/* Pool offline — miner connected but upstream down */}
                           {showPoolOfflineArea && lastFilteredSample && (
                             <ReferenceArea
-                              x1={Math.max(lastFilteredSample.ts, activeDomainMin)}
+                              x1={lastFilteredSample.ts}
                               x2={nowMs}
                               fill="#a855f7"
                               fillOpacity={0.18}
@@ -918,10 +920,26 @@ export default function RentalCockpit() {
                   {stats && stats.samples.length > 1 ? (() => {
                     const nowMs2 = Date.now();
                     const histSamples = stats.samples.map(s => ({ ...s, ts: new Date(s.timestamp).getTime() }));
-                    const histOfflineRanges = (stats.offlinePeriods ?? []).map(p => ({
-                      start: new Date(p.start).getTime(),
-                      end: p.end ? new Date(p.end).getTime() : nowMs2,
-                    }));
+                    // Build offline ranges from zero-hashrate samples — same mechanism
+                    const histOfflineRanges: { start: number; end: number }[] = [];
+                    {
+                      let runStart: number | null = null;
+                      let runEnd: number | null = null;
+                      for (const s of histSamples) {
+                        if (s.hashrate === 0) {
+                          if (runStart === null) runStart = s.ts;
+                          runEnd = s.ts;
+                        } else {
+                          if (runStart !== null && runEnd !== null) {
+                            histOfflineRanges.push({ start: runStart, end: runEnd });
+                          }
+                          runStart = null; runEnd = null;
+                        }
+                      }
+                      if (runStart !== null && runEnd !== null) {
+                        histOfflineRanges.push({ start: runStart, end: runEnd });
+                      }
+                    }
                     return (
                     <div className="h-32 bg-background/30 rounded-md border border-border/30 px-2 py-2">
                       <ResponsiveContainer width="100%" height="100%">
