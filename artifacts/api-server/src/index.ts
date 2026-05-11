@@ -4,8 +4,8 @@ import { seedDatabase } from "./lib/seed";
 import { StratumServer } from "./lib/stratum/server";
 import { backfillApprovedRigStatus, backfillRigTokens, backfillStratumNames } from "./lib/backfill";
 import { startDepositWorker } from "./lib/depositWorker";
-import { db, rigsTable } from "@workspace/db";
-import { eq, notInArray, inArray, and, or } from "drizzle-orm";
+import { db, rigsTable, rigOfflinePeriodsTable } from "@workspace/db";
+import { eq, notInArray, inArray, and, or, isNull, sql } from "drizzle-orm";
 import { proxyState } from "./lib/stratum/state";
 
 const rawPort = process.env["PORT"];
@@ -47,7 +47,28 @@ seedDatabase()
   .then(() => backfillStratumNames())
   .then(() => backfillApprovedRigStatus())
   .then(() => db.update(rigsTable).set({ isOnline: false }))
-  .then(() => logger.info("startup: reset all rigs to offline"))
+  .then(async () => {
+    // Close any open offline periods that may have been left open from a
+    // previous unclean shutdown (stratum disconnect handler didn't fire).
+    await db
+      .update(rigOfflinePeriodsTable)
+      .set({ endedAt: new Date() })
+      .where(isNull(rigOfflinePeriodsTable.endedAt));
+    // Open a fresh offline period for every rig, using lastSeenAt as the
+    // best approximation of when it actually disconnected.
+    const rigs = await db
+      .select({ id: rigsTable.id, lastSeenAt: rigsTable.lastSeenAt })
+      .from(rigsTable);
+    if (rigs.length > 0) {
+      await db.insert(rigOfflinePeriodsTable).values(
+        rigs.map((r) => ({
+          rigId: r.id,
+          startedAt: r.lastSeenAt ?? new Date(),
+        })),
+      );
+    }
+    logger.info("startup: reset all rigs to offline");
+  })
   .then(() => {
     stratumServer.start();
     stratumLegacyServer.start();
@@ -70,6 +91,15 @@ seedDatabase()
       try {
         const connectedIds = proxyState.getConnectedRigIds();
         const identities = proxyState.getConnectedRigIdentities();
+
+        // Snapshot which rigs are currently online BEFORE the sync so we
+        // can detect rigs that transition online → offline in this tick.
+        const prevOnline = await db
+          .select({ id: rigsTable.id })
+          .from(rigsTable)
+          .where(eq(rigsTable.isOnline, true));
+        const prevOnlineIds = new Set(prevOnline.map((r) => r.id));
+
         await db.update(rigsTable).set({ isOnline: false });
 
         const idMatch =
@@ -88,12 +118,39 @@ seedDatabase()
         const conditions = [idMatch, ...nameMatches].filter(
           (c): c is NonNullable<typeof c> => c != null,
         );
+        const nowOnlineIds = new Set<number>();
         if (conditions.length > 0) {
-          await db
+          const updated = await db
             .update(rigsTable)
             .set({ isOnline: true })
-            .where(or(...conditions));
+            .where(or(...conditions))
+            .returning({ id: rigsTable.id });
+          updated.forEach((r) => nowOnlineIds.add(r.id));
         }
+
+        // Rigs that were online but are no longer → open an offline period.
+        const newlyOfflineIds = [...prevOnlineIds].filter(
+          (id) => !nowOnlineIds.has(id),
+        );
+        if (newlyOfflineIds.length > 0) {
+          const now = new Date();
+          // Close any existing open period first (defensive).
+          for (const rigId of newlyOfflineIds) {
+            await db
+              .update(rigOfflinePeriodsTable)
+              .set({ endedAt: now })
+              .where(
+                and(
+                  eq(rigOfflinePeriodsTable.rigId, rigId),
+                  isNull(rigOfflinePeriodsTable.endedAt),
+                ),
+              );
+            await db
+              .insert(rigOfflinePeriodsTable)
+              .values({ rigId, startedAt: now });
+          }
+        }
+
         logger.debug(
           { connectedIds, identities },
           "online-sync: DB synced with proxy state",
