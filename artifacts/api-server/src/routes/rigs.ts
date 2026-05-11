@@ -412,6 +412,25 @@ router.get("/rigs/:id/live", async (req, res) => {
     offlineSince = openPeriod ? openPeriod.startedAt.toISOString() : null;
   }
 
+  // Pool-offline state: expose for live chart overlay on rig detail page.
+  // For rental mode: check upstream state from rental live stats.
+  // For fallback mode: check getFallbackPoolStatus.
+  let upstreamConnected = true;
+  let poolAuthFailed = false;
+  if (rentalId != null) {
+    const liveStats = proxyState.getLiveStats(rentalId);
+    if (liveStats.minerConnected) {
+      upstreamConnected = liveStats.upstreamConnected;
+      poolAuthFailed = liveStats.poolAuthFailed;
+    }
+  } else {
+    const fallbackStatus = proxyState.getFallbackPoolStatus(id);
+    if (fallbackStatus != null) {
+      upstreamConnected = fallbackStatus.connected;
+      poolAuthFailed = fallbackStatus.authFailed;
+    }
+  }
+
   res.json({
     rigId: id,
     isOnline: rig.isOnline,
@@ -421,6 +440,8 @@ router.get("/rigs/:id/live", async (req, res) => {
     currentDifficulty,
     workerCount,
     offlineSince,
+    upstreamConnected,
+    poolAuthFailed,
   });
 });
 

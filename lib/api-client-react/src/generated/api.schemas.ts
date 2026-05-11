@@ -124,6 +124,10 @@ export interface RigLive {
   workerCount: number;
   /** @nullable */
   offlineSince: string | null;
+  /** True when miner is connected but upstream pool connection is down */
+  upstreamConnected: boolean;
+  /** True when pool rejected worker credentials */
+  poolAuthFailed: boolean;
 }
 
 export interface RigSummary {
@@ -570,6 +574,7 @@ export interface RentalDetail {
 export interface HashSamplePoint {
   timestamp: string;
   hashrate: number;
+  isPoolOffline: boolean;
 }
 
 export interface ProxyConnectedRig {

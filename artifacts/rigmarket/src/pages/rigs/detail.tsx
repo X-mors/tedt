@@ -263,18 +263,22 @@ export default function RigDetail() {
 
                   // rigLive refreshes every 5s — use it for the live offline signal.
                   const isRigCurrentlyOffline = rigLive != null && !rigLive.isOnline;
+                  // Pool offline = rig connected but upstream pool is down (live state).
+                  const isPoolCurrentlyOffline = rigLive != null && rigLive.isOnline && !rigLive.upstreamConnected;
 
                   // Always append a synthetic live point at nowMs so the chart domain
                   // reaches the current time and reflects the rig's live state:
-                  //   - Offline  → hashrate 0 → red area extends to now
-                  //   - Online   → live hashrate → chart ends green, red stops at last zero sample
+                  //   - Rig offline      → hashrate 0, isPoolOffline false → red area
+                  //   - Pool offline     → hashrate 0, isPoolOffline true  → purple area
+                  //   - Online + hashing → live hashrate                   → no shading
                   const liveHashrate = rigLive?.currentHashrate ?? 0;
                   const rigChartData = filtered.length > 0
                     ? [...filtered, {
                         ts: nowMs,
-                        hashrate: isRigCurrentlyOffline ? 0 : liveHashrate,
+                        hashrate: (isRigCurrentlyOffline || isPoolCurrentlyOffline) ? 0 : liveHashrate,
                         hasRental: filtered[filtered.length - 1]!.hasRental,
                         timestamp: new Date(nowMs).toISOString(),
+                        isPoolOffline: isPoolCurrentlyOffline,
                       }]
                     : filtered;
 
@@ -289,7 +293,7 @@ export default function RigDetail() {
                     let poolRunStart: number | null = null;
                     let poolRunEnd: number | null = null;
                     for (const s of rigChartData) {
-                      const isPoolOff = (s as { isPoolOffline?: boolean }).isPoolOffline === true;
+                      const isPoolOff = s.isPoolOffline === true;
                       if (isPoolOff) {
                         // Pool offline — purple
                         if (poolRunStart === null) poolRunStart = s.ts;

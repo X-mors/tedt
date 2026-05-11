@@ -2572,4 +2572,6 @@ export const GetRigLiveResponse = zod.object({
   currentDifficulty: zod.number(),
   workerCount: zod.number(),
   offlineSince: zod.string().nullable().default(null),
+  upstreamConnected: zod.boolean().default(false),
+  poolAuthFailed: zod.boolean().default(false),
 });
