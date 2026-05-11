@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq, gte, ilike, sql, desc } from "drizzle-orm";
+import { and, asc, eq, gte, ilike, isNull, sql, desc } from "drizzle-orm";
 import {
   db,
   rigsTable,
@@ -7,6 +7,7 @@ import {
   usersTable,
   reviewsTable,
   rigHashSamplesTable,
+  rigOfflinePeriodsTable,
 } from "@workspace/db";
 import {
   ListRigsResponse,
@@ -320,12 +321,33 @@ router.get("/rigs/:id/stats", async (req, res) => {
 
   const samples = [...oldSamples, ...recentRaw.map(toPoint)];
 
+  // Offline periods — exact disconnect/reconnect timestamps for precise red areas.
+  const offlinePeriodsRaw = await db
+    .select({
+      startedAt: rigOfflinePeriodsTable.startedAt,
+      endedAt: rigOfflinePeriodsTable.endedAt,
+    })
+    .from(rigOfflinePeriodsTable)
+    .where(
+      and(
+        eq(rigOfflinePeriodsTable.rigId, id),
+        gte(rigOfflinePeriodsTable.startedAt, since),
+      ),
+    )
+    .orderBy(asc(rigOfflinePeriodsTable.startedAt));
+
+  const offlinePeriods = offlinePeriodsRaw.map((p) => ({
+    start: p.startedAt.toISOString(),
+    end: p.endedAt ? p.endedAt.toISOString() : null,
+  }));
+
   const data = GetRigStatsResponse.parse({
     rigId: id,
     algorithmUnit: rig.algorithmUnit,
     advertisedHashrate: toNum(rig.hashrate),
     retentionDays: RETENTION_DAYS,
     samples,
+    offlinePeriods,
   });
   res.setHeader("Cache-Control", "no-store");
   res.json(data);
@@ -370,6 +392,23 @@ router.get("/rigs/:id/live", async (req, res) => {
   const currentDifficulty = currentHashrateH > 0 ? (entry?.currentDifficulty ?? 1) : 0;
   const workerCount = currentHashrateH > 0 ? proxyState.getRigSessions(id).length : 0;
 
+  // offlineSince: exact timestamp of the current open offline period (if any).
+  let offlineSince: string | null = null;
+  if (!rig.isOnline) {
+    const [openPeriod] = await db
+      .select({ startedAt: rigOfflinePeriodsTable.startedAt })
+      .from(rigOfflinePeriodsTable)
+      .where(
+        and(
+          eq(rigOfflinePeriodsTable.rigId, id),
+          isNull(rigOfflinePeriodsTable.endedAt),
+        ),
+      )
+      .orderBy(desc(rigOfflinePeriodsTable.startedAt))
+      .limit(1);
+    offlineSince = openPeriod ? openPeriod.startedAt.toISOString() : null;
+  }
+
   res.json({
     rigId: id,
     isOnline: rig.isOnline,
@@ -378,6 +417,7 @@ router.get("/rigs/:id/live", async (req, res) => {
     currentHashrate: currentHashrateH / algMultiplier,
     currentDifficulty,
     workerCount,
+    offlineSince,
   });
 });
 

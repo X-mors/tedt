@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import {
   db,
   rigsTable,
@@ -8,6 +8,7 @@ import {
   reviewsTable,
   rentalsTable,
   rigHashSamplesTable,
+  rigOfflinePeriodsTable,
 } from "@workspace/db";
 import {
   CreateRigBody,
@@ -583,12 +584,33 @@ router.get("/me/rigs/:id/stats", async (req, res) => {
 
   const samples = [...oldSamples, ...recentRaw.map(toPoint)];
 
+  // Offline periods — exact disconnect/reconnect timestamps for precise red areas.
+  const offlinePeriodsRaw = await db
+    .select({
+      startedAt: rigOfflinePeriodsTable.startedAt,
+      endedAt: rigOfflinePeriodsTable.endedAt,
+    })
+    .from(rigOfflinePeriodsTable)
+    .where(
+      and(
+        eq(rigOfflinePeriodsTable.rigId, id),
+        gte(rigOfflinePeriodsTable.startedAt, since),
+      ),
+    )
+    .orderBy(asc(rigOfflinePeriodsTable.startedAt));
+
+  const offlinePeriods = offlinePeriodsRaw.map((p) => ({
+    start: p.startedAt.toISOString(),
+    end: p.endedAt ? p.endedAt.toISOString() : null,
+  }));
+
   const data = GetMyRigStatsResponse.parse({
     rigId: id,
     algorithmUnit: rig.algorithmUnit,
     advertisedHashrate: toNum(rig.hashrate),
     retentionDays: RETENTION_DAYS,
     samples,
+    offlinePeriods,
   });
   res.setHeader("Cache-Control", "no-store");
   res.json(data);

@@ -2,8 +2,8 @@ import * as net from "node:net";
 import { EventEmitter } from "node:events";
 import { randomBytes } from "node:crypto";
 import { randomUUID } from "node:crypto";
-import { eq, and, asc } from "drizzle-orm";
-import { db, rigsTable, rentalsTable, proxyAuthFailuresTable, usersTable, algorithmsTable } from "@workspace/db";
+import { eq, and, asc, isNull } from "drizzle-orm";
+import { db, rigsTable, rentalsTable, proxyAuthFailuresTable, usersTable, algorithmsTable, rigOfflinePeriodsTable } from "@workspace/db";
 import { logger } from "../logger";
 import { proxyState } from "./state";
 import { flushAndRemoveRentalWindow } from "./persistence";
@@ -625,6 +625,11 @@ export class DownstreamSession extends EventEmitter {
       .update(rigsTable)
       .set({ isOnline: true, lastSeenAt: new Date() })
       .where(eq(rigsTable.id, rig.id));
+    // Close any open offline period with the exact reconnect timestamp.
+    void db
+      .update(rigOfflinePeriodsTable)
+      .set({ endedAt: new Date() })
+      .where(and(eq(rigOfflinePeriodsTable.rigId, rig.id), isNull(rigOfflinePeriodsTable.endedAt)));
 
     const activeRental = await this._findActiveRental(rig.id, rig.ownerId);
     this.rentalId = activeRental?.id ?? null;
@@ -1416,6 +1421,10 @@ export class DownstreamSession extends EventEmitter {
         .update(rigsTable)
         .set({ isOnline: false })
         .where(eq(rigsTable.id, this.rigId));
+      // Open a new offline period with the exact disconnect timestamp.
+      void db
+        .insert(rigOfflinePeriodsTable)
+        .values({ rigId: this.rigId, startedAt: new Date() });
     }
     // Refresh the per-IP extranonce hint so the NEXT connect from this machine
     // gets the correct e1 byte-length and e2size in the subscribe reply.

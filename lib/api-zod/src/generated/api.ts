@@ -505,6 +505,12 @@ export const GetRigStatsResponse = zod.object({
       hasRental: zod.boolean(),
     }),
   ),
+  offlinePeriods: zod.array(
+    zod.object({
+      start: zod.string(),
+      end: zod.string().nullable(),
+    }),
+  ).default([]),
 });
 
 /**
@@ -1642,6 +1648,12 @@ export const GetMyRigStatsResponse = zod.object({
       hasRental: zod.boolean(),
     }),
   ),
+  offlinePeriods: zod.array(
+    zod.object({
+      start: zod.string(),
+      end: zod.string().nullable(),
+    }),
+  ).default([]),
 });
 
 /**
@@ -2550,4 +2562,5 @@ export const GetRigLiveResponse = zod.object({
   currentHashrate: zod.number(),
   currentDifficulty: zod.number(),
   workerCount: zod.number(),
+  offlineSince: zod.string().nullable().default(null),
 });

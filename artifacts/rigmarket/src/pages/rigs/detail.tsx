@@ -254,42 +254,19 @@ export default function RigDetail() {
 
                   // rigLive refreshes every 5s — use it for the live offline
                   // signal so we catch disconnects without a page reload.
-                  // ownerIsOnline (from the page-load snapshot) is too stale.
                   const isRigCurrentlyOffline = rigLive != null && !rigLive.isOnline;
 
-                  // Build coloring ranges from per-sample state.
-                  // offlineRanges (red): hashrate=0 → rig was offline
-                  // gapRanges (red): gaps > 90s → backward-compat for pre-fix data
-                  const offlineRanges: { start: string; end: string }[] = [];
-                  const gapRanges: { start: string; end: string }[] = [];
-                  const GAP_THRESHOLD_MS = 90_000;
-                  let offStart: string | null = null;
-                  for (let gi = 0; gi < filtered.length; gi++) {
-                    const s = filtered[gi]!;
-                    const isRigDown = s.hashrate === 0;
-                    if (isRigDown) {
-                      if (!offStart) offStart = s.timestamp;
-                    } else if (offStart) {
-                      offlineRanges.push({ start: offStart, end: s.timestamp });
-                      offStart = null;
-                    }
-                    // gap detection (backward compat — old data before zero-sample fix)
-                    if (gi < filtered.length - 1) {
-                      const t1 = new Date(s.timestamp).getTime();
-                      const t2 = new Date(filtered[gi + 1]!.timestamp).getTime();
-                      if (t2 - t1 > GAP_THRESHOLD_MS) {
-                        gapRanges.push({ start: s.timestamp, end: filtered[gi + 1]!.timestamp });
-                      }
-                    }
-                  }
-                  // If offStart is still open at the end of the list but the
-                  // rig is now back online (rigLive updated before rigStats),
-                  // close the range to nowStr so the history stays visible
-                  // during the gap before the next rigStats refresh (≤90s).
-                  if (offStart !== null && !isRigCurrentlyOffline) {
-                    offlineRanges.push({ start: offStart, end: nowStr });
-                    offStart = null;
-                  }
+                  // Offline periods from DB — exact disconnect/reconnect timestamps.
+                  // Filter to the selected time window so the chart X-axis isn't stretched.
+                  const offlineRanges = (rigStats.offlinePeriods ?? [])
+                    .filter(p => {
+                      const endMs = p.end ? new Date(p.end).getTime() : Infinity;
+                      return endMs > (rigRange ? now - rigRange : 0);
+                    })
+                    .map(p => ({
+                      start: p.start,
+                      end: p.end ?? nowStr,
+                    }));
 
                   // Chart data: if the rig is currently offline, append a zero
                   // point at "now" so the area visually drops to zero.
@@ -323,7 +300,7 @@ export default function RigDetail() {
                             ifOverflow="extendDomain"
                           />
                         ))}
-                        {/* Historical offline (red): sample-based (new) + gap-based (old data) */}
+                        {/* Historical offline periods (red) — exact from DB */}
                         {offlineRanges.map((r, i) => (
                           <ReferenceArea
                             key={`off-${i}`}
@@ -335,21 +312,10 @@ export default function RigDetail() {
                             ifOverflow="extendDomain"
                           />
                         ))}
-                        {gapRanges.map((r, i) => (
+                        {/* Current live offline overlay: use exact offlineSince from rigLive */}
+                        {isRigCurrentlyOffline && (rigLive?.offlineSince ?? lastSample?.timestamp) && (
                           <ReferenceArea
-                            key={`gap-${i}`}
-                            x1={r.start}
-                            x2={r.end}
-                            fill="#ef4444"
-                            fillOpacity={0.14}
-                            stroke="none"
-                            ifOverflow="extendDomain"
-                          />
-                        ))}
-                        {/* Current live state: offline → extends to now */}
-                        {isRigCurrentlyOffline && lastSample && (
-                          <ReferenceArea
-                            x1={lastSample.timestamp}
+                            x1={rigLive?.offlineSince ?? lastSample!.timestamp}
                             x2={nowStr}
                             fill="#ef4444"
                             fillOpacity={0.18}
