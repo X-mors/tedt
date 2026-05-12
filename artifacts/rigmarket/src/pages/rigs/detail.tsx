@@ -290,6 +290,11 @@ export default function RigDetail() {
                     if (runStart !== null && runEnd !== null) {
                       rentalRanges.push({ start: runStart, end: runEnd });
                     }
+                    // Extend last rental to nowMs if rental is still active
+                    // (last sample may be ~60 s old, leaving a gap at the right edge).
+                    if (rentalRanges.length > 0 && lastSample?.hasRental) {
+                      rentalRanges[rentalRanges.length - 1]!.end = nowMs;
+                    }
                   }
 
                   // rigLive refreshes every 5s — use sticky state for pool offline
