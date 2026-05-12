@@ -323,25 +323,23 @@ export default function RigDetail() {
                   const rangeStartMs = rigRange !== null ? nowMs - rigRange : null;
                   const clampMs = rangeStartMs ?? chartStart;
 
-                  // Offline ranges (red): only render the portion of each offline
-                  // period that actually INTERSECTS an active rental window.
-                  // This prevents a long open offline period (e.g. rig rebooted
-                  // after a rental) from painting the entire idle chart red.
-                  // Extend each rental range by 3 min on each side to absorb the
-                  // ~60 s gap between the last sample tick and the real rental end.
-                  const RENTAL_SLOP_MS = 3 * 60_000;
+                  // Offline ranges (red): every recorded offline period within
+                  // the visible window, regardless of rental state.  Open periods
+                  // (endedAt = null, rig still offline) extend to nowMs so the
+                  // red band stays live until the rig reconnects.
                   const offlineRanges: { start: number; end: number }[] = [];
                   for (const p of rigStats.offlinePeriods) {
                     const pStart = new Date(p.start).getTime();
                     const pEnd   = p.end ? new Date(p.end).getTime() : nowMs;
                     if (pEnd <= clampMs) continue;
-                    const cs = Math.max(pStart, clampMs);
-                    const ce = pEnd;
-                    for (const r of rentalRanges) {
-                      const is = Math.max(cs, r.start - RENTAL_SLOP_MS);
-                      const ie = Math.min(ce, r.end   + RENTAL_SLOP_MS);
-                      if (is < ie) offlineRanges.push({ start: is, end: ie });
-                    }
+                    offlineRanges.push({ start: Math.max(pStart, clampMs), end: pEnd });
+                  }
+                  // Live gap: rig just went offline but the DB flush (every ~60 s)
+                  // hasn't recorded it yet.  Add from the last sample to nowMs so
+                  // the red appears immediately without waiting for the next tick.
+                  if (isRigCurrentlyOffline && lastSample) {
+                    const alreadyCovered = offlineRanges.some(r => r.end >= lastSample.ts);
+                    if (!alreadyCovered) offlineRanges.push({ start: lastSample.ts, end: nowMs });
                   }
 
                   // Pool-offline ranges (purple): sourced from samples with
