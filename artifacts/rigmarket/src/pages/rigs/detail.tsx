@@ -273,11 +273,53 @@ export default function RigDetail() {
                   const nowMs = now;
                   const lastSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
 
-                  // Rental ranges — numeric ms.
+                  // ── Live state (from rigLive, refreshed every 5 s) ──────────────
+                  // poolOfflineSticky is managed by the useEffect above (45 s hysteresis).
+                  const isPoolCurrentlyOffline = poolOfflineSticky;
+                  // Red  = miner socket down AND pool is not the cause.
+                  const isRigCurrentlyOffline  = rigLive != null && !rigLive.isOnline && !poolOfflineSticky;
+                  // Rental active RIGHT NOW (not just last sample — avoids stale extend).
+                  const isCurrentlyRented      = rigLive?.isRented === true;
+
+                  // ── Clamp: left edge of visible window ───────────────────────────
+                  //   Finite range (1H…1W): nowMs − window.
+                  //   MAX with data      : first visible sample ts.
+                  //   MAX without data   : oldest offline period start, or 1 h ago.
+                  const rangeStartMs   = rigRange !== null ? nowMs - rigRange : null;
+                  const chartDataStart = filtered.length > 0 ? filtered[0].ts : null;
+                  const clampMs = rangeStartMs
+                    ?? chartDataStart
+                    ?? (rigStats.offlinePeriods.length > 0
+                        ? new Date(rigStats.offlinePeriods[0]!.start).getTime()
+                        : nowMs - 3_600_000);
+
+                  // ── Chart data ───────────────────────────────────────────────────
+                  // Always end at nowMs with a synthetic point so the x-axis domain
+                  // reaches the current second.  When filtered is empty (rig has been
+                  // offline longer than the selected window) two boundary points give
+                  // Recharts a valid domain so ReferenceAreas can still render.
+                  const liveHashrate = rigLive?.currentHashrate ?? 0;
+                  const rigChartData = filtered.length > 0
+                    ? [...filtered, {
+                        ts: nowMs,
+                        hashrate: (isRigCurrentlyOffline || isPoolCurrentlyOffline) ? 0 : liveHashrate,
+                        hasRental: isCurrentlyRented,
+                        timestamp: new Date(nowMs).toISOString(),
+                        isPoolOffline: isPoolCurrentlyOffline,
+                      }]
+                    : [
+                        { ts: clampMs, hashrate: 0, hasRental: false, timestamp: new Date(clampMs).toISOString(), isPoolOffline: false },
+                        { ts: nowMs,   hashrate: 0, hasRental: isCurrentlyRented, timestamp: new Date(nowMs).toISOString(), isPoolOffline: isPoolCurrentlyOffline },
+                      ];
+
+                  // ── 🟡 YELLOW — Rental periods ───────────────────────────────────
+                  // Source : samples with hasRental=true (DB-recorded).
+                  // Live gap: extend last range to nowMs ONLY when rigLive.isRented=true
+                  //           (not based on lastSample.hasRental which can be stale).
                   const rentalRanges: { start: number; end: number }[] = [];
                   {
                     let runStart: number | null = null;
-                    let runEnd: number | null = null;
+                    let runEnd:   number | null = null;
                     for (const s of filtered) {
                       if (s.hasRental) {
                         if (runStart === null) runStart = s.ts;
@@ -287,58 +329,21 @@ export default function RigDetail() {
                         runStart = null; runEnd = null;
                       }
                     }
-                    if (runStart !== null && runEnd !== null) {
+                    if (runStart !== null && runEnd !== null)
                       rentalRanges.push({ start: runStart, end: runEnd });
-                    }
-                    // Extend last rental to nowMs if rental is still active
-                    // (last sample may be ~60 s old, leaving a gap at the right edge).
-                    if (rentalRanges.length > 0 && lastSample?.hasRental) {
+                    // Live gap: extend only when API confirms rental is active now.
+                    if (isCurrentlyRented && rentalRanges.length > 0)
                       rentalRanges[rentalRanges.length - 1]!.end = nowMs;
-                    }
+                    else if (isCurrentlyRented)
+                      rentalRanges.push({ start: lastSample?.ts ?? clampMs, end: nowMs });
                   }
 
-                  // rigLive refreshes every 5s — use sticky state for pool offline
-                  // to avoid flicker during pool retry cycles (see useEffect above).
-                  const isPoolCurrentlyOffline = poolOfflineSticky;
-                  // Rig offline = pool is fine (or no data) but miner socket dropped.
-                  const isRigCurrentlyOffline = rigLive != null && !rigLive.isOnline && !poolOfflineSticky;
-
-                  // Left boundary for ReferenceArea clamps — computed BEFORE
-                  // rigChartData so synthetic empty-chart points can use it.
-                  //   - Finite range (1H…1W): nowMs minus the window.
-                  //   - MAX with data: first visible sample timestamp.
-                  //   - MAX without data: oldest offline period start (or 1 h back).
-                  const rangeStartMs = rigRange !== null ? nowMs - rigRange : null;
-                  const chartDataStart = filtered.length > 0 ? filtered[0].ts : null;
-                  const clampMs = rangeStartMs
-                    ?? chartDataStart
-                    ?? (rigStats.offlinePeriods.length > 0
-                        ? new Date(rigStats.offlinePeriods[0]!.start).getTime()
-                        : nowMs - 3_600_000);
-
-                  // Always append a synthetic live point at nowMs so the chart domain
-                  // reaches the current time and reflects the rig's live state.
-                  // When filtered is empty (rig offline longer than selected window,
-                  // no samples at all), add boundary points so the XAxis has a domain
-                  // and ReferenceAreas can render.
-                  const liveHashrate = rigLive?.currentHashrate ?? 0;
-                  const rigChartData = filtered.length > 0
-                    ? [...filtered, {
-                        ts: nowMs,
-                        hashrate: (isRigCurrentlyOffline || isPoolCurrentlyOffline) ? 0 : liveHashrate,
-                        hasRental: filtered[filtered.length - 1]!.hasRental,
-                        timestamp: new Date(nowMs).toISOString(),
-                        isPoolOffline: isPoolCurrentlyOffline,
-                      }]
-                    : [
-                        { ts: clampMs, hashrate: 0, hasRental: false, timestamp: new Date(clampMs).toISOString(), isPoolOffline: false },
-                        { ts: nowMs,   hashrate: 0, hasRental: false, timestamp: new Date(nowMs).toISOString(),   isPoolOffline: isPoolCurrentlyOffline },
-                      ];
-
-                  // Offline ranges (red): every recorded offline period within the
-                  // visible window — idle OR rental.  Open periods (endedAt = null)
-                  // extend to nowMs so the red band is live.  When the rig comes back
-                  // online the backend closes the period and red disappears on next poll.
+                  // ── 🔴 RED — Offline periods ─────────────────────────────────────
+                  // Source : offlinePeriods table (idle + rental, no filter).
+                  //   Open period (endedAt=null) → pEnd=nowMs → stays live.
+                  //   Closed period               → pEnd=endedAt → historical mark.
+                  // Live gap: rig just disconnected but DB hasn't flushed yet (~60 s).
+                  //   Condition: rigLive.isOnline=false AND pool is not the cause.
                   const offlineRanges: { start: number; end: number }[] = [];
                   for (const p of rigStats.offlinePeriods) {
                     const pStart = new Date(p.start).getTime();
@@ -346,22 +351,19 @@ export default function RigDetail() {
                     if (pEnd < clampMs) continue;
                     offlineRanges.push({ start: Math.max(pStart, clampMs), end: pEnd });
                   }
-                  // Live gap: rig just went offline but DB flush (~60 s) hasn't
-                  // recorded it yet — extend red from last sample to nowMs immediately.
                   if (isRigCurrentlyOffline && lastSample) {
-                    const alreadyCovered = offlineRanges.some(r => r.end >= lastSample.ts);
-                    if (!alreadyCovered) offlineRanges.push({ start: lastSample.ts, end: nowMs });
+                    const covered = offlineRanges.some(r => r.end >= lastSample.ts);
+                    if (!covered) offlineRanges.push({ start: lastSample.ts, end: nowMs });
                   }
 
-                  // Pool-offline ranges (purple): sourced from samples with
-                  // isPoolOffline=true.  Shown in both rental AND idle periods
-                  // (owner needs to know their fallback pool is down).
-                  // Purple takes visual priority over red.
+                  // ── 🟣 PURPLE — Pool offline periods ─────────────────────────────
+                  // Source : samples with isPoolOffline=true (DB-recorded).
+                  // Live gap: poolOfflineSticky=true but no recent sample captured it.
                   const poolOfflineRanges: { start: number; end: number }[] = [];
                   {
                     let poolRunStart: number | null = null;
                     let poolRunEnd:   number | null = null;
-                    for (const s of rigChartData) {
+                    for (const s of filtered) {
                       if (s.isPoolOffline) {
                         if (poolRunStart === null) poolRunStart = s.ts;
                         poolRunEnd = s.ts;
@@ -373,13 +375,11 @@ export default function RigDetail() {
                     }
                     if (poolRunStart !== null && poolRunEnd !== null)
                       poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
-                  }
-
-                  // Live pool-offline gap: if pool is currently offline but the most
-                  // recent sample hasn't captured it yet (< 60 s since it started).
-                  const hasPoolOfflineSamplesInFiltered = filtered.some(s => s.isPoolOffline === true);
-                  if (isPoolCurrentlyOffline && lastSample && !hasPoolOfflineSamplesInFiltered) {
-                    poolOfflineRanges.push({ start: lastSample.ts, end: nowMs });
+                    // Live gap: pool just went offline, no sample yet.
+                    if (isPoolCurrentlyOffline && lastSample) {
+                      const covered = poolOfflineRanges.some(r => r.end >= lastSample.ts);
+                      if (!covered) poolOfflineRanges.push({ start: lastSample.ts, end: nowMs });
+                    }
                   }
 
                   return (

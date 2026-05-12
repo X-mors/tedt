@@ -461,6 +461,7 @@ router.get("/rigs/:id/live", async (req, res) => {
   res.json({
     rigId: id,
     isOnline: rig.isOnline,
+    isRented: rentalId !== null,
     algorithmUnit: rig.algorithmUnit,
     currentHashrateH,
     currentHashrate: currentHashrateH / algMultiplier,

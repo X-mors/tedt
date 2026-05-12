@@ -117,6 +117,7 @@ export const RigApprovalStatus = {
 export interface RigLive {
   rigId: number;
   isOnline: boolean;
+  isRented: boolean;
   algorithmUnit: string;
   currentHashrateH: number;
   currentHashrate: number;
