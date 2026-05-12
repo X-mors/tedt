@@ -61,26 +61,35 @@ export default function RigDetail() {
 
   if (!rig) return <div className="p-8 text-center font-mono text-destructive">RIG_NOT_FOUND</div>;
 
-  // Pool-offline sticky: once purple shows, keep it for ≥30 s after the API
-  // says connected again — prevents flicker during pool retry cycles where
-  // upstreamConnected briefly flips true between reconnect attempts.
+  // Pool-offline sticky: once purple shows, only clear it when the pool is
+  // GENUINELY back — i.e. upstreamConnected=true AND the rig is producing
+  // hashrate. During retry cycles upstreamConnected briefly flips true but
+  // currentHashrateH stays 0, so the purple correctly persists.
   const [poolOfflineSticky, setPoolOfflineSticky] = useState(false);
   const poolOnlineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     const apiOffline = rigLive != null && !rigLive.upstreamConnected;
+    const genuinelyBack = rigLive != null
+      && rigLive.upstreamConnected
+      && rigLive.isOnline
+      && rigLive.currentHashrateH > 0;
     if (apiOffline) {
       if (poolOnlineTimerRef.current) { clearTimeout(poolOnlineTimerRef.current); poolOnlineTimerRef.current = null; }
       setPoolOfflineSticky(true);
-    } else if (poolOfflineSticky) {
+    } else if (poolOfflineSticky && genuinelyBack) {
+      // Pool is confirmed back with real hashrate — clear after one poll cycle.
       if (!poolOnlineTimerRef.current) {
         poolOnlineTimerRef.current = setTimeout(() => {
           setPoolOfflineSticky(false);
           poolOnlineTimerRef.current = null;
-        }, 30_000);
+        }, 6_000);
       }
+    } else if (!poolOfflineSticky && poolOnlineTimerRef.current) {
+      clearTimeout(poolOnlineTimerRef.current);
+      poolOnlineTimerRef.current = null;
     }
     return () => {};
-  }, [rigLive?.upstreamConnected]);
+  }, [rigLive?.upstreamConnected, rigLive?.isOnline, rigLive?.currentHashrateH]);
 
   const ownerIsOnline = myRig?.isOnline ?? rig.isOnline;
   const hasFallbackPool = myRig?.hasFallbackPool ?? false;
