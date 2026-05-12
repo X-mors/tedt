@@ -330,36 +330,20 @@ export default function RigDetail() {
                         { ts: nowMs,   hashrate: 0, hasRental: false, timestamp: new Date(nowMs).toISOString(),   isPoolOffline: isPoolCurrentlyOffline },
                       ];
 
-                  // Offline ranges (red): only the portion of each offline period
-                  // that intersects an active rental window (±3 min slop to absorb
-                  // the ~60 s gap between sample ticks and real rental boundaries).
-                  // Idle disconnects are normal and should NOT paint the chart red —
-                  // red is meaningful only when a renter paid for uptime they didn't get.
-                  // During an active rental the live gap (DB flush ~60 s delay) is
-                  // covered by extending the current rental range to nowMs.
-                  const RENTAL_SLOP_MS = 3 * 60_000;
+                  // Offline ranges (red): every recorded offline period within the
+                  // visible window — idle OR rental.  Open periods (endedAt = null)
+                  // extend to nowMs so the red band is live.  When the rig comes back
+                  // online the backend closes the period and red disappears on next poll.
                   const offlineRanges: { start: number; end: number }[] = [];
-                  // Extend the last rental to nowMs if the rig is currently rented
-                  // (so a live offline during a rental shows red immediately).
-                  const activeRentalRanges = rentalRanges.map((r, i) =>
-                    i === rentalRanges.length - 1 && filtered[filtered.length - 1]?.hasRental
-                      ? { ...r, end: nowMs }
-                      : r
-                  );
                   for (const p of rigStats.offlinePeriods) {
                     const pStart = new Date(p.start).getTime();
                     const pEnd   = p.end ? new Date(p.end).getTime() : nowMs;
                     if (pEnd < clampMs) continue;
-                    const cs = Math.max(pStart, clampMs);
-                    for (const r of activeRentalRanges) {
-                      const is = Math.max(cs, r.start - RENTAL_SLOP_MS);
-                      const ie = Math.min(pEnd, r.end + RENTAL_SLOP_MS);
-                      if (is < ie) offlineRanges.push({ start: is, end: ie });
-                    }
+                    offlineRanges.push({ start: Math.max(pStart, clampMs), end: pEnd });
                   }
-                  // Live gap during active rental: rig just went offline but DB hasn't
-                  // flushed yet — extend red from last sample to nowMs.
-                  if (isRigCurrentlyOffline && lastSample && filtered[filtered.length - 1]?.hasRental) {
+                  // Live gap: rig just went offline but DB flush (~60 s) hasn't
+                  // recorded it yet — extend red from last sample to nowMs immediately.
+                  if (isRigCurrentlyOffline && lastSample) {
                     const alreadyCovered = offlineRanges.some(r => r.end >= lastSample.ts);
                     if (!alreadyCovered) offlineRanges.push({ start: lastSample.ts, end: nowMs });
                   }
