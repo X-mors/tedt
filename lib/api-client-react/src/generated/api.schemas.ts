@@ -124,8 +124,8 @@ export interface RigLive {
   workerCount: number;
   /** @nullable */
   offlineSince: string | null;
-  /** True when miner is connected but upstream pool connection is down */
-  upstreamConnected: boolean;
+  /** True when pool connected, false when offline, null when state is unknown */
+  upstreamConnected: boolean | null;
   /** True when pool rejected worker credentials */
   poolAuthFailed: boolean;
 }

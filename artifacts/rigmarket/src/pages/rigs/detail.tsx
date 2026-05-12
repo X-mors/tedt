@@ -60,15 +60,18 @@ export default function RigDetail() {
   const [poolOfflineSticky, setPoolOfflineSticky] = useState(false);
   const poolOnlineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    const apiOffline = rigLive != null && !rigLive.upstreamConnected;
-    if (apiOffline) {
-      // Pool offline → show immediately + cancel any pending clear.
+    // upstreamConnected has 3 states from the API:
+    //   false = pool confirmed offline  → show purple immediately, cancel any clear timer
+    //   true  = pool confirmed online   → start 45 s clear timer (only if sticky)
+    //   null  = unknown (no live data)  → preserve current sticky state, touch nothing
+    const uc = rigLive?.upstreamConnected ?? null;
+    if (uc === false) {
       if (poolOnlineTimerRef.current) { clearTimeout(poolOnlineTimerRef.current); poolOnlineTimerRef.current = null; }
       setPoolOfflineSticky(true);
-    } else if (poolOfflineSticky) {
-      // Pool reports connected — start a 45 s timer. If upstreamConnected flips
-      // false again (next retry fails) the effect re-runs, hits the branch above,
-      // and cancels the timer before it fires.
+    } else if (uc === true) {
+      // Explicitly online — only start the clear timer if we were sticky.
+      // Timer is cancelled immediately on the next false reading, so a short
+      // retry-cycle "true" window can never fire the 45 s callback.
       if (!poolOnlineTimerRef.current) {
         poolOnlineTimerRef.current = setTimeout(() => {
           setPoolOfflineSticky(false);
@@ -76,6 +79,7 @@ export default function RigDetail() {
         }, 45_000);
       }
     }
+    // uc === null: no data → leave sticky and timer completely untouched.
     return () => {};
   }, [rigLive?.upstreamConnected]);
 

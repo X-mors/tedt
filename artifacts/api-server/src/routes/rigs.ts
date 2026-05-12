@@ -413,9 +413,11 @@ router.get("/rigs/:id/live", async (req, res) => {
   }
 
   // Pool-offline state: expose for live chart overlay on rig detail page.
-  // We now also check the last-known state when the miner is disconnected so
-  // that the UI can distinguish "pool killed the miner" from "rig issue".
-  let upstreamConnected = true;
+  // null  = unknown (no live session + no persisted state) — frontend must
+  //         NOT clear the sticky indicator on null; only a confirmed true should.
+  // false = pool is known to be offline.
+  // true  = pool is known to be online.
+  let upstreamConnected: boolean | null = null;
   let poolAuthFailed = false;
   if (entry != null) {
     if (rentalId != null) {
@@ -425,6 +427,7 @@ router.get("/rigs/:id/live", async (req, res) => {
         upstreamConnected = liveStats.upstreamConnected;
         poolAuthFailed = liveStats.poolAuthFailed;
       }
+      // minerConnected=false → upstreamConnected stays null (unknown)
     } else {
       // Fallback mode: check owner's configured pool connection.
       const fallbackStatus = proxyState.getFallbackPoolStatus(id);
@@ -432,6 +435,7 @@ router.get("/rigs/:id/live", async (req, res) => {
         upstreamConnected = fallbackStatus.connected;
         poolAuthFailed = fallbackStatus.authFailed;
       }
+      // getFallbackPoolStatus=null (no idle session) → upstreamConnected stays null
     }
   } else {
     // Miner disconnected — check persisted last-known pool state.
@@ -442,6 +446,7 @@ router.get("/rigs/:id/live", async (req, res) => {
       // Rental mode: rentalLastPoolState (keyed by rentalId, 10-min TTL).
       const lastState = proxyState.getLastKnownPoolState(graced.entry.rentalId);
       if (lastState !== null) upstreamConnected = lastState;
+      // lastState=null → upstreamConnected stays null
     } else {
       // Fallback/idle mode: fallbackLastPoolState (keyed by rigId, 10-min TTL).
       const lastFallback = proxyState.getLastKnownFallbackPoolState(id);
@@ -449,6 +454,7 @@ router.get("/rigs/:id/live", async (req, res) => {
         upstreamConnected = lastFallback.connected;
         poolAuthFailed = lastFallback.authFailed;
       }
+      // lastFallback=null (TTL expired / server restart / no data) → null (unknown)
     }
   }
 
