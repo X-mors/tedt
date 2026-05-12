@@ -52,35 +52,32 @@ export default function RigDetail() {
     query: { refetchInterval: 5_000, enabled: !!rigId, queryKey: [`/api/rigs/${rigId}/live`] },
   });
 
-  // Pool-offline sticky: once purple shows, only clear it when the pool is
-  // GENUINELY back — i.e. upstreamConnected=true AND the rig is producing
-  // hashrate. During retry cycles upstreamConnected briefly flips true but
-  // currentHashrateH stays 0, so the purple correctly persists.
+  // Pool-offline sticky: once purple shows, only clear it after upstreamConnected
+  // has been CONTINUOUSLY true for 45 s (≈9 polls). Any single false reading
+  // cancels the timer so a retry-cycle flip (true for 1-2 polls, then false)
+  // never dismisses the indicator. 45 s exceeds any typical pool retry interval.
   // Must be declared BEFORE any conditional returns (Rules of Hooks).
   const [poolOfflineSticky, setPoolOfflineSticky] = useState(false);
   const poolOnlineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     const apiOffline = rigLive != null && !rigLive.upstreamConnected;
-    const genuinelyBack = rigLive != null
-      && rigLive.upstreamConnected
-      && rigLive.isOnline
-      && rigLive.currentHashrateH > 0;
     if (apiOffline) {
+      // Pool offline → show immediately + cancel any pending clear.
       if (poolOnlineTimerRef.current) { clearTimeout(poolOnlineTimerRef.current); poolOnlineTimerRef.current = null; }
       setPoolOfflineSticky(true);
-    } else if (poolOfflineSticky && genuinelyBack) {
+    } else if (poolOfflineSticky) {
+      // Pool reports connected — start a 45 s timer. If upstreamConnected flips
+      // false again (next retry fails) the effect re-runs, hits the branch above,
+      // and cancels the timer before it fires.
       if (!poolOnlineTimerRef.current) {
         poolOnlineTimerRef.current = setTimeout(() => {
           setPoolOfflineSticky(false);
           poolOnlineTimerRef.current = null;
-        }, 6_000);
+        }, 45_000);
       }
-    } else if (!poolOfflineSticky && poolOnlineTimerRef.current) {
-      clearTimeout(poolOnlineTimerRef.current);
-      poolOnlineTimerRef.current = null;
     }
     return () => {};
-  }, [rigLive?.upstreamConnected, rigLive?.isOnline, rigLive?.currentHashrateH]);
+  }, [rigLive?.upstreamConnected]);
 
   // rentalRanges is rebuilt inside the filtered IIFE below so it always
   // matches the selected time window (1H, 6H, … MAX).
