@@ -298,11 +298,24 @@ export default function RigDetail() {
                   // Rig offline = pool is fine (or no data) but miner socket dropped.
                   const isRigCurrentlyOffline = rigLive != null && !rigLive.isOnline && !poolOfflineSticky;
 
+                  // Left boundary for ReferenceArea clamps — computed BEFORE
+                  // rigChartData so synthetic empty-chart points can use it.
+                  //   - Finite range (1H…1W): nowMs minus the window.
+                  //   - MAX with data: first visible sample timestamp.
+                  //   - MAX without data: oldest offline period start (or 1 h back).
+                  const rangeStartMs = rigRange !== null ? nowMs - rigRange : null;
+                  const chartDataStart = filtered.length > 0 ? filtered[0].ts : null;
+                  const clampMs = rangeStartMs
+                    ?? chartDataStart
+                    ?? (rigStats.offlinePeriods.length > 0
+                        ? new Date(rigStats.offlinePeriods[0]!.start).getTime()
+                        : nowMs - 3_600_000);
+
                   // Always append a synthetic live point at nowMs so the chart domain
-                  // reaches the current time and reflects the rig's live state:
-                  //   - Rig offline      → hashrate 0, isPoolOffline false → red area
-                  //   - Pool offline     → hashrate 0, isPoolOffline true  → purple area
-                  //   - Online + hashing → live hashrate                   → no shading
+                  // reaches the current time and reflects the rig's live state.
+                  // When filtered is empty (rig offline longer than selected window,
+                  // no samples at all), add boundary points so the XAxis has a domain
+                  // and ReferenceAreas can render.
                   const liveHashrate = rigLive?.currentHashrate ?? 0;
                   const rigChartData = filtered.length > 0
                     ? [...filtered, {
@@ -312,31 +325,25 @@ export default function RigDetail() {
                         timestamp: new Date(nowMs).toISOString(),
                         isPoolOffline: isPoolCurrentlyOffline,
                       }]
-                    : filtered;
-
-                  // Left boundary for all ReferenceArea clamps:
-                  //   - Finite range (1H…1W): nowMs minus the range window.
-                  //   - MAX: the timestamp of the first visible sample, so that
-                  //     offline periods don't extend the x-axis domain leftward
-                  //     beyond the actual data (which caused the 1W/MAX distortion).
-                  const chartStart = filtered.length > 0 ? filtered[0].ts : nowMs;
-                  const rangeStartMs = rigRange !== null ? nowMs - rigRange : null;
-                  const clampMs = rangeStartMs ?? chartStart;
+                    : [
+                        { ts: clampMs, hashrate: 0, hasRental: false, timestamp: new Date(clampMs).toISOString(), isPoolOffline: false },
+                        { ts: nowMs,   hashrate: 0, hasRental: false, timestamp: new Date(nowMs).toISOString(),   isPoolOffline: isPoolCurrentlyOffline },
+                      ];
 
                   // Offline ranges (red): every recorded offline period within
                   // the visible window, regardless of rental state.  Open periods
                   // (endedAt = null, rig still offline) extend to nowMs so the
                   // red band stays live until the rig reconnects.
+                  // Use strict < so an open period ending at exactly nowMs is kept.
                   const offlineRanges: { start: number; end: number }[] = [];
                   for (const p of rigStats.offlinePeriods) {
                     const pStart = new Date(p.start).getTime();
                     const pEnd   = p.end ? new Date(p.end).getTime() : nowMs;
-                    if (pEnd <= clampMs) continue;
+                    if (pEnd < clampMs) continue;
                     offlineRanges.push({ start: Math.max(pStart, clampMs), end: pEnd });
                   }
                   // Live gap: rig just went offline but the DB flush (every ~60 s)
-                  // hasn't recorded it yet.  Add from the last sample to nowMs so
-                  // the red appears immediately without waiting for the next tick.
+                  // hasn't recorded it yet.  Add from the last sample to nowMs.
                   if (isRigCurrentlyOffline && lastSample) {
                     const alreadyCovered = offlineRanges.some(r => r.end >= lastSample.ts);
                     if (!alreadyCovered) offlineRanges.push({ start: lastSample.ts, end: nowMs });
