@@ -139,6 +139,22 @@ seedDatabase()
           updated.forEach((r) => nowOnlineIds.add(r.id));
         }
 
+        // Rigs that are NOW online → close any open offline period.
+        // Safety net for cases where the inline close in downstream.ts
+        // failed silently (void call) or the miner reconnected between
+        // startup and the first sync tick.
+        if (nowOnlineIds.size > 0) {
+          await db
+            .update(rigOfflinePeriodsTable)
+            .set({ endedAt: new Date() })
+            .where(
+              and(
+                inArray(rigOfflinePeriodsTable.rigId, [...nowOnlineIds]),
+                isNull(rigOfflinePeriodsTable.endedAt),
+              ),
+            );
+        }
+
         // Rigs that were online but are no longer → ensure an offline period
         // is open. The disconnect handler already does this with the correct
         // startedAt (last sample timestamp), so we only insert here as a

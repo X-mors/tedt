@@ -626,7 +626,7 @@ export class DownstreamSession extends EventEmitter {
       .set({ isOnline: true, lastSeenAt: new Date() })
       .where(eq(rigsTable.id, rig.id));
     // Close any open offline period with the exact reconnect timestamp.
-    void db
+    await db
       .update(rigOfflinePeriodsTable)
       .set({ endedAt: new Date() })
       .where(and(eq(rigOfflinePeriodsTable.rigId, rig.id), isNull(rigOfflinePeriodsTable.endedAt)));
