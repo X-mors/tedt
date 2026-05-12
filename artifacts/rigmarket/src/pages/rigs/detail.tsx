@@ -52,19 +52,11 @@ export default function RigDetail() {
     query: { refetchInterval: 5_000, enabled: !!rigId, queryKey: [`/api/rigs/${rigId}/live`] },
   });
 
-  // rentalRanges is rebuilt inside the filtered IIFE below so it always
-  // matches the selected time window (1H, 6H, … MAX).
-
-  if (isLoading) {
-    return <div className="p-8 text-center font-mono text-muted-foreground">LOADING_RIG_DATA...</div>;
-  }
-
-  if (!rig) return <div className="p-8 text-center font-mono text-destructive">RIG_NOT_FOUND</div>;
-
   // Pool-offline sticky: once purple shows, only clear it when the pool is
   // GENUINELY back — i.e. upstreamConnected=true AND the rig is producing
   // hashrate. During retry cycles upstreamConnected briefly flips true but
   // currentHashrateH stays 0, so the purple correctly persists.
+  // Must be declared BEFORE any conditional returns (Rules of Hooks).
   const [poolOfflineSticky, setPoolOfflineSticky] = useState(false);
   const poolOnlineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -77,7 +69,6 @@ export default function RigDetail() {
       if (poolOnlineTimerRef.current) { clearTimeout(poolOnlineTimerRef.current); poolOnlineTimerRef.current = null; }
       setPoolOfflineSticky(true);
     } else if (poolOfflineSticky && genuinelyBack) {
-      // Pool is confirmed back with real hashrate — clear after one poll cycle.
       if (!poolOnlineTimerRef.current) {
         poolOnlineTimerRef.current = setTimeout(() => {
           setPoolOfflineSticky(false);
@@ -90,6 +81,15 @@ export default function RigDetail() {
     }
     return () => {};
   }, [rigLive?.upstreamConnected, rigLive?.isOnline, rigLive?.currentHashrateH]);
+
+  // rentalRanges is rebuilt inside the filtered IIFE below so it always
+  // matches the selected time window (1H, 6H, … MAX).
+
+  if (isLoading) {
+    return <div className="p-8 text-center font-mono text-muted-foreground">LOADING_RIG_DATA...</div>;
+  }
+
+  if (!rig) return <div className="p-8 text-center font-mono text-destructive">RIG_NOT_FOUND</div>;
 
   const ownerIsOnline = myRig?.isOnline ?? rig.isOnline;
   const hasFallbackPool = myRig?.hasFallbackPool ?? false;
