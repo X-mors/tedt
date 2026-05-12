@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "wouter";
 import { useGetRig, useGetMyRig, getGetMyRigQueryKey, useListRigReviews, useGetMe, useGetRigStats, getGetRigStatsQueryKey, useGetRigLive } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -60,6 +60,27 @@ export default function RigDetail() {
   }
 
   if (!rig) return <div className="p-8 text-center font-mono text-destructive">RIG_NOT_FOUND</div>;
+
+  // Pool-offline sticky: once purple shows, keep it for ≥30 s after the API
+  // says connected again — prevents flicker during pool retry cycles where
+  // upstreamConnected briefly flips true between reconnect attempts.
+  const [poolOfflineSticky, setPoolOfflineSticky] = useState(false);
+  const poolOnlineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const apiOffline = rigLive != null && !rigLive.upstreamConnected;
+    if (apiOffline) {
+      if (poolOnlineTimerRef.current) { clearTimeout(poolOnlineTimerRef.current); poolOnlineTimerRef.current = null; }
+      setPoolOfflineSticky(true);
+    } else if (poolOfflineSticky) {
+      if (!poolOnlineTimerRef.current) {
+        poolOnlineTimerRef.current = setTimeout(() => {
+          setPoolOfflineSticky(false);
+          poolOnlineTimerRef.current = null;
+        }, 30_000);
+      }
+    }
+    return () => {};
+  }, [rigLive?.upstreamConnected]);
 
   const ownerIsOnline = myRig?.isOnline ?? rig.isOnline;
   const hasFallbackPool = myRig?.hasFallbackPool ?? false;
@@ -261,12 +282,11 @@ export default function RigDetail() {
                     }
                   }
 
-                  // rigLive refreshes every 5s — use it for the live offline signal.
-                  // Pool offline takes priority: API now returns upstreamConnected=false
-                  // even when the miner is disconnected (if pool caused the disconnect).
-                  const isPoolCurrentlyOffline = rigLive != null && !rigLive.upstreamConnected;
-                  // Rig offline = pool is fine but miner socket dropped.
-                  const isRigCurrentlyOffline = rigLive != null && !rigLive.isOnline && rigLive.upstreamConnected;
+                  // rigLive refreshes every 5s — use sticky state for pool offline
+                  // to avoid flicker during pool retry cycles (see useEffect above).
+                  const isPoolCurrentlyOffline = poolOfflineSticky;
+                  // Rig offline = pool is fine (or no data) but miner socket dropped.
+                  const isRigCurrentlyOffline = rigLive != null && !rigLive.isOnline && !poolOfflineSticky;
 
                   // Always append a synthetic live point at nowMs so the chart domain
                   // reaches the current time and reflects the rig's live state:
