@@ -4,6 +4,7 @@ import { seedDatabase } from "./lib/seed";
 import { StratumServer } from "./lib/stratum/server";
 import { backfillApprovedRigStatus, backfillRigTokens, backfillStratumNames, backfillOfflinePeriodsFromSamples } from "./lib/backfill";
 import { startDepositWorker } from "./lib/depositWorker";
+import { settleExpiredRentals } from "./lib/settlement";
 import { db, rigsTable, rigOfflinePeriodsTable, rigHashSamplesTable } from "@workspace/db";
 import { eq, notInArray, inArray, and, or, isNull, sql } from "drizzle-orm";
 import { proxyState } from "./lib/stratum/state";
@@ -84,6 +85,17 @@ seedDatabase()
     stratumServer.start();
     stratumLegacyServer.start();
     startDepositWorker();
+
+    // Settle expired rentals every 2 minutes so they close on time even
+    // when the only active poller is /rentals/:id/live (which doesn't call
+    // settleExpiredRentals to avoid the overhead on every 5-second tick).
+    setInterval(async () => {
+      try {
+        await settleExpiredRentals();
+      } catch (err) {
+        logger.warn({ err }, "settlement-cron: failed");
+      }
+    }, 2 * 60 * 1000).unref();
 
     // Sync isOnline in DB with actual proxy connections every minute.
     // This corrects any drift (e.g. unclean shutdown, missed _onClose).
