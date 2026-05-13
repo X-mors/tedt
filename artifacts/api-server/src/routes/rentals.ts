@@ -787,6 +787,7 @@ router.get("/rentals/:id/live", async (req, res) => {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
+  await settleExpiredRentals();
   const [rental] = await db
     .select({
       id: rentalsTable.id,
