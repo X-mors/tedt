@@ -129,83 +129,67 @@ export function RigHashrateChart({ rigStats, rigLive }: Props) {
   }
 
   // ── 🔴 RED — Offline periods ──────────────────────────────────────────────
-  // Source : offlinePeriods table (idle + rental).
-  // Open period (endedAt=null) → pEnd=nowMs → live.
-  // Live gap: rig just disconnected, DB hasn't flushed yet (~60 s).
-  //
-  // NOTE: pool-offline ranges (🟣) take visual priority. Any red segment that
-  // overlaps a purple range is clipped/removed so the pool-offline colour isn't
-  // obscured by rapid disconnect/reconnect cycles (each reconnect attempt adds
-  // a thin red bar that accumulates into a pink mess beneath the purple layer).
-  const rawOfflineRanges: { start: number; end: number }[] = [];
+  const redRanges: { start: number; end: number }[] = [];
   for (const p of rigStats.offlinePeriods) {
     const pStart = new Date(p.start).getTime();
     const pEnd   = p.end ? new Date(p.end).getTime() : nowMs;
     if (pEnd < clampMs) continue;
-    rawOfflineRanges.push({ start: Math.max(pStart, clampMs), end: pEnd });
+    redRanges.push({ start: Math.max(pStart, clampMs), end: pEnd });
   }
   if (isRigCurrentlyOffline && lastSample) {
-    const covered = rawOfflineRanges.some(r => r.end >= lastSample.ts);
-    if (!covered) rawOfflineRanges.push({ start: lastSample.ts, end: nowMs });
+    const covered = redRanges.some(r => r.end >= lastSample.ts);
+    if (!covered) redRanges.push({ start: lastSample.ts, end: nowMs });
   }
 
   // ── 🟣 PURPLE — Pool offline periods ─────────────────────────────────────
-  // Source : samples with isPoolOffline=true.
-  // Live gap: poolOfflineSticky && last sample gap not covered.
+  // Built from samples with isPoolOffline=true, then expanded to absorb any
+  // adjacent red offline periods (within 60 s). This way rapid
+  // disconnect/reconnect cycles caused by a bad pool URL appear purple
+  // immediately instead of a mess of thin red bars.
+  const ABSORB_GAP_MS = 60_000;
   const poolOfflineRanges: { start: number; end: number }[] = [];
   {
-    let poolRunStart: number | null = null;
-    let poolRunEnd:   number | null = null;
+    let runStart: number | null = null;
+    let runEnd:   number | null = null;
     for (const s of filtered) {
       if (s.isPoolOffline) {
-        if (poolRunStart === null) poolRunStart = s.ts;
-        poolRunEnd = s.ts;
+        if (runStart === null) runStart = s.ts;
+        runEnd = s.ts;
       } else {
-        if (poolRunStart !== null && poolRunEnd !== null)
-          poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
-        poolRunStart = null; poolRunEnd = null;
+        if (runStart !== null && runEnd !== null)
+          poolOfflineRanges.push({ start: runStart, end: runEnd });
+        runStart = null; runEnd = null;
       }
     }
-    if (poolRunStart !== null && poolRunEnd !== null)
-      poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
+    if (runStart !== null && runEnd !== null)
+      poolOfflineRanges.push({ start: runStart, end: runEnd });
     if (isPoolCurrentlyOffline && lastSample) {
       const covered = poolOfflineRanges.some(r => r.end >= lastSample.ts);
       if (!covered) poolOfflineRanges.push({ start: lastSample.ts, end: nowMs });
     }
-  }
-
-  // Merge nearby red ranges: gaps smaller than 60 s (one flush cycle) are
-  // caused by rapid disconnect/reconnect retries and should be treated as one
-  // continuous offline block to avoid the "thin red bar" visual mess.
-  const MERGE_GAP_MS = 60_000;
-  const mergedOfflineRanges: { start: number; end: number }[] = [];
-  {
-    const sorted = [...rawOfflineRanges].sort((a, b) => a.start - b.start);
-    for (const r of sorted) {
-      const prev = mergedOfflineRanges[mergedOfflineRanges.length - 1];
-      if (prev && r.start - prev.end <= MERGE_GAP_MS) {
-        prev.end = Math.max(prev.end, r.end);
-      } else {
-        mergedOfflineRanges.push({ ...r });
+    // Expand each purple range to absorb adjacent/overlapping red ranges.
+    // Repeat until stable (a single red range absorbed can expose another).
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const pool of poolOfflineRanges) {
+        for (const red of redRanges) {
+          if (red.start <= pool.end + ABSORB_GAP_MS && red.end >= pool.start - ABSORB_GAP_MS) {
+            if (red.start < pool.start || red.end > pool.end) {
+              pool.start = Math.min(pool.start, red.start);
+              pool.end   = Math.max(pool.end,   red.end);
+              changed = true;
+            }
+          }
+        }
       }
     }
   }
 
-  // Clip merged-red ranges against purple: subtract any pool-offline overlap
-  // so the purple layer is never obscured by red disconnect bars.
-  const offlineRanges: { start: number; end: number }[] = [];
-  for (const red of mergedOfflineRanges) {
-    const cuts: { start: number; end: number }[] = poolOfflineRanges
-      .filter(p => p.start < red.end && p.end > red.start)
-      .map(p => ({ start: Math.max(p.start, red.start), end: Math.min(p.end, red.end) }))
-      .sort((a, b) => a.start - b.start);
-    let cursor = red.start;
-    for (const cut of cuts) {
-      if (cut.start > cursor) offlineRanges.push({ start: cursor, end: cut.start });
-      cursor = cut.end;
-    }
-    if (cursor < red.end) offlineRanges.push({ start: cursor, end: red.end });
-  }
+  // Keep only red ranges NOT absorbed into a purple range.
+  const offlineRanges = redRanges.filter(
+    red => !poolOfflineRanges.some(p => red.start >= p.start && red.end <= p.end),
+  );
 
   return (
     <Card className="bg-card/50 border-border/50">
