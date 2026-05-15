@@ -132,16 +132,21 @@ export function RigHashrateChart({ rigStats, rigLive }: Props) {
   // Source : offlinePeriods table (idle + rental).
   // Open period (endedAt=null) → pEnd=nowMs → live.
   // Live gap: rig just disconnected, DB hasn't flushed yet (~60 s).
-  const offlineRanges: { start: number; end: number }[] = [];
+  //
+  // NOTE: pool-offline ranges (🟣) take visual priority. Any red segment that
+  // overlaps a purple range is clipped/removed so the pool-offline colour isn't
+  // obscured by rapid disconnect/reconnect cycles (each reconnect attempt adds
+  // a thin red bar that accumulates into a pink mess beneath the purple layer).
+  const rawOfflineRanges: { start: number; end: number }[] = [];
   for (const p of rigStats.offlinePeriods) {
     const pStart = new Date(p.start).getTime();
     const pEnd   = p.end ? new Date(p.end).getTime() : nowMs;
     if (pEnd < clampMs) continue;
-    offlineRanges.push({ start: Math.max(pStart, clampMs), end: pEnd });
+    rawOfflineRanges.push({ start: Math.max(pStart, clampMs), end: pEnd });
   }
   if (isRigCurrentlyOffline && lastSample) {
-    const covered = offlineRanges.some(r => r.end >= lastSample.ts);
-    if (!covered) offlineRanges.push({ start: lastSample.ts, end: nowMs });
+    const covered = rawOfflineRanges.some(r => r.end >= lastSample.ts);
+    if (!covered) rawOfflineRanges.push({ start: lastSample.ts, end: nowMs });
   }
 
   // ── 🟣 PURPLE — Pool offline periods ─────────────────────────────────────
@@ -167,6 +172,23 @@ export function RigHashrateChart({ rigStats, rigLive }: Props) {
       const covered = poolOfflineRanges.some(r => r.end >= lastSample.ts);
       if (!covered) poolOfflineRanges.push({ start: lastSample.ts, end: nowMs });
     }
+  }
+
+  // Clip red ranges against purple: subtract any pool-offline overlap so the
+  // purple layer is never obscured by accumulated thin red disconnect bars.
+  const offlineRanges: { start: number; end: number }[] = [];
+  for (const red of rawOfflineRanges) {
+    // Collect cut points from every purple range that overlaps this red range.
+    const cuts: { start: number; end: number }[] = poolOfflineRanges
+      .filter(p => p.start < red.end && p.end > red.start)
+      .map(p => ({ start: Math.max(p.start, red.start), end: Math.min(p.end, red.end) }))
+      .sort((a, b) => a.start - b.start);
+    let cursor = red.start;
+    for (const cut of cuts) {
+      if (cut.start > cursor) offlineRanges.push({ start: cursor, end: cut.start });
+      cursor = cut.end;
+    }
+    if (cursor < red.end) offlineRanges.push({ start: cursor, end: red.end });
   }
 
   return (
