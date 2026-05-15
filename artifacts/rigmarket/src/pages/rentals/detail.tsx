@@ -527,6 +527,7 @@ export default function RentalCockpit() {
                   : poolAuthFailed ? "Pool rejected credentials"
                   : poolConnected && minerConnected ? "Connected — waiting for shares"
                   : minerConnected ? "Pool disconnected — reconnecting"
+                  : (live?.poolIsOffline) ? "Pool unreachable — please switch pool"
                   : "Waiting for rig first"
                 }
               />
@@ -579,12 +580,13 @@ export default function RentalCockpit() {
                 // immediate and never smoothed by the grace period.
                 const hasDelivered = (live.sharesAccepted ?? 0) > 0;
                 const hashrateZeroNow = (live.currentHashrateH ?? 0) === 0;
-                // Purple banner: pool TCP is down — takes priority over everything.
-                // upstreamConnected carries the last-known pool state even after
-                // the miner TCP session closes (proxy persists it 10 min), so
-                // this fires when the miner disconnected BECAUSE the pool was down.
-                const showEstablishing = !live.upstreamConnected;
-                // Red banner: pool TCP is up but miner's socket dropped → rig issue.
+                // Purple banner: pool is offline — takes priority over everything.
+                // We use live.poolIsOffline (raw, not grace-smoothed) so we catch
+                // the case where the renter switched to a bad pool URL mid-rental:
+                // the grace period keeps upstreamConnected=true for 15 min after
+                // the last share, which would otherwise show the wrong red banner.
+                const showEstablishing = live.poolIsOffline ?? !live.upstreamConnected;
+                // Red banner: pool TCP is confirmed up but miner's socket dropped → rig issue.
                 const showOffline = !showEstablishing && !live.minerConnected;
                 // Amber banner: both sockets connected but no hashrate flowing →
                 // pool accepted TCP but isn't sending work (wrong credentials
@@ -610,8 +612,8 @@ export default function RentalCockpit() {
                     <div className="flex items-center gap-3 rounded-md border border-purple-500/30 bg-purple-500/10 p-3">
                       <Wifi className="w-5 h-5 text-purple-400 shrink-0 animate-pulse" />
                       <div className="text-xs">
-                        <div className="font-mono font-bold text-purple-400 uppercase">Pool offline — reconnecting</div>
-                        <div className="text-muted-foreground">The destination pool is unreachable. The rig will resume hashing the moment the pool link is restored.</div>
+                        <div className="font-mono font-bold text-purple-400 uppercase">Your pool is offline — action required</div>
+                        <div className="text-muted-foreground">Your destination pool is unreachable. Please verify your pool URL and worker credentials, then use <span className="font-semibold text-purple-300">Switch Pool</span> to update it. The rig will resume hashing immediately once a working pool is set.</div>
                       </div>
                     </div>
                   ) : null}
@@ -746,7 +748,8 @@ export default function RentalCockpit() {
 
                     // Current-state live conditions — must match banner logic above.
                     // Purple: pool TCP down (regardless of miner state).
-                    const isPoolCurrentlyOffline = !live?.upstreamConnected;
+                    // Use poolIsOffline (raw, not grace-smoothed) to match the banner.
+                    const isPoolCurrentlyOffline = live?.poolIsOffline ?? !live?.upstreamConnected;
                     // Red: pool up but miner socket dropped.
                     const isMinerCurrentlyOffline =
                       !isPoolCurrentlyOffline && !live?.minerConnected && !!lastFilteredSample;

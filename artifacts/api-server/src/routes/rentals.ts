@@ -862,6 +862,14 @@ router.get("/rentals/:id/live", async (req, res) => {
     status: rental.status,
     minerConnected: minerConnectedDisplay,
     upstreamConnected: upstreamConnectedDisplay,
+    // Raw pool-offline state — NOT grace-smoothed. The grace window keeps
+    // upstreamConnected=true for 15 min after the last share to avoid UI
+    // flapping on normal reconnects, but that incorrectly hides a "pool
+    // offline" condition when the renter switches to a bad pool URL. This
+    // field always reflects the actual proxy state so the frontend can show
+    // the correct purple "pool offline" banner instead of the red "rig
+    // offline" banner.
+    poolIsOffline: !live.upstreamConnected,
     poolAuthFailed: live.poolAuthFailed,
     currentHashrateH: displayHashrateH,
     currentHashrate: displayHashrateH / algMultiplier,
