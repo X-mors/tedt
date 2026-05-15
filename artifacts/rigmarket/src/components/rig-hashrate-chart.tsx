@@ -174,11 +174,27 @@ export function RigHashrateChart({ rigStats, rigLive }: Props) {
     }
   }
 
-  // Clip red ranges against purple: subtract any pool-offline overlap so the
-  // purple layer is never obscured by accumulated thin red disconnect bars.
+  // Merge nearby red ranges: gaps smaller than 60 s (one flush cycle) are
+  // caused by rapid disconnect/reconnect retries and should be treated as one
+  // continuous offline block to avoid the "thin red bar" visual mess.
+  const MERGE_GAP_MS = 60_000;
+  const mergedOfflineRanges: { start: number; end: number }[] = [];
+  {
+    const sorted = [...rawOfflineRanges].sort((a, b) => a.start - b.start);
+    for (const r of sorted) {
+      const prev = mergedOfflineRanges[mergedOfflineRanges.length - 1];
+      if (prev && r.start - prev.end <= MERGE_GAP_MS) {
+        prev.end = Math.max(prev.end, r.end);
+      } else {
+        mergedOfflineRanges.push({ ...r });
+      }
+    }
+  }
+
+  // Clip merged-red ranges against purple: subtract any pool-offline overlap
+  // so the purple layer is never obscured by red disconnect bars.
   const offlineRanges: { start: number; end: number }[] = [];
-  for (const red of rawOfflineRanges) {
-    // Collect cut points from every purple range that overlaps this red range.
+  for (const red of mergedOfflineRanges) {
     const cuts: { start: number; end: number }[] = poolOfflineRanges
       .filter(p => p.start < red.end && p.end > red.start)
       .map(p => ({ start: Math.max(p.start, red.start), end: Math.min(p.end, red.end) }))
