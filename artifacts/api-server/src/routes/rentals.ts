@@ -685,6 +685,29 @@ router.get("/rentals/:id/stats", async (req, res) => {
 
   const samples = [...oldSamples, ...recentRaw.map(toPoint)];
 
+  // Derive pool-offline periods from the raw (non-bucketized) chronological
+  // samples so timestamps are as accurate as the 60-s flush resolution allows.
+  const poolOfflinePeriods: { start: string; end: string | null }[] = [];
+  {
+    let runStart: Date | null = null;
+    for (const s of chronological) {
+      if (s.poolOffline && runStart === null) {
+        runStart = s.sampledAt;
+      } else if (!s.poolOffline && runStart !== null) {
+        poolOfflinePeriods.push({ start: runStart.toISOString(), end: s.sampledAt.toISOString() });
+        runStart = null;
+      }
+    }
+    if (runStart !== null) {
+      // Still offline at end of samples.
+      const lastTs = chronological[chronological.length - 1]?.sampledAt;
+      poolOfflinePeriods.push({
+        start: runStart.toISOString(),
+        end: rental.status === 'active' ? null : (lastTs?.toISOString() ?? null),
+      });
+    }
+  }
+
   // Combine DB-persisted cumulative shares with in-memory shares since the
   // last flush. The DB row keeps totals across server restarts; the in-memory
   // delta covers shares received in the current flush window. Together they
@@ -776,6 +799,7 @@ router.get("/rentals/:id/stats", async (req, res) => {
     upstreamConnected: upstreamConnectedDisplay,
     poolAuthFailed: live.poolAuthFailed,
     offlinePeriods,
+    poolOfflinePeriods,
   });
   res.setHeader("Cache-Control", "no-store");
   res.json(data);

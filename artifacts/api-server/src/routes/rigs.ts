@@ -426,8 +426,13 @@ router.get("/rigs/:id/live", async (req, res) => {
       if (liveStats.minerConnected) {
         upstreamConnected = liveStats.upstreamConnected;
         poolAuthFailed = liveStats.poolAuthFailed;
+      } else {
+        // Miner TCP dropped (rapid retry cycle due to bad pool) — use the
+        // last-known pool state so the owner's chart immediately turns purple
+        // instead of waiting for the next 60-s sample flush.
+        const lastState = proxyState.getLastKnownPoolState(rentalId);
+        if (lastState !== null) upstreamConnected = lastState;
       }
-      // minerConnected=false → upstreamConnected stays null (unknown)
     } else {
       // Fallback mode: check owner's configured pool connection.
       const fallbackStatus = proxyState.getFallbackPoolStatus(id);

@@ -1101,6 +1101,69 @@ export default function RentalCockpit() {
           </Card>
         </div>
 
+        {/* Offline event log — shown when stats are available */}
+        {stats && (stats.offlinePeriods.length > 0 || stats.poolOfflinePeriods.length > 0) && (() => {
+          const fmtTime = (iso: string) => new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          const fmtDur = (startIso: string, endIso: string | null) => {
+            const ms = endIso ? new Date(endIso).getTime() - new Date(startIso).getTime() : Date.now() - new Date(startIso).getTime();
+            if (ms < 0) return '—';
+            const s = Math.floor(ms / 1000);
+            if (s < 60) return `${s}s`;
+            const m = Math.floor(s / 60), rs = s % 60;
+            if (m < 60) return `${m}m ${rs}s`;
+            return `${Math.floor(m / 60)}h ${m % 60}m`;
+          };
+          const PeriodTable = ({ periods, color }: { periods: { start: string; end: string | null }[]; color: 'red' | 'purple' }) => {
+            const colors = color === 'red'
+              ? { border: 'border-red-500/20', bg: 'bg-red-500/5', dot: 'bg-red-500', text: 'text-red-500', row: 'border-red-500/10' }
+              : { border: 'border-purple-500/20', bg: 'bg-purple-500/5', dot: 'bg-purple-500', text: 'text-purple-400', row: 'border-purple-500/10' };
+            return (
+              <div className={`rounded-md border ${colors.border} ${colors.bg} overflow-hidden`}>
+                <table className="w-full text-[11px] font-mono">
+                  <thead>
+                    <tr className={`border-b ${colors.row} text-muted-foreground`}>
+                      <th className="text-left px-3 py-1.5 font-medium">Started</th>
+                      <th className="text-left px-3 py-1.5 font-medium">Ended</th>
+                      <th className="text-right px-3 py-1.5 font-medium">Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {periods.map((p, i) => (
+                      <tr key={i} className={i < periods.length - 1 ? `border-b ${colors.row}` : ''}>
+                        <td className="px-3 py-1.5">{fmtTime(p.start)}</td>
+                        <td className={`px-3 py-1.5 ${!p.end ? colors.text : ''}`}>{p.end ? fmtTime(p.end) : 'ongoing…'}</td>
+                        <td className="px-3 py-1.5 text-right">{fmtDur(p.start, p.end)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          };
+          return (
+            <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {stats.offlinePeriods.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-sm bg-red-500 shrink-0" />
+                    <span className="text-xs font-mono font-semibold text-muted-foreground uppercase">Rig Offline Periods ({stats.offlinePeriods.length})</span>
+                  </div>
+                  <PeriodTable periods={stats.offlinePeriods} color="red" />
+                </div>
+              )}
+              {stats.poolOfflinePeriods.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-sm bg-purple-500 shrink-0" />
+                    <span className="text-xs font-mono font-semibold text-muted-foreground uppercase">Pool Offline Periods ({stats.poolOfflinePeriods.length})</span>
+                  </div>
+                  <PeriodTable periods={stats.poolOfflinePeriods} color="purple" />
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Right: Pool config + Rental summary */}
         <div className="space-y-6">
 
