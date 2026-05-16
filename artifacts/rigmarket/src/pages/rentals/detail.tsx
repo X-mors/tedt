@@ -768,45 +768,31 @@ export default function RentalCockpit() {
                         }]
                       : filtered;
 
-                    // Build offline ranges (red) and pool-offline ranges (purple) from samples.
+                    // Build offline bands from DB-persisted periods — these survive reconnects.
+                    // A period with end=null is ongoing — rendered extending to nowMs.
+                    const rentalRangeStart = rentalRange !== null ? nowMs - rentalRange : 0;
                     const offlineRanges: { start: number; end: number }[] = [];
+                    for (const p of (stats.offlinePeriods ?? [])) {
+                      const pStart = new Date(p.start).getTime();
+                      const pEnd = p.end ? new Date(p.end).getTime() : nowMs;
+                      if (pEnd < rentalRangeStart) continue;
+                      offlineRanges.push({ start: Math.max(pStart, rentalRangeStart), end: pEnd });
+                    }
                     const poolOfflineRanges: { start: number; end: number }[] = [];
-                    {
-                      let offRunStart: number | null = null;
-                      let offRunEnd: number | null = null;
-                      let poolRunStart: number | null = null;
-                      let poolRunEnd: number | null = null;
-                      for (const s of rentalChartData) {
-                        const isPoolOff = s.isPoolOffline === true;
-                        if (isPoolOff) {
-                          if (poolRunStart === null) poolRunStart = s.ts;
-                          poolRunEnd = s.ts;
-                          if (offRunStart !== null && offRunEnd !== null) offlineRanges.push({ start: offRunStart, end: offRunEnd });
-                          offRunStart = null; offRunEnd = null;
-                        } else if (s.hashrate === 0) {
-                          if (offRunStart === null) offRunStart = s.ts;
-                          offRunEnd = s.ts;
-                          if (poolRunStart !== null && poolRunEnd !== null) poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
-                          poolRunStart = null; poolRunEnd = null;
-                        } else {
-                          if (offRunStart !== null && offRunEnd !== null) offlineRanges.push({ start: offRunStart, end: offRunEnd });
-                          if (poolRunStart !== null && poolRunEnd !== null) poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
-                          offRunStart = null; offRunEnd = null;
-                          poolRunStart = null; poolRunEnd = null;
-                        }
-                      }
-                      if (offRunStart !== null && offRunEnd !== null) offlineRanges.push({ start: offRunStart, end: offRunEnd });
-                      if (poolRunStart !== null && poolRunEnd !== null) poolOfflineRanges.push({ start: poolRunStart, end: poolRunEnd });
+                    for (const p of (stats.poolOfflinePeriods ?? [])) {
+                      const pStart = new Date(p.start).getTime();
+                      const pEnd = p.end ? new Date(p.end).getTime() : nowMs;
+                      if (pEnd < rentalRangeStart) continue;
+                      poolOfflineRanges.push({ start: Math.max(pStart, rentalRangeStart), end: pEnd });
                     }
-                    // Live gap: only when offline state is active but NO matching samples exist yet
-                    // (gap opened between flush ticks — synthetic lone point has zero width).
-                    const hasZeroSamplesInFiltered = filtered.some(s => s.hashrate === 0 && !s.isPoolOffline);
-                    const hasPoolOfflineSamplesInFiltered = filtered.some(s => s.isPoolOffline === true);
-                    if (isMinerCurrentlyOffline && lastFilteredSample && !hasZeroSamplesInFiltered) {
-                      offlineRanges.push({ start: lastFilteredSample.ts, end: nowMs });
+                    // Live gap: offline started < 60 s ago (before first DB flush).
+                    if (isMinerCurrentlyOffline && lastFilteredSample) {
+                      const hasOpenPeriod = stats.offlinePeriods?.some(p => p.end === null);
+                      if (!hasOpenPeriod) offlineRanges.push({ start: lastFilteredSample.ts, end: nowMs });
                     }
-                    if (isPoolCurrentlyOffline && lastFilteredSample && !hasPoolOfflineSamplesInFiltered) {
-                      poolOfflineRanges.push({ start: lastFilteredSample.ts, end: nowMs });
+                    if (isPoolCurrentlyOffline && lastFilteredSample) {
+                      const hasOpenPeriod = stats.poolOfflinePeriods?.some(p => p.end === null);
+                      if (!hasOpenPeriod) poolOfflineRanges.push({ start: lastFilteredSample.ts, end: nowMs });
                     }
                     return (
                     <div className="space-y-1">

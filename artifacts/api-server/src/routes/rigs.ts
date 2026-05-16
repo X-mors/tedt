@@ -344,6 +344,25 @@ router.get("/rigs/:id/stats", async (req, res) => {
     end: p.endedAt ? p.endedAt.toISOString() : null,
   }));
 
+  // Derive pool-offline periods from the chronological (non-bucketed) samples
+  // so the chart can show persistent purple bands sourced from DB data.
+  const poolOfflinePeriods: { start: string; end: string | null }[] = [];
+  {
+    let runStart: Date | null = null;
+    for (const s of dbSamples) {
+      if (s.poolOffline && runStart === null) {
+        runStart = s.sampledAt;
+      } else if (!s.poolOffline && runStart !== null) {
+        poolOfflinePeriods.push({ start: runStart.toISOString(), end: s.sampledAt.toISOString() });
+        runStart = null;
+      }
+    }
+    if (runStart !== null) {
+      const lastTs = dbSamples[dbSamples.length - 1]?.sampledAt;
+      poolOfflinePeriods.push({ start: runStart.toISOString(), end: lastTs?.toISOString() ?? null });
+    }
+  }
+
   const data = GetRigStatsResponse.parse({
     rigId: id,
     algorithmUnit: rig.algorithmUnit,
@@ -351,6 +370,7 @@ router.get("/rigs/:id/stats", async (req, res) => {
     retentionDays: RETENTION_DAYS,
     samples,
     offlinePeriods,
+    poolOfflinePeriods,
   });
   res.setHeader("Cache-Control", "no-store");
   res.json(data);

@@ -512,6 +512,12 @@ export const GetRigStatsResponse = zod.object({
       end: zod.string().nullable(),
     }),
   ).default([]),
+  poolOfflinePeriods: zod.array(
+    zod.object({
+      start: zod.string(),
+      end: zod.string().nullable(),
+    }),
+  ).default([]),
 });
 
 /**

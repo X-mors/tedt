@@ -142,33 +142,26 @@ export function RigHashrateChart({ rigStats, rigLive }: Props) {
   }
 
   // ── 🟣 PURPLE — Pool offline periods ─────────────────────────────────────
-  // Built from samples with isPoolOffline=true, then expanded to absorb any
-  // adjacent red offline periods (within 60 s). This way rapid
-  // disconnect/reconnect cycles caused by a bad pool URL appear purple
-  // immediately instead of a mess of thin red bars.
+  // Source: DB-persisted poolOfflinePeriods (same pattern as red offlinePeriods).
+  // A period with end=null is ongoing — extend it to nowMs for display.
+  // Absorb adjacent/overlapping red ranges (within 60 s gap) so rapid
+  // disconnect/reconnect cycles caused by a bad pool URL appear purple.
   const ABSORB_GAP_MS = 60_000;
   const poolOfflineRanges: { start: number; end: number }[] = [];
+  for (const p of (rigStats.poolOfflinePeriods ?? [])) {
+    const pStart = new Date(p.start).getTime();
+    const pEnd   = p.end ? new Date(p.end).getTime() : nowMs;
+    if (pEnd < clampMs) continue;
+    poolOfflineRanges.push({ start: Math.max(pStart, clampMs), end: pEnd });
+  }
+  // Live gap: pool went offline < 60 s ago (no flush yet) — no open DB period exists.
+  if (isPoolCurrentlyOffline && lastSample) {
+    const hasOpenPeriod = (rigStats.poolOfflinePeriods ?? []).some(p => p.end === null);
+    if (!hasOpenPeriod) poolOfflineRanges.push({ start: lastSample.ts, end: nowMs });
+  }
+  // Expand each purple range to absorb adjacent/overlapping red ranges.
+  // Repeat until stable (a single absorbed red can expose another).
   {
-    let runStart: number | null = null;
-    let runEnd:   number | null = null;
-    for (const s of filtered) {
-      if (s.isPoolOffline) {
-        if (runStart === null) runStart = s.ts;
-        runEnd = s.ts;
-      } else {
-        if (runStart !== null && runEnd !== null)
-          poolOfflineRanges.push({ start: runStart, end: runEnd });
-        runStart = null; runEnd = null;
-      }
-    }
-    if (runStart !== null && runEnd !== null)
-      poolOfflineRanges.push({ start: runStart, end: runEnd });
-    if (isPoolCurrentlyOffline && lastSample) {
-      const covered = poolOfflineRanges.some(r => r.end >= lastSample.ts);
-      if (!covered) poolOfflineRanges.push({ start: lastSample.ts, end: nowMs });
-    }
-    // Expand each purple range to absorb adjacent/overlapping red ranges.
-    // Repeat until stable (a single red range absorbed can expose another).
     let changed = true;
     while (changed) {
       changed = false;
