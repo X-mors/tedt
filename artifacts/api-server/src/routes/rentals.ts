@@ -709,7 +709,7 @@ router.get("/rentals/:id/stats", async (req, res) => {
 
   const poolOfflinePeriods = poolOfflinePeriodsRaw.map((p) => {
     const clampedStart = p.startedAt < rentalStart ? rentalStart : p.startedAt;
-    const periodEndMs = p.endedAt ? p.endedAt.getTime() : nowMs;
+    const periodEndMs = p.endedAt ? p.endedAt.getTime() : now;
     const clampedEndMs = Math.min(periodEndMs, rentalEnd.getTime());
     return {
       start: clampedStart.toISOString(),
