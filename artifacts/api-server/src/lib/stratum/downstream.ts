@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { randomBytes } from "node:crypto";
 import { randomUUID } from "node:crypto";
 import { eq, and, asc, isNull, desc } from "drizzle-orm";
-import { db, rigsTable, rentalsTable, proxyAuthFailuresTable, usersTable, algorithmsTable, rigOfflinePeriodsTable, rigHashSamplesTable } from "@workspace/db";
+import { db, rigsTable, rentalsTable, proxyAuthFailuresTable, usersTable, algorithmsTable, rigOfflinePeriodsTable, rigHashSamplesTable, poolOfflinePeriodsTable } from "@workspace/db";
 import { logger } from "../logger";
 import { proxyState } from "./state";
 import { flushAndRemoveRentalWindow } from "./persistence";
@@ -1038,6 +1038,11 @@ export class DownstreamSession extends EventEmitter {
         // _applyUpstreamExtranonce may have force-closed (size mismatch).
         if (this.destroyed) return;
         proxyState.setUpstreamConnected(this.sessionId, true);
+        // Close any open pool-offline period — parked upstream reclaimed, pool still connected.
+        void db
+          .update(poolOfflinePeriodsTable)
+          .set({ endedAt: new Date() })
+          .where(and(eq(poolOfflinePeriodsTable.rentalId, rental.id), isNull(poolOfflinePeriodsTable.endedAt)));
         void this._flushSubmitBuffer();
         // Re-send pool's current difficulty (subscribe sent default=1).
         const poolDiff = claimed.getCurrentDifficulty();
@@ -1109,6 +1114,11 @@ export class DownstreamSession extends EventEmitter {
       proxyState.setUpstreamConnected(sid, true);
       logger.info({ sessionId: sid, rigId: this.rigId, rentalId }, "stratum:downstream upstream ready");
       void this._flushSubmitBuffer();
+      // Close any open pool-offline period — upstream is reachable again.
+      void db
+        .update(poolOfflinePeriodsTable)
+        .set({ endedAt: new Date() })
+        .where(and(eq(poolOfflinePeriodsTable.rentalId, rentalId), isNull(poolOfflinePeriodsTable.endedAt)));
     });
 
     upstream.on("authFailed", () => {
@@ -1119,6 +1129,11 @@ export class DownstreamSession extends EventEmitter {
     upstream.on("disconnected", () => {
       proxyState.setUpstreamConnected(sid, false);
       proxyState.incrementUpstreamDisconnect(sid);
+      // Open a pool-offline period — upstream connection to pool dropped.
+      void db
+        .insert(poolOfflinePeriodsTable)
+        .values({ rentalId, startedAt: new Date() });
+      logger.info({ rentalId }, "stratum:downstream pool offline period started");
     });
 
     upstream.on("error", () => {

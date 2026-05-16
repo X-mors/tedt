@@ -10,6 +10,7 @@ import {
   reviewsTable,
   rentalHashSamplesTable,
   rigOfflinePeriodsTable,
+  poolOfflinePeriodsTable,
 } from "@workspace/db";
 import { proxyState } from "../lib/stratum/state";
 import { flushAndRemoveRentalWindow } from "../lib/stratum/persistence";
@@ -685,28 +686,36 @@ router.get("/rentals/:id/stats", async (req, res) => {
 
   const samples = [...oldSamples, ...recentRaw.map(toPoint)];
 
-  // Derive pool-offline periods from the raw (non-bucketized) chronological
-  // samples so timestamps are as accurate as the 60-s flush resolution allows.
-  const poolOfflinePeriods: { start: string; end: string | null }[] = [];
-  {
-    let runStart: Date | null = null;
-    for (const s of chronological) {
-      if (s.poolOffline && runStart === null) {
-        runStart = s.sampledAt;
-      } else if (!s.poolOffline && runStart !== null) {
-        poolOfflinePeriods.push({ start: runStart.toISOString(), end: s.sampledAt.toISOString() });
-        runStart = null;
-      }
-    }
-    if (runStart !== null) {
-      // Still offline at end of samples.
-      const lastTs = chronological[chronological.length - 1]?.sampledAt;
-      poolOfflinePeriods.push({
-        start: runStart.toISOString(),
-        end: rental.status === 'active' ? null : (lastTs?.toISOString() ?? null),
-      });
-    }
-  }
+  // Pool-offline periods from the dedicated DB table — written immediately when
+  // the upstream connection drops (not derived from 60-s samples), so short
+  // outages that reconnect within one sample window are fully captured.
+  const poolOfflinePeriodsRaw = await db
+    .select({
+      startedAt: poolOfflinePeriodsTable.startedAt,
+      endedAt: poolOfflinePeriodsTable.endedAt,
+    })
+    .from(poolOfflinePeriodsTable)
+    .where(
+      and(
+        eq(poolOfflinePeriodsTable.rentalId, id),
+        lt(poolOfflinePeriodsTable.startedAt, rentalEnd),
+        or(
+          isNull(poolOfflinePeriodsTable.endedAt),
+          gte(poolOfflinePeriodsTable.endedAt, rentalStart),
+        ),
+      ),
+    )
+    .orderBy(asc(poolOfflinePeriodsTable.startedAt));
+
+  const poolOfflinePeriods = poolOfflinePeriodsRaw.map((p) => {
+    const clampedStart = p.startedAt < rentalStart ? rentalStart : p.startedAt;
+    const periodEndMs = p.endedAt ? p.endedAt.getTime() : nowMs;
+    const clampedEndMs = Math.min(periodEndMs, rentalEnd.getTime());
+    return {
+      start: clampedStart.toISOString(),
+      end: p.endedAt ? new Date(clampedEndMs).toISOString() : null,
+    };
+  });
 
   // Combine DB-persisted cumulative shares with in-memory shares since the
   // last flush. The DB row keeps totals across server restarts; the in-memory

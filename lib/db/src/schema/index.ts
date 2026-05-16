@@ -6,6 +6,7 @@ export * from "./rentals";
 export * from "./rentalHashSamples";
 export * from "./rigHashSamples";
 export * from "./rigOfflinePeriods";
+export * from "./poolOfflinePeriods";
 export * from "./walletTransactions";
 export * from "./withdrawals";
 export * from "./reviews";
