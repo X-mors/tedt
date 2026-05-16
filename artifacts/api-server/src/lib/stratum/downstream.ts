@@ -56,7 +56,7 @@ export class DownstreamSession extends EventEmitter {
   private extranonce2Size = 4;
   private subscribed = false;
   private authorized = false;
-  private currentDifficulty = 1;
+  private currentDifficulty = 512;
   /** Miner-requested minimum difficulty from mining.configure (`minimum-difficulty.value`).
    *  We must never push a set_difficulty below this — many proxies (stratum-proxy)
    *  hard-disconnect when their floor is violated. */
@@ -644,7 +644,7 @@ export class DownstreamSession extends EventEmitter {
     } else if (rig.stratumHost && rig.stratumPort > 0) {
       await this._startFallbackUpstream(rig);
     } else {
-      this._setDifficulty(1);
+      this._setDifficulty(512);
       logger.info({ rigId: rig.id }, "stratum:downstream no active rental, miner idle");
     }
   }
