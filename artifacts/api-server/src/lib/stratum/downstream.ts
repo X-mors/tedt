@@ -16,14 +16,21 @@ const SUBMIT_BUFFER_MAX = 64;
 
 /**
  * Grace period before a rig disconnect is recorded as an offline period.
- * If the miner reconnects within this window the timer is cancelled and no
- * offline period is written — avoids spurious entries from brief TCP blips
- * or miner reconnect cycles caused by pool unavailability.
- * The disconnect timestamp is captured immediately so the recorded startedAt
- * reflects the actual disconnect moment, not when the grace period expired.
+ * The timer is NEVER cancelled on reconnect — every outage is always recorded.
+ * Instead, reconnectedAt is stored so the timer callback can write a properly
+ * closed period (startedAt=disconnect, endedAt=reconnect) for short outages,
+ * or an open period for long ones that are still ongoing when the timer fires.
+ * This means the offline band only appears on the chart 60 s after the
+ * disconnect, with accurate start/end timestamps regardless of duration.
  */
 const OFFLINE_GRACE_MS = 60_000;
-const offlineGraceTimers = new Map<number, ReturnType<typeof setTimeout>>();
+
+interface OfflineGraceEntry {
+  timer: ReturnType<typeof setTimeout>;
+  disconnectedAt: Date;
+  reconnectedAt: Date | null;
+}
+const offlineGraceTimers = new Map<number, OfflineGraceEntry>();
 
 /**
  * Stores share parameters for replay after upstream reconnects.
@@ -631,12 +638,13 @@ export class DownstreamSession extends EventEmitter {
     const authIp = this.socket.remoteAddress ?? "";
     if (authIp) proxyState.storeIpRigMapping(`${authIp}:${this.localPort}`, rig.id);
 
-    // Cancel any pending offline grace timer — miner reconnected in time.
-    const graceTimer = offlineGraceTimers.get(rig.id);
-    if (graceTimer !== undefined) {
-      clearTimeout(graceTimer);
-      offlineGraceTimers.delete(rig.id);
-      logger.info({ rigId: rig.id }, "stratum:downstream offline grace cancelled — reconnected within window");
+    // If a grace timer is pending for this rig, mark the reconnect time so the
+    // timer callback records a properly closed offline period (start→end).
+    // We do NOT cancel the timer — every outage is always recorded.
+    const graceEntry = offlineGraceTimers.get(rig.id);
+    if (graceEntry !== undefined && graceEntry.reconnectedAt === null) {
+      graceEntry.reconnectedAt = new Date();
+      logger.info({ rigId: rig.id }, "stratum:downstream reconnected within grace window — period will be written with closed endedAt");
     }
 
     // Persist online state and last-seen timestamp so admin can track connectivity.
@@ -1444,20 +1452,31 @@ export class DownstreamSession extends EventEmitter {
         .where(eq(rigsTable.id, this.rigId));
 
       // Capture the disconnect moment now but delay writing the offline period
-      // record by OFFLINE_GRACE_MS (60 s). If the miner reconnects before the
-      // timer fires, _handleAuthorize will cancel it — no offline period created.
-      // This eliminates spurious entries from sub-minute reconnect cycles while
-      // still recording genuine outages with the exact disconnect timestamp.
+      // record by OFFLINE_GRACE_MS (60 s).  The timer is NEVER cancelled —
+      // every genuine outage is recorded.  If the miner reconnects within the
+      // grace window, _handleAuthorize stores the reconnect time in the entry;
+      // when the timer fires it inserts a closed period (startedAt=disconnect,
+      // endedAt=reconnect).  If the miner is still offline when the timer fires,
+      // an open period is inserted instead and closed on the next reconnect.
       const disconnectedAt = new Date();
       const rigId = this.rigId;
-      const timer = setTimeout(() => {
+      const entry: OfflineGraceEntry = {
+        timer: null as unknown as ReturnType<typeof setTimeout>,
+        disconnectedAt,
+        reconnectedAt: null,
+      };
+      entry.timer = setTimeout(() => {
         offlineGraceTimers.delete(rigId);
-        void db
-          .insert(rigOfflinePeriodsTable)
-          .values({ rigId, startedAt: disconnectedAt });
-        logger.info({ rigId, disconnectedAt }, "stratum:downstream rig offline period recorded after grace");
+        const values = entry.reconnectedAt
+          ? { rigId, startedAt: disconnectedAt, endedAt: entry.reconnectedAt }
+          : { rigId, startedAt: disconnectedAt };
+        void db.insert(rigOfflinePeriodsTable).values(values);
+        logger.info(
+          { rigId, disconnectedAt, reconnectedAt: entry.reconnectedAt },
+          "stratum:downstream rig offline period recorded after grace",
+        );
       }, OFFLINE_GRACE_MS);
-      offlineGraceTimers.set(rigId, timer);
+      offlineGraceTimers.set(rigId, entry);
     }
     // Refresh the per-IP extranonce hint so the NEXT connect from this machine
     // gets the correct e1 byte-length and e2size in the subscribe reply.
