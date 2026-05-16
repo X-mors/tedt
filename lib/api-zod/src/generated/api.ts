@@ -1112,6 +1112,8 @@ export const GetRentalStatsResponse = zod.object({
       end: zod.string().nullable(),
     }),
   ).default([]),
+  totalRigOfflineSeconds: zod.number().default(0),
+  totalPoolOfflineSeconds: zod.number().default(0),
 });
 
 /**

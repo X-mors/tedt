@@ -15,6 +15,17 @@ import type { JsonRpcMessage, RecordedShare } from "./types";
 const SUBMIT_BUFFER_MAX = 64;
 
 /**
+ * Grace period before a rig disconnect is recorded as an offline period.
+ * If the miner reconnects within this window the timer is cancelled and no
+ * offline period is written — avoids spurious entries from brief TCP blips
+ * or miner reconnect cycles caused by pool unavailability.
+ * The disconnect timestamp is captured immediately so the recorded startedAt
+ * reflects the actual disconnect moment, not when the grace period expired.
+ */
+const OFFLINE_GRACE_MS = 60_000;
+const offlineGraceTimers = new Map<number, ReturnType<typeof setTimeout>>();
+
+/**
  * Stores share parameters for replay after upstream reconnects.
  * We do NOT store the original request ID so there is no risk of sending a
  * duplicate reply to the miner — the miner already received `result: true`.
@@ -619,6 +630,14 @@ export class DownstreamSession extends EventEmitter {
     // NEXT connect (subscribe runs before auth, so we need this secondary index).
     const authIp = this.socket.remoteAddress ?? "";
     if (authIp) proxyState.storeIpRigMapping(`${authIp}:${this.localPort}`, rig.id);
+
+    // Cancel any pending offline grace timer — miner reconnected in time.
+    const graceTimer = offlineGraceTimers.get(rig.id);
+    if (graceTimer !== undefined) {
+      clearTimeout(graceTimer);
+      offlineGraceTimers.delete(rig.id);
+      logger.info({ rigId: rig.id }, "stratum:downstream offline grace cancelled — reconnected within window");
+    }
 
     // Persist online state and last-seen timestamp so admin can track connectivity.
     await db
@@ -1418,25 +1437,27 @@ export class DownstreamSession extends EventEmitter {
     // Mark rig offline in DB only when no OTHER session for this rigId is live.
     // If a second device with the same rigId is still connected, keep isOnline=true.
     if (this.rigId != null && !proxyState.getRigSession(this.rigId)) {
+      // Update live status immediately so the UI reflects the disconnect.
       void db
         .update(rigsTable)
         .set({ isOnline: false })
         .where(eq(rigsTable.id, this.rigId));
-      // Open a new offline period. Use the last sample timestamp as startedAt —
-      // that's when the rig actually stopped hashing, which is more accurate
-      // than the TCP disconnect time (which can lag by minutes).
-      void db
-        .select({ sampledAt: rigHashSamplesTable.sampledAt })
-        .from(rigHashSamplesTable)
-        .where(eq(rigHashSamplesTable.rigId, this.rigId))
-        .orderBy(desc(rigHashSamplesTable.sampledAt))
-        .limit(1)
-        .then(([lastSample]) => {
-          const startedAt = lastSample?.sampledAt ?? new Date();
-          return db
-            .insert(rigOfflinePeriodsTable)
-            .values({ rigId: this.rigId, startedAt });
-        });
+
+      // Capture the disconnect moment now but delay writing the offline period
+      // record by OFFLINE_GRACE_MS (60 s). If the miner reconnects before the
+      // timer fires, _handleAuthorize will cancel it — no offline period created.
+      // This eliminates spurious entries from sub-minute reconnect cycles while
+      // still recording genuine outages with the exact disconnect timestamp.
+      const disconnectedAt = new Date();
+      const rigId = this.rigId;
+      const timer = setTimeout(() => {
+        offlineGraceTimers.delete(rigId);
+        void db
+          .insert(rigOfflinePeriodsTable)
+          .values({ rigId, startedAt: disconnectedAt });
+        logger.info({ rigId, disconnectedAt }, "stratum:downstream rig offline period recorded after grace");
+      }, OFFLINE_GRACE_MS);
+      offlineGraceTimers.set(rigId, timer);
     }
     // Refresh the per-IP extranonce hint so the NEXT connect from this machine
     // gets the correct e1 byte-length and e2size in the subscribe reply.

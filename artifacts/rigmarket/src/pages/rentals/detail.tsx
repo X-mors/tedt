@@ -1150,6 +1150,58 @@ export default function RentalCockpit() {
           );
         })()}
 
+        {/* Offline duration summary — full-width, shown when any offline time was recorded */}
+        {stats && (stats.totalRigOfflineSeconds > 0 || stats.totalPoolOfflineSeconds > 0) && (() => {
+          const fmtSec = (totalSeconds: number): string => {
+            if (totalSeconds <= 0) return '0s';
+            const d = Math.floor(totalSeconds / 86400);
+            const h = Math.floor((totalSeconds % 86400) / 3600);
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = totalSeconds % 60;
+            const parts: string[] = [];
+            if (d > 0) parts.push(`${d}d`);
+            if (h > 0) parts.push(`${h}h`);
+            if (m > 0) parts.push(`${m}m`);
+            if (s > 0 || parts.length === 0) parts.push(`${s}s`);
+            return parts.join(' ');
+          };
+          return (
+            <div className="md:col-span-3">
+              <div className="rounded-md border border-border/50 bg-muted/10 p-4">
+                <p className="text-xs font-mono font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                  Offline Duration Summary
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-sm bg-red-500 shrink-0" />
+                      <span className="text-xs text-muted-foreground font-mono">Total Rig Offline</span>
+                    </div>
+                    <p className="font-mono font-bold text-lg text-red-400 pl-3.5">
+                      {fmtSec(stats.totalRigOfflineSeconds)}
+                    </p>
+                    <p className="font-mono text-[10px] text-muted-foreground pl-3.5">
+                      {stats.totalRigOfflineSeconds.toLocaleString()}s
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-sm bg-purple-500 shrink-0" />
+                      <span className="text-xs text-muted-foreground font-mono">Total Pool Offline</span>
+                    </div>
+                    <p className="font-mono font-bold text-lg text-purple-400 pl-3.5">
+                      {fmtSec(stats.totalPoolOfflineSeconds)}
+                    </p>
+                    <p className="font-mono text-[10px] text-muted-foreground pl-3.5">
+                      {stats.totalPoolOfflineSeconds.toLocaleString()}s
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Right: Pool config + Rental summary */}
         <div className="space-y-6">
 

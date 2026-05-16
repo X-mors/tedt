@@ -782,6 +782,24 @@ router.get("/rentals/:id/stats", async (req, res) => {
     };
   });
 
+  // Total offline durations for the end-of-rental summary.
+  const rentalWindowEndMs = rental.status === "active"
+    ? Date.now()
+    : (rental.endsAt?.getTime() ?? Date.now());
+  const rentalWindowStartMs = rental.startedAt?.getTime() ?? 0;
+
+  const totalRigOfflineSeconds = offlinePeriods.reduce((sum, p) => {
+    const s = new Date(p.start).getTime();
+    const e = p.end ? new Date(p.end).getTime() : rentalWindowEndMs;
+    return sum + Math.max(0, Math.min(e, rentalWindowEndMs) - Math.max(s, rentalWindowStartMs)) / 1000;
+  }, 0);
+
+  const totalPoolOfflineSeconds = poolOfflinePeriods.reduce((sum, p) => {
+    const s = new Date(p.start).getTime();
+    const e = p.end ? new Date(p.end).getTime() : rentalWindowEndMs;
+    return sum + Math.max(0, Math.min(e, rentalWindowEndMs) - Math.max(s, rentalWindowStartMs)) / 1000;
+  }, 0);
+
   const data = GetRentalStatsResponse.parse({
     rentalId: rental.id,
     currentHashrate: displayHashrateH / algMultiplier,
@@ -800,6 +818,8 @@ router.get("/rentals/:id/stats", async (req, res) => {
     poolAuthFailed: live.poolAuthFailed,
     offlinePeriods,
     poolOfflinePeriods,
+    totalRigOfflineSeconds: Math.round(totalRigOfflineSeconds),
+    totalPoolOfflineSeconds: Math.round(totalPoolOfflineSeconds),
   });
   res.setHeader("Cache-Control", "no-store");
   res.json(data);
