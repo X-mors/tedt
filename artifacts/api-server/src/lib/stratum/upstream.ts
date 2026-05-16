@@ -372,7 +372,7 @@ export class UpstreamClient extends EventEmitter {
       // (notably NiceHash) silently ignore subscribe requests that include a
       // `null` session-id second parameter, leaving the connection hung.
       const subResult = await this._request(subId, "mining.subscribe", [
-        "rigmarket-proxy/1.0",
+        "LiveHashRate.com/1.0",
       ]);
 
       const result = subResult as unknown[];
