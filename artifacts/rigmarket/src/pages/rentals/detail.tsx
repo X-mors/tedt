@@ -389,7 +389,10 @@ export default function RentalCockpit() {
   const prevPoolOfflineRef = useRef<boolean>(false);
   const [clientPoolOfflinePeriods, setClientPoolOfflinePeriods] = useState<{ start: number; end: number }[]>([]);
 
-  const isPoolOfflineForTracking = live?.poolIsOffline ?? (!live?.upstreamConnected ?? false);
+  // Guard: treat "live not yet loaded" as online to avoid spurious offline events.
+  const isPoolOfflineForTracking = live != null
+    ? (live.poolIsOffline ?? !live.upstreamConnected)
+    : false;
   useEffect(() => {
     const wasOffline = prevPoolOfflineRef.current;
     const isOffline = isPoolOfflineForTracking;
@@ -771,7 +774,9 @@ export default function RentalCockpit() {
                     // Current-state live conditions — must match banner logic above.
                     // Purple: pool TCP down (regardless of miner state).
                     // Use poolIsOffline (raw, not grace-smoothed) to match the banner.
-                    const isPoolCurrentlyOffline = live?.poolIsOffline ?? !live?.upstreamConnected;
+                    const isPoolCurrentlyOffline = live != null
+                      ? (live.poolIsOffline ?? !live.upstreamConnected)
+                      : false;
                     // Red: pool up but miner socket dropped.
                     const isMinerCurrentlyOffline =
                       !isPoolCurrentlyOffline && !live?.minerConnected && !!lastFilteredSample;
