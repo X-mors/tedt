@@ -1087,8 +1087,10 @@ export default function RentalCockpit() {
           </Card>
         </div>
 
-        {/* Offline event log — shown when stats are available */}
+        {/* Offline report — live during rental, preserved after */}
         {stats && (stats.offlinePeriods.length > 0 || stats.poolOfflinePeriods.length > 0) && (() => {
+          const isFinished = rental.status !== 'active';
+
           const fmtTime = (iso: string) => new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
           const fmtDur = (startIso: string, endIso: string | null) => {
             const ms = endIso ? new Date(endIso).getTime() - new Date(startIso).getTime() : Date.now() - new Date(startIso).getTime();
@@ -1099,10 +1101,23 @@ export default function RentalCockpit() {
             if (m < 60) return `${m}m ${rs}s`;
             return `${Math.floor(m / 60)}h ${m % 60}m`;
           };
+          const fmtSec = (totalSeconds: number): string => {
+            if (totalSeconds <= 0) return '0s';
+            const d = Math.floor(totalSeconds / 86400);
+            const h = Math.floor((totalSeconds % 86400) / 3600);
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = totalSeconds % 60;
+            const parts: string[] = [];
+            if (d > 0) parts.push(`${d}d`);
+            if (h > 0) parts.push(`${h}h`);
+            if (m > 0) parts.push(`${m}m`);
+            if (s > 0 || parts.length === 0) parts.push(`${s}s`);
+            return parts.join(' ');
+          };
           const PeriodTable = ({ periods, color }: { periods: { start: string; end: string | null }[]; color: 'red' | 'purple' }) => {
             const colors = color === 'red'
-              ? { border: 'border-red-500/20', bg: 'bg-red-500/5', dot: 'bg-red-500', text: 'text-red-500', row: 'border-red-500/10' }
-              : { border: 'border-purple-500/20', bg: 'bg-purple-500/5', dot: 'bg-purple-500', text: 'text-purple-400', row: 'border-purple-500/10' };
+              ? { border: 'border-red-500/20', bg: 'bg-red-500/5', text: 'text-red-500', row: 'border-red-500/10', dot: 'bg-red-500', label: 'text-red-500' }
+              : { border: 'border-purple-500/20', bg: 'bg-purple-500/5', text: 'text-purple-400', row: 'border-purple-500/10', dot: 'bg-purple-500', label: 'text-purple-400' };
             return (
               <div className={`rounded-md border ${colors.border} ${colors.bg} overflow-hidden`}>
                 <table className="w-full text-[11px] font-mono">
@@ -1117,7 +1132,9 @@ export default function RentalCockpit() {
                     {periods.map((p, i) => (
                       <tr key={i} className={i < periods.length - 1 ? `border-b ${colors.row}` : ''}>
                         <td className="px-3 py-1.5">{fmtTime(p.start)}</td>
-                        <td className={`px-3 py-1.5 ${!p.end ? colors.text : ''}`}>{p.end ? fmtTime(p.end) : 'ongoing…'}</td>
+                        <td className={`px-3 py-1.5 ${!p.end ? colors.text + ' animate-pulse' : ''}`}>
+                          {p.end ? fmtTime(p.end) : 'ongoing…'}
+                        </td>
                         <td className="px-3 py-1.5 text-right">{fmtDur(p.start, p.end)}</td>
                       </tr>
                     ))}
@@ -1126,77 +1143,62 @@ export default function RentalCockpit() {
               </div>
             );
           };
-          return (
-            <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-              {stats.offlinePeriods.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-red-500 shrink-0" />
-                    <span className="text-xs font-mono font-semibold text-muted-foreground uppercase">Rig Offline Periods ({stats.offlinePeriods.length})</span>
-                  </div>
-                  <PeriodTable periods={stats.offlinePeriods} color="red" />
-                </div>
-              )}
-              {stats.poolOfflinePeriods.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-purple-500 shrink-0" />
-                    <span className="text-xs font-mono font-semibold text-muted-foreground uppercase">Pool Offline Periods ({stats.poolOfflinePeriods.length})</span>
-                  </div>
-                  <PeriodTable periods={stats.poolOfflinePeriods} color="purple" />
-                </div>
-              )}
-            </div>
-          );
-        })()}
 
-        {/* Offline duration summary — full-width, shown when any offline time was recorded */}
-        {stats && (stats.totalRigOfflineSeconds > 0 || stats.totalPoolOfflineSeconds > 0) && (() => {
-          const fmtSec = (totalSeconds: number): string => {
-            if (totalSeconds <= 0) return '0s';
-            const d = Math.floor(totalSeconds / 86400);
-            const h = Math.floor((totalSeconds % 86400) / 3600);
-            const m = Math.floor((totalSeconds % 3600) / 60);
-            const s = totalSeconds % 60;
-            const parts: string[] = [];
-            if (d > 0) parts.push(`${d}d`);
-            if (h > 0) parts.push(`${h}h`);
-            if (m > 0) parts.push(`${m}m`);
-            if (s > 0 || parts.length === 0) parts.push(`${s}s`);
-            return parts.join(' ');
-          };
+          const hasRigOffline = stats.offlinePeriods.length > 0;
+          const hasPoolOffline = stats.poolOfflinePeriods.length > 0;
+          const showTotals = isFinished && (stats.totalRigOfflineSeconds > 0 || stats.totalPoolOfflineSeconds > 0);
+
           return (
-            <div className="md:col-span-3">
-              <div className="rounded-md border border-border/50 bg-muted/10 p-4">
-                <p className="text-xs font-mono font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                  Offline Duration Summary
-                </p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5">
+            <div className="md:col-span-3 space-y-4">
+              {/* Summary totals — only after rental ends, shown first */}
+              {showTotals && (
+                <div className="rounded-md border border-border/50 bg-muted/10 px-4 py-3 flex flex-wrap gap-x-8 gap-y-2 items-center">
+                  <span className="text-xs font-mono font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
+                    Offline Summary
+                  </span>
+                  {stats.totalRigOfflineSeconds > 0 && (
+                    <span className="flex items-center gap-2 font-mono text-sm">
                       <span className="w-2 h-2 rounded-sm bg-red-500 shrink-0" />
-                      <span className="text-xs text-muted-foreground font-mono">Total Rig Offline</span>
-                    </div>
-                    <p className="font-mono font-bold text-lg text-red-400 pl-3.5">
-                      {fmtSec(stats.totalRigOfflineSeconds)}
-                    </p>
-                    <p className="font-mono text-[10px] text-muted-foreground pl-3.5">
-                      {stats.totalRigOfflineSeconds.toLocaleString()}s
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5">
+                      <span className="text-muted-foreground text-xs">Rig offline total:</span>
+                      <span className="font-bold text-red-400">{fmtSec(stats.totalRigOfflineSeconds)}</span>
+                    </span>
+                  )}
+                  {stats.totalPoolOfflineSeconds > 0 && (
+                    <span className="flex items-center gap-2 font-mono text-sm">
                       <span className="w-2 h-2 rounded-sm bg-purple-500 shrink-0" />
-                      <span className="text-xs text-muted-foreground font-mono">Total Pool Offline</span>
-                    </div>
-                    <p className="font-mono font-bold text-lg text-purple-400 pl-3.5">
-                      {fmtSec(stats.totalPoolOfflineSeconds)}
-                    </p>
-                    <p className="font-mono text-[10px] text-muted-foreground pl-3.5">
-                      {stats.totalPoolOfflineSeconds.toLocaleString()}s
-                    </p>
-                  </div>
+                      <span className="text-muted-foreground text-xs">Pool offline total:</span>
+                      <span className="font-bold text-purple-400">{fmtSec(stats.totalPoolOfflineSeconds)}</span>
+                    </span>
+                  )}
                 </div>
+              )}
+
+              {/* Detailed period tables — live during rental, frozen after */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {hasRigOffline && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-red-500 shrink-0" />
+                      <span className="text-xs font-mono font-semibold text-muted-foreground uppercase">
+                        Rig Offline ({stats.offlinePeriods.length})
+                      </span>
+                      {!isFinished && <span className="text-[10px] text-muted-foreground/60 font-mono">• live</span>}
+                    </div>
+                    <PeriodTable periods={stats.offlinePeriods} color="red" />
+                  </div>
+                )}
+                {hasPoolOffline && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-purple-500 shrink-0" />
+                      <span className="text-xs font-mono font-semibold text-muted-foreground uppercase">
+                        Pool Offline ({stats.poolOfflinePeriods.length})
+                      </span>
+                      {!isFinished && <span className="text-[10px] text-muted-foreground/60 font-mono">• live</span>}
+                    </div>
+                    <PeriodTable periods={stats.poolOfflinePeriods} color="purple" />
+                  </div>
+                )}
               </div>
             </div>
           );
