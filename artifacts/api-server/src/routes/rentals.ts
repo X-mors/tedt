@@ -711,15 +711,43 @@ router.get("/rentals/:id/stats", async (req, res) => {
       )
       .orderBy(asc(poolOfflinePeriodsTable.startedAt));
 
-    poolOfflinePeriods = poolOfflinePeriodsRaw.map((p) => {
+    const mapped = poolOfflinePeriodsRaw.map((p) => {
       const clampedStart = p.startedAt < rentalStart ? rentalStart : p.startedAt;
       const periodEndMs = p.endedAt ? p.endedAt.getTime() : now;
       const clampedEndMs = Math.min(periodEndMs, rentalEnd.getTime());
       return {
         start: clampedStart.toISOString(),
         end: p.endedAt ? new Date(clampedEndMs).toISOString() : null,
+        _endMs: periodEndMs,
       };
     });
+
+    // Merge periods that are within 90 seconds of each other — Stratum upstreams
+    // retry every ~10 s while the pool stays down, so a single pool outage produces
+    // many tiny disconnect→reconnect rows in the DB.  Merging them into one
+    // continuous band gives the correct chart overlay and accurate totals.
+    const MERGE_GAP_MS = 90_000;
+    const merged: typeof poolOfflinePeriods = [];
+    for (const p of mapped) {
+      if (merged.length === 0) {
+        merged.push({ start: p.start, end: p.end });
+        continue;
+      }
+      const last = merged[merged.length - 1];
+      const lastEndMs = last.end ? new Date(last.end).getTime() : now;
+      const currStartMs = new Date(p.start).getTime();
+      if (currStartMs - lastEndMs <= MERGE_GAP_MS) {
+        // Extend the previous period's end to this period's end.
+        // If either is null (ongoing) the merged result stays null (ongoing).
+        merged[merged.length - 1] = {
+          start: last.start,
+          end: p.end === null ? null : (last.end === null ? null : (new Date(p.end) > new Date(last.end) ? p.end : last.end)),
+        };
+      } else {
+        merged.push({ start: p.start, end: p.end });
+      }
+    }
+    poolOfflinePeriods = merged;
   } catch (e) {
     logger.warn({ rentalId: id, err: e }, "pool_offline_periods query failed — table may not exist yet");
   }

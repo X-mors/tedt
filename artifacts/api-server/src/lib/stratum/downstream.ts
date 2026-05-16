@@ -89,6 +89,13 @@ export class DownstreamSession extends EventEmitter {
    */
   private isFallback = false;
   /**
+   * True while a pool-offline period row is open in the DB for the current
+   * rental.  Prevents duplicate INSERT rows when the upstream fires repeated
+   * disconnect→reconnect cycles during a single pool outage (Stratum retries
+   * every ~10 s while the pool stays down).
+   */
+  private _poolOfflineOpen = false;
+  /**
    * Bounded buffer of share parameters received while upstream is unavailable.
    * The miner receives `result: true` immediately; actual pool result is applied
    * when upstream reconnects (no duplicate reply to miner).
@@ -1115,10 +1122,14 @@ export class DownstreamSession extends EventEmitter {
       logger.info({ sessionId: sid, rigId: this.rigId, rentalId }, "stratum:downstream upstream ready");
       void this._flushSubmitBuffer();
       // Close any open pool-offline period — upstream is reachable again.
-      void db
-        .update(poolOfflinePeriodsTable)
-        .set({ endedAt: new Date() })
-        .where(and(eq(poolOfflinePeriodsTable.rentalId, rentalId), isNull(poolOfflinePeriodsTable.endedAt)));
+      if (this._poolOfflineOpen) {
+        this._poolOfflineOpen = false;
+        void db
+          .update(poolOfflinePeriodsTable)
+          .set({ endedAt: new Date() })
+          .where(and(eq(poolOfflinePeriodsTable.rentalId, rentalId), isNull(poolOfflinePeriodsTable.endedAt)));
+        logger.info({ rentalId }, "stratum:downstream pool offline period closed (upstream ready)");
+      }
     });
 
     upstream.on("authFailed", () => {
@@ -1129,11 +1140,18 @@ export class DownstreamSession extends EventEmitter {
     upstream.on("disconnected", () => {
       proxyState.setUpstreamConnected(sid, false);
       proxyState.incrementUpstreamDisconnect(sid);
-      // Open a pool-offline period — upstream connection to pool dropped.
-      void db
-        .insert(poolOfflinePeriodsTable)
-        .values({ rentalId, startedAt: new Date() });
-      logger.info({ rentalId }, "stratum:downstream pool offline period started");
+      // Only open a new pool-offline period if one is not already open.
+      // The upstream retries the connection every ~10 s while the pool is down,
+      // firing repeated disconnect→reconnect cycles.  Without this guard each
+      // retry would INSERT a new row, fragmenting a single outage into dozens of
+      // tiny periods and making the chart and summary wrong.
+      if (!this._poolOfflineOpen) {
+        this._poolOfflineOpen = true;
+        void db
+          .insert(poolOfflinePeriodsTable)
+          .values({ rentalId, startedAt: new Date() });
+        logger.info({ rentalId }, "stratum:downstream pool offline period started");
+      }
     });
 
     upstream.on("error", () => {
