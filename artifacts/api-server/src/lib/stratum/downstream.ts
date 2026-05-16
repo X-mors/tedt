@@ -1228,6 +1228,7 @@ export class DownstreamSession extends EventEmitter {
   private async _handleSubmit(msg: JsonRpcMessage): Promise<void> {
     if (!this.authorized) {
       this._reply(msg.id, false, [24, "Not authorized"]);
+      this._close();
       return;
     }
 
