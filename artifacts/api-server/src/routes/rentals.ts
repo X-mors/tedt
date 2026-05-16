@@ -689,33 +689,40 @@ router.get("/rentals/:id/stats", async (req, res) => {
   // Pool-offline periods from the dedicated DB table — written immediately when
   // the upstream connection drops (not derived from 60-s samples), so short
   // outages that reconnect within one sample window are fully captured.
-  const poolOfflinePeriodsRaw = await db
-    .select({
-      startedAt: poolOfflinePeriodsTable.startedAt,
-      endedAt: poolOfflinePeriodsTable.endedAt,
-    })
-    .from(poolOfflinePeriodsTable)
-    .where(
-      and(
-        eq(poolOfflinePeriodsTable.rentalId, id),
-        lt(poolOfflinePeriodsTable.startedAt, rentalEnd),
-        or(
-          isNull(poolOfflinePeriodsTable.endedAt),
-          gte(poolOfflinePeriodsTable.endedAt, rentalStart),
+  // Wrapped in try/catch so a missing table (pending migration) never crashes
+  // the entire stats endpoint — falls back to empty array gracefully.
+  let poolOfflinePeriods: { start: string; end: string | null }[] = [];
+  try {
+    const poolOfflinePeriodsRaw = await db
+      .select({
+        startedAt: poolOfflinePeriodsTable.startedAt,
+        endedAt: poolOfflinePeriodsTable.endedAt,
+      })
+      .from(poolOfflinePeriodsTable)
+      .where(
+        and(
+          eq(poolOfflinePeriodsTable.rentalId, id),
+          lt(poolOfflinePeriodsTable.startedAt, rentalEnd),
+          or(
+            isNull(poolOfflinePeriodsTable.endedAt),
+            gte(poolOfflinePeriodsTable.endedAt, rentalStart),
+          ),
         ),
-      ),
-    )
-    .orderBy(asc(poolOfflinePeriodsTable.startedAt));
+      )
+      .orderBy(asc(poolOfflinePeriodsTable.startedAt));
 
-  const poolOfflinePeriods = poolOfflinePeriodsRaw.map((p) => {
-    const clampedStart = p.startedAt < rentalStart ? rentalStart : p.startedAt;
-    const periodEndMs = p.endedAt ? p.endedAt.getTime() : now;
-    const clampedEndMs = Math.min(periodEndMs, rentalEnd.getTime());
-    return {
-      start: clampedStart.toISOString(),
-      end: p.endedAt ? new Date(clampedEndMs).toISOString() : null,
-    };
-  });
+    poolOfflinePeriods = poolOfflinePeriodsRaw.map((p) => {
+      const clampedStart = p.startedAt < rentalStart ? rentalStart : p.startedAt;
+      const periodEndMs = p.endedAt ? p.endedAt.getTime() : now;
+      const clampedEndMs = Math.min(periodEndMs, rentalEnd.getTime());
+      return {
+        start: clampedStart.toISOString(),
+        end: p.endedAt ? new Date(clampedEndMs).toISOString() : null,
+      };
+    });
+  } catch (e) {
+    logger.warn({ rentalId: id, err: e }, "pool_offline_periods query failed — table may not exist yet");
+  }
 
   // Combine DB-persisted cumulative shares with in-memory shares since the
   // last flush. The DB row keeps totals across server restarts; the in-memory
