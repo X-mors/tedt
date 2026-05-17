@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq, gte, ilike, isNull, sql, desc } from "drizzle-orm";
+import { and, asc, eq, gte, ilike, isNull, or, sql, desc } from "drizzle-orm";
 import {
   db,
   rigsTable,
@@ -334,7 +334,10 @@ router.get("/rigs/:id/stats", async (req, res) => {
     .where(
       and(
         eq(rigOfflinePeriodsTable.rigId, id),
-        gte(rigOfflinePeriodsTable.startedAt, since),
+        or(
+          isNull(rigOfflinePeriodsTable.endedAt),
+          gte(rigOfflinePeriodsTable.endedAt, since),
+        ),
       ),
     )
     .orderBy(asc(rigOfflinePeriodsTable.startedAt));
