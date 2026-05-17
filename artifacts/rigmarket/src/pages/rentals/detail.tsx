@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useParams, Link } from "wouter";
 import { useGetRental, useGetRentalStats, useGetRentalLive, getGetRentalLiveQueryKey, getGetRentalStatsQueryKey, useCancelRental, useCreateRentalReview, getGetRentalQueryKey, useSwitchRentalPool, useListMyPools, useGetMe, useExtendRental } from "@workspace/api-client-react";
 import { SaveAsPoolButton } from "@/components/save-as-pool-button";
@@ -381,31 +381,6 @@ export default function RentalCockpit() {
   const [reviewBody, setReviewBody] = useState("");
   const [reviewOpen, setReviewOpen] = useState(false);
   const [rentalRange, setRentalRange] = useState<number | null>(null);
-
-  // Client-side pool offline tracking — fallback for when the DB table is missing.
-  // Records the exact start of each pool outage and preserves completed periods
-  // so the purple band persists on the chart even after reconnection.
-  const poolOfflineStartRef = useRef<number | null>(null);
-  const prevPoolOfflineRef = useRef<boolean>(false);
-  const [clientPoolOfflinePeriods, setClientPoolOfflinePeriods] = useState<{ start: number; end: number }[]>([]);
-
-  // Guard: treat "live not yet loaded" as online to avoid spurious offline events.
-  const isPoolOfflineForTracking = live != null
-    ? (live.poolIsOffline ?? !live.upstreamConnected)
-    : false;
-  useEffect(() => {
-    const wasOffline = prevPoolOfflineRef.current;
-    const isOffline = isPoolOfflineForTracking;
-    prevPoolOfflineRef.current = isOffline;
-    if (!wasOffline && isOffline) {
-      poolOfflineStartRef.current = Date.now();
-    } else if (wasOffline && !isOffline && poolOfflineStartRef.current !== null) {
-      const start = poolOfflineStartRef.current;
-      const end = Date.now();
-      poolOfflineStartRef.current = null;
-      setClientPoolOfflinePeriods(prev => [...prev, { start, end }]);
-    }
-  }, [isPoolOfflineForTracking]);
 
   const handleCancel = () => {
     if (confirm("Are you sure you want to cancel this rental? You will be refunded for the remaining time.")) {
@@ -805,42 +780,34 @@ export default function RentalCockpit() {
                       if (pEnd < rentalRangeStart) continue;
                       offlineRanges.push({ start: Math.max(pStart, rentalRangeStart), end: pEnd });
                     }
+                    // Build pool-offline (purple) ranges from sample data — identical
+                    // algorithm to the historical chart's red/purple logic.
+                    // rentalChartData already includes a synthetic live point with
+                    // isPoolOffline: isPoolCurrentlyOffline, so the band auto-extends
+                    // to nowMs while the pool is down and stops the moment it recovers.
                     const poolOfflineRanges: { start: number; end: number }[] = [];
-                    for (const p of (stats.poolOfflinePeriods ?? [])) {
-                      const pStart = new Date(p.start).getTime();
-                      const pEnd = p.end ? new Date(p.end).getTime() : nowMs;
-                      if (pEnd < rentalRangeStart) continue;
-                      poolOfflineRanges.push({ start: Math.max(pStart, rentalRangeStart), end: pEnd });
-                    }
-                    // Client-side completed periods (fallback when DB table missing) —
-                    // only add if not already covered by a DB period.
-                    const dbCovers = (s: number, e: number) =>
-                      (stats.poolOfflinePeriods ?? []).some(p => {
-                        const ps = new Date(p.start).getTime();
-                        const pe = p.end ? new Date(p.end).getTime() : nowMs;
-                        return ps <= s + 10_000 && pe >= e - 10_000;
-                      });
-                    for (const p of clientPoolOfflinePeriods) {
-                      if (p.end < rentalRangeStart) continue;
-                      if (!dbCovers(p.start, p.end)) {
-                        poolOfflineRanges.push({ start: Math.max(p.start, rentalRangeStart), end: Math.min(p.end, nowMs) });
+                    {
+                      let poolRunStart: number | null = null;
+                      let poolRunEnd: number | null = null;
+                      for (const s of rentalChartData) {
+                        if (s.isPoolOffline) {
+                          if (poolRunStart === null) poolRunStart = s.ts;
+                          poolRunEnd = s.ts;
+                        } else {
+                          if (poolRunStart !== null && poolRunEnd !== null) {
+                            if (poolRunEnd >= rentalRangeStart)
+                              poolOfflineRanges.push({ start: Math.max(poolRunStart, rentalRangeStart), end: poolRunEnd });
+                          }
+                          poolRunStart = null; poolRunEnd = null;
+                        }
                       }
+                      if (poolRunStart !== null && poolRunEnd !== null && poolRunEnd >= rentalRangeStart)
+                        poolOfflineRanges.push({ start: Math.max(poolRunStart, rentalRangeStart), end: poolRunEnd });
                     }
-                    // Live gap: pool or miner currently offline.
-                    // Use the exact recorded start time (from ref) if available — not
-                    // lastFilteredSample which can lag by up to 60 s.
+                    // Live gap for miner offline (red) — unchanged.
                     if (isMinerCurrentlyOffline && lastFilteredSample) {
                       const hasOpenPeriod = stats.offlinePeriods?.some(p => p.end === null);
                       if (!hasOpenPeriod) offlineRanges.push({ start: lastFilteredSample.ts, end: nowMs });
-                    }
-                    if (isPoolCurrentlyOffline) {
-                      const hasOpenDbPeriod = stats.poolOfflinePeriods?.some(p => p.end === null);
-                      if (!hasOpenDbPeriod) {
-                        // Use the exact moment we detected the outage (ref), falling back to last sample.
-                        const liveStart = poolOfflineStartRef.current
-                          ?? (lastFilteredSample ? lastFilteredSample.ts : nowMs);
-                        poolOfflineRanges.push({ start: Math.max(liveStart, rentalRangeStart), end: nowMs });
-                      }
                     }
                     return (
                     <div className="space-y-1">
