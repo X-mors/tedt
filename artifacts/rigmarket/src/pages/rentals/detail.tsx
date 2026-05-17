@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useParams, Link } from "wouter";
 import { useGetRental, useGetRentalStats, useGetRentalLive, getGetRentalLiveQueryKey, getGetRentalStatsQueryKey, useCancelRental, useCreateRentalReview, getGetRentalQueryKey, useSwitchRentalPool, useListMyPools, useGetMe, useExtendRental } from "@workspace/api-client-react";
 import { SaveAsPoolButton } from "@/components/save-as-pool-button";
@@ -382,6 +382,27 @@ export default function RentalCockpit() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [rentalRange, setRentalRange] = useState<number | null>(null);
 
+  // Pool-offline sticky — mirrors RigHashrateChart exactly.
+  // Once the pool goes offline, keep the indicator for 45 s after upstreamConnected
+  // returns true so retry-cycle flips never prematurely clear the purple band.
+  const [poolOfflineSticky, setPoolOfflineSticky] = useState(false);
+  const poolOnlineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const uc = live?.upstreamConnected ?? null;
+    if (uc === false) {
+      if (poolOnlineTimerRef.current) { clearTimeout(poolOnlineTimerRef.current); poolOnlineTimerRef.current = null; }
+      setPoolOfflineSticky(true);
+    } else if (uc === true) {
+      if (!poolOnlineTimerRef.current) {
+        poolOnlineTimerRef.current = setTimeout(() => {
+          setPoolOfflineSticky(false);
+          poolOnlineTimerRef.current = null;
+        }, 45_000);
+      }
+    }
+    return () => {};
+  }, [live?.upstreamConnected]);
+
   const handleCancel = () => {
     if (confirm("Are you sure you want to cancel this rental? You will be refunded for the remaining time.")) {
       cancelRental.mutate({ id: rentalId }, {
@@ -746,12 +767,10 @@ export default function RentalCockpit() {
                     const filtered = filteredRaw.map(s => ({ ...s, ts: new Date(s.timestamp).getTime() }));
                     const lastFilteredSample = filtered.length > 0 ? filtered[filtered.length - 1] : null;
 
-                    // Current-state live conditions — must match banner logic above.
-                    // Purple: pool TCP down (regardless of miner state).
-                    // Use poolIsOffline (raw, not grace-smoothed) to match the banner.
-                    const isPoolCurrentlyOffline = live != null
-                      ? (live.poolIsOffline ?? !live.upstreamConnected)
-                      : false;
+                    // Current-state live conditions.
+                    // Purple: use poolOfflineSticky (45 s debounce) — mirrors RigHashrateChart
+                    // so retry-cycle flips during a pool outage never clear the band early.
+                    const isPoolCurrentlyOffline = poolOfflineSticky;
                     // Red: pool up but miner socket dropped.
                     const isMinerCurrentlyOffline =
                       !isPoolCurrentlyOffline && !live?.minerConnected && !!lastFilteredSample;
@@ -780,29 +799,19 @@ export default function RentalCockpit() {
                       if (pEnd < rentalRangeStart) continue;
                       offlineRanges.push({ start: Math.max(pStart, rentalRangeStart), end: pEnd });
                     }
-                    // Build pool-offline (purple) ranges from sample data — identical
-                    // algorithm to the historical chart's red/purple logic.
-                    // rentalChartData already includes a synthetic live point with
-                    // isPoolOffline: isPoolCurrentlyOffline, so the band auto-extends
-                    // to nowMs while the pool is down and stops the moment it recovers.
+                    // 🟣 PURPLE — Pool offline periods (mirrors RigHashrateChart exactly)
+                    // Source: DB-persisted stats.poolOfflinePeriods (sub-second accuracy).
+                    // Live gap: extend to nowMs when sticky is active but no open DB period yet.
                     const poolOfflineRanges: { start: number; end: number }[] = [];
-                    {
-                      let poolRunStart: number | null = null;
-                      let poolRunEnd: number | null = null;
-                      for (const s of rentalChartData) {
-                        if (s.isPoolOffline) {
-                          if (poolRunStart === null) poolRunStart = s.ts;
-                          poolRunEnd = s.ts;
-                        } else {
-                          if (poolRunStart !== null && poolRunEnd !== null) {
-                            if (poolRunEnd >= rentalRangeStart)
-                              poolOfflineRanges.push({ start: Math.max(poolRunStart, rentalRangeStart), end: poolRunEnd });
-                          }
-                          poolRunStart = null; poolRunEnd = null;
-                        }
-                      }
-                      if (poolRunStart !== null && poolRunEnd !== null && poolRunEnd >= rentalRangeStart)
-                        poolOfflineRanges.push({ start: Math.max(poolRunStart, rentalRangeStart), end: poolRunEnd });
+                    for (const p of (stats.poolOfflinePeriods ?? [])) {
+                      const pStart = new Date(p.start).getTime();
+                      const pEnd = p.end ? new Date(p.end).getTime() : nowMs;
+                      if (pEnd < rentalRangeStart) continue;
+                      poolOfflineRanges.push({ start: Math.max(pStart, rentalRangeStart), end: pEnd });
+                    }
+                    if (isPoolCurrentlyOffline && lastFilteredSample) {
+                      const hasOpenPeriod = (stats.poolOfflinePeriods ?? []).some(p => p.end === null);
+                      if (!hasOpenPeriod) poolOfflineRanges.push({ start: lastFilteredSample.ts, end: nowMs });
                     }
                     // Live gap for miner offline (red) — unchanged.
                     if (isMinerCurrentlyOffline && lastFilteredSample) {
